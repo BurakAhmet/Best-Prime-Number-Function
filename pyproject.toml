@@ -36,3 +36,6 @@ pythonpath = ["."]
 markers = [
   "slow: long-running 64-bit full trial division (skip in default CI)",
 ]
+
+[tool.setuptools]
+py-modules = ["is_prime"]
