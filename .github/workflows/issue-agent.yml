@@ -1,0 +1,154 @@
+# Auto-triage and answer issues with project context for humans and coding agents.
+name: Issue agent
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  answer:
+    name: Auto-answer and brief agents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Post agent-aware issue reply
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const issue = context.payload.issue;
+            const title = (issue.title || '').toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const text = `${title}\n${body}`;
+
+            const restrictions = [
+              '**Project restrictions (non-negotiable)**',
+              '',
+              '1. **Deterministic** — same input must always yield the same result (no RNG).',
+              '2. **No stochastic Miller–Rabin** / “probably prime” engines.',
+              '3. **No prime libraries** (e.g. primesieve, sympy.isprime) as the implementation core.',
+              '4. **Allowed:** NumPy / Numba for accelerating *our* trial division.',
+              '5. **64-bit path:** 30030-wheel trial division up to √n; **larger n:** small factors then AKS (can be slow).',
+              '',
+              'Please read [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md), [README](../blob/main/README.md), and [.github/copilot-instructions.md](../blob/main/.github/copilot-instructions.md).',
+              '',
+              '> This repository was largely **created/designed by an AI agent** — review carefully before production use.',
+            ].join('\n');
+
+            // Lightweight “answering” from keywords (no external LLM required).
+            let answer = '';
+            if (/miller|rabin|probabil|random base|stochastic/.test(text)) {
+              answer = [
+                '### Regarding Miller–Rabin / probabilistic tests',
+                '',
+                'This project **explicitly rejects** stochastic Miller–Rabin and similar “probably prime” approaches, even when they are faster for huge integers.',
+                'Fixed small witness sets are only proven for **bounded** ranges (e.g. 64-bit), not for every natural number.',
+                'We keep **trial division** (wheel + Numba) for `n < 2⁶⁴` and **AKS** when needed for larger `n`.',
+                '',
+                'If you need MR-level speed with a different correctness model, that would be a **different project** (or an optional off-by-default experiment behind a clear flag and docs — discuss first).',
+              ].join('\n');
+            } else if (/slow|performance|benchmark|speed|faster/.test(text)) {
+              answer = [
+                '### Regarding performance',
+                '',
+                'Compare the **primitive** vs **optimized** implementations:',
+                '```bash',
+                'NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py',
+                '```',
+                'See [benchmarks/README.md](../blob/main/benchmarks/README.md).',
+                'CI also fails PRs that regress optimized timings by more than ~20% vs the base branch.',
+                'Note: on tiny inputs, overhead can dominate; speedups appear as √n grows.',
+                'Huge primes without small factors may hit **AKS**, which is correct but can be very slow by design under our restrictions.',
+              ].join('\n');
+            } else if (/install|how to use|example|getting started|help/.test(text)) {
+              answer = [
+                '### Quick start',
+                '',
+                '```bash',
+                'pip install -r requirements.txt',
+                'python -c "from is_prime import is_prime; print(is_prime(17))"',
+                'python is_prime.py 9223372036854775783',
+                'pytest -q -m \"not slow\"',
+                '```',
+                'API: `is_prime(n)` where `n` is a non-negative `int` or decimal `str` (supports 100+ digit values).',
+              ].join('\n');
+            } else if (/test|pytest|ci|action|determinism/.test(text)) {
+              answer = [
+                '### Tests & CI',
+                '',
+                '- Fast suite (default CI): `pytest -q -m \"not slow\"`',
+                '- Full suite: `pytest -q`',
+                '- Determinism: `python benchmarks/check_determinism.py`',
+                '- Workflows: `CI`, `Determinism`, `Issue agent`, `PR agent` under `.github/workflows/`.',
+              ].join('\n');
+            } else if (/contribut|pr |pull request|patch|fix|bug/.test(text)) {
+              answer = [
+                '### Contributing / bugs',
+                '',
+                'Thanks — please include a minimal repro when reporting bugs (input `n`, expected vs actual, Python version).',
+                'PRs must keep **determinism** and pass **CI + Determinism** checks. See [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).',
+              ].join('\n');
+            } else {
+              answer = [
+                '### Thanks for opening this issue',
+                '',
+                'An automated project agent received your report. Maintainers and coding agents should treat the **restrictions** below as binding.',
+                'If this is a bug, please add: Python version, exact `n` (or string), expected vs actual, and whether you used `parallel=True/False`.',
+                'If this is a feature request, note whether it can be done **without** stochastic primality tests.',
+              ].join('\n');
+            }
+
+            const footer = [
+              '',
+              '---',
+              '',
+              restrictions,
+              '',
+              '<sub>Automated response from **Issue agent** workflow. It does not replace human maintainers.</sub>',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: answer + footer,
+            });
+
+            // Labels for routing
+            const labels = ['agent-triaged'];
+            if (/bug|error|fail|wrong|incorrect/.test(text)) labels.push('bug');
+            if (/feature|enhancement|add |support /.test(text)) labels.push('enhancement');
+            if (/miller|rabin|probabil|stochastic/.test(text)) labels.push('restrictions');
+            if (/slow|performance|speed|benchmark/.test(text)) labels.push('performance');
+
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels,
+              });
+            } catch (e) {
+              // Labels may not exist yet — create best-effort
+              for (const name of labels) {
+                try {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name,
+                    color: name === 'bug' ? 'd73a4a' : name === 'enhancement' ? 'a2eeef' : '0e8a16',
+                  });
+                } catch (_) { /* exists */ }
+              }
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels,
+              });
+            }

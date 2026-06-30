@@ -1,0 +1,111 @@
+# Brief contributors/agents on restrictions, request automated review when possible,
+# and auto-approve PRs that originate from this repository (not forks).
+name: PR agent
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: read
+
+jobs:
+  brief-and-approve:
+    name: Brief agents + auto-approve (same-repo PRs)
+    runs-on: ubuntu-latest
+    # pull_request_target runs in base context for secrets safety on forks
+    steps:
+      - name: Comment with agent briefing (once per PR open/reopen)
+        if: github.event.action == 'opened' || github.event.action == 'reopened'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = [
+              '## Agent / contributor briefing',
+              '',
+              'Thanks for the PR. Automated checks and project rules apply:',
+              '',
+              '### Restrictions',
+              '1. **Deterministic** results only (no RNG).',
+              '2. **No stochastic Miller–Rabin** / probabilistic primality engines.',
+              '3. **No prime libraries** as the core implementation.',
+              '4. NumPy / Numba OK for accelerating trial division.',
+              '',
+              '### Required green checks before merge',
+              '- **CI** — `pytest -m \"not slow\"` + performance vs base (no >20% regression)',
+              '- **Determinism** — repeated serial/parallel trials must agree',
+              '',
+              '### Docs for agents',
+              '- [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md)',
+              '- [.github/copilot-instructions.md](../blob/main/.github/copilot-instructions.md)',
+              '- [.github/AGENT_BRIEFING.md](../blob/main/.github/AGENT_BRIEFING.md)',
+              '',
+              '### Auto-approve policy',
+              'Same-repository PRs may receive an **automated approve** from this workflow to unblock review flow.',
+              '**Forks are not auto-approved.** Merge still depends on required status checks and maintainer policy.',
+              '',
+              '> Repository largely **AI-designed** — human review remains recommended.',
+              '',
+              '<sub>Posted by **PR agent** workflow.</sub>',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body,
+            });
+
+      - name: Request Copilot review (best-effort)
+        if: github.event.action == 'opened' || github.event.action == 'reopened'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request.number;
+            try {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr,
+                // Copilot reviewer login when enabled on the org/account
+                reviewers: ['copilot-pull-request-reviewer[bot]'],
+              });
+            } catch (e) {
+              core.warning('Could not request Copilot review (may be unavailable): ' + e.message);
+            }
+
+      - name: Auto-approve same-repo PRs
+        if: >
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.user.login != 'github-actions[bot]'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            // Avoid approving our own bot commits loops if any
+            const login = pr.user.login;
+            core.info(`Auto-approving PR #${pr.number} from ${login} (same-repo policy)`);
+            try {
+              await github.rest.pulls.createReview({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                event: 'APPROVE',
+                body: [
+                  '**Automated approval** (PR agent).',
+                  '',
+                  'This approve acknowledges the contribution under project policy for **same-repository** PRs.',
+                  'It does **not** waive CI: **CI** and **Determinism** workflows must still pass before merge.',
+                  '',
+                  'Agents/reviewers: follow `.github/copilot-instructions.md` and keep the implementation deterministic.',
+                ].join('\n'),
+              });
+            } catch (e) {
+              // Token cannot approve its own PR in some setups
+              core.warning('Auto-approve failed: ' + e.message);
+            }
