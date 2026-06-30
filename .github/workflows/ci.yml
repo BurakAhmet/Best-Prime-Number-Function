@@ -43,8 +43,13 @@ jobs:
       - name: Smoke CLI
         run: |
           python -c "from is_prime import is_prime; assert is_prime(17) and not is_prime(0) and not is_prime(1)"
+          # Exit 0 = prime (must succeed under set -e)
           python is_prime.py 97
-          python is_prime.py 100; test $? -eq 1
+          # Exit 1 = not prime; with bash -e we must not treat that as a step failure
+          if python is_prime.py 100; then
+            echo "expected exit code 1 for composite 100" >&2
+            exit 1
+          fi
 
   performance:
     name: Performance vs baseline / base branch
