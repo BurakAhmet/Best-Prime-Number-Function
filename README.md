@@ -24,7 +24,7 @@ Think of the repo as **four layers**. Only the first layer is the product; the r
 |  1. CORE LIBRARY                                                         |
 |     is_prime.py  ->  is_prime(n) / lab(n) / CLI                          |
 |     n < 2^64: 30030-wheel trial division (Numba, optional threads)       |
-|     n >= 2^64: small-factor trial -> AKS if needed                      |
+|     n >= 2^64: small-factor trial -> AKS if needed                       |
 |     Rules: deterministic, no stochastic Miller-Rabin, no prime libs      |
 +--------------------------------------------------------------------------+
 |  2. PROOF & SPEED (local + CI)                                           |
