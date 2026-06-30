@@ -1,4 +1,4 @@
-# best-prime-number-function
+# Best-Prime-Number-Function
 
 **Fully deterministic** primality testing for natural numbers — from tiny integers to 100+ digit values — with a high-performance path for 64-bit inputs powered by **Numba**.
 
@@ -85,7 +85,7 @@ flowchart TD
 ## Install
 
 ```bash
-git clone https://github.com/BurakAhmet/best-prime-number-function.git
+git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
 cd best-prime-number-function
 python3 -m venv .venv
 source .venv/bin/activate
@@ -126,16 +126,21 @@ python is_prime.py 9223372036854775783
 NUMBA_NUM_THREADS=$(nproc) python is_prime.py 9223372036854775783
 ```
 
-Example output:
+Example **CLI** output (illustrative timings; wall time depends on CPU and thread count):
 
 ```text
 TEST:    9223372036854775783 (19 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    ... ns  (... ms)
+TIME:    734124797 ns  (734.124797 ms)
 ```
 
-Exit codes: `0` prime, `1` not prime.
+That block is **not** the pytest suite. Automated tests are run with `pytest` and do not print `TEST` / `THREADS` / `RESULT` / `TIME` lines.
+
+| CLI exit code | Meaning |
+|---------------|---------|
+| `0` | `n` is prime |
+| `1` | `n` is not prime |
 
 ---
 
@@ -171,7 +176,7 @@ Fixed-base Miller–Rabin below proven bounds *is* deterministic on those bounds
 ## Project layout
 
 ```text
-best-prime-number-function/
+Best-Prime-Number-Function/
 ├── README.md           # You are here
 ├── LICENSE             # MIT
 ├── requirements.txt
@@ -207,8 +212,3 @@ The suite includes:
 
 MIT — see [LICENSE](LICENSE).
 
----
-
-## Acknowledgements
-
-Wheel factorization and AKS are classical. Numba provides the JIT/parallel substrate for the 64-bit fast path. This repository focuses on making a **clear, restriction-compliant, deterministic** implementation that is still competitive on 64-bit inputs.
