@@ -20,28 +20,28 @@
 Think of the repo as **four layers**. Only the first layer is the product; the rest protect quality and run the project autonomously.
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│  1. CORE LIBRARY                                                         │
-│     is_prime.py  →  is_prime(n) / lab(n) / CLI                           │
-│     n < 2⁶⁴: 30030-wheel trial division (Numba, optional threads)        │
-│     n ≥ 2⁶⁴: small-factor trial → AKS if needed                         │
-│     Rules: deterministic · no stochastic Miller–Rabin · no prime libs    │
-├──────────────────────────────────────────────────────────────────────────┤
-│  2. PROOF & SPEED (local + CI)                                           │
-│     tests/          pytest + Hypothesis (reproducible)                   │
-│     benchmarks/     speed vs primitive, regression, determinism checks   │
-│     scripts/        restriction linter, CI attestation JSON              │
-├──────────────────────────────────────────────────────────────────────────┤
-│  3. GITHUB ACTIONS (automation)                                          │
-│     Quality gates: CI, Determinism, performance, restriction linter      │
-│     Agents:        issue answers, PR briefing + auto-approve             │
-│     Merge:         Auto-merge same-repo PRs when gates green             │
-│     Ops:           labels/board, prime-of-the-day, wiki Pages, GHCR      │
-├──────────────────────────────────────────────────────────────────────────┤
-│  4. DOCS & TRACKING                                                      │
-│     This README · CONTRIBUTING · docs/wiki · GitHub Wiki/Pages           │
-│     Labels + optional GitHub Project (kanban via status/* labels)        │
-└──────────────────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------------------+
+|  1. CORE LIBRARY                                                         |
+|     is_prime.py  ->  is_prime(n) / lab(n) / CLI                          |
+|     n < 2^64: 30030-wheel trial division (Numba, optional threads)       |
+|     n >= 2^64: small-factor trial -> AKS if needed                      |
+|     Rules: deterministic, no stochastic Miller-Rabin, no prime libs      |
++--------------------------------------------------------------------------+
+|  2. PROOF & SPEED (local + CI)                                           |
+|     tests/          pytest + Hypothesis (reproducible)                   |
+|     benchmarks/     speed vs primitive, regression, determinism checks   |
+|     scripts/        restriction linter, CI attestation JSON              |
++--------------------------------------------------------------------------+
+|  3. GITHUB ACTIONS (automation)                                          |
+|     Quality gates: CI, Determinism, performance, restriction linter      |
+|     Agents:        issue answers, PR briefing + auto-approve             |
+|     Merge:         Auto-merge same-repo PRs when gates green             |
+|     Ops:           labels/board, prime-of-the-day, wiki Pages, GHCR      |
++--------------------------------------------------------------------------+
+|  4. DOCS & TRACKING                                                      |
+|     This README, CONTRIBUTING, docs/wiki, GitHub Wiki/Pages              |
+|     Labels + optional GitHub Project (kanban via status/* labels)        |
++--------------------------------------------------------------------------+
 ```
 
 | If you want to… | Go here |
