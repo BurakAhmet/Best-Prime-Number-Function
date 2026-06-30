@@ -200,7 +200,13 @@ The suite includes:
 - Wheel table integrity (length, step sum, residue map)
 - `_isqrt_u64` vs `math.isqrt` (including \(> 2^{53}\))
 - Parallel vs serial agreement
-- Large 64-bit primes/composites near \(2^{63}\)
+- **Many large 64-bit primes**, including:
+  - \(10^9+7\), \(10^9+9\)
+  - Mersenne primes \(2^{31}-1\), \(2^{61}-1\)
+  - \(999999999989\), \(1000000000039\), \(999999999999999989\)
+  - \(9223372036854775783\) (near \(2^{63}\))
+  - \(18446744073709551557\) (largest prime below \(2^{64}\))
+- Matching large composites (neighbours, products, \(2^{63}-1\), …)
 - 100-digit composites with small factors
 - Carmichael numbers (must be composite under trial division)
 - Small Mersenne primes / composites

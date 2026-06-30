@@ -58,6 +58,31 @@ SMALL_PRIMES = [
 LARGE_64BIT_PRIME = 9223372036854775783  # near 2^63
 MERSENNE_COMPOSITE = (1 << 63) - 1  # 2^63 - 1 = 9223372036854775807, composite
 
+# Large primes in the 64-bit range (fast path: 30030-wheel + Numba)
+# Verified with this project's deterministic trial division.
+LARGE_PRIMES = [
+    1_000_000_007,  # 10^9 + 7
+    1_000_000_009,  # 10^9 + 9
+    (1 << 31) - 1,  # 2^31 - 1 (Mersenne prime M31)
+    4_294_967_291,  # large 32-bit prime
+    999_999_999_989,
+    1_000_000_000_039,
+    999_999_999_999_999_989,
+    2_305_843_009_213_693_951,  # 2^61 - 1 (Mersenne prime M61)
+    9_223_372_036_854_775_783,  # near 2^63
+    18_446_744_073_709_551_557,  # largest prime below 2^64
+]
+
+# Large composites (same magnitude class as the primes above)
+LARGE_COMPOSITES = [
+    MERSENNE_COMPOSITE,  # 2^63 - 1
+    (1 << 32) - 1,  # 2^32 - 1 = 3 * 5 * 17 * 257 * 65537
+    1_000_000_000_000,  # 10^12
+    9_223_372_036_854_775_782,  # even neighbour of LARGE_64BIT_PRIME
+    18_446_744_073_709_551_556,  # even neighbour of largest 64-bit prime
+    1_000_000_007 * 1_000_000_009,  # product of two large primes
+]
+
 
 # ---------------------------------------------------------------------------
 # Basic API / validation
@@ -175,11 +200,26 @@ class TestParallelSerial:
 # ---------------------------------------------------------------------------
 
 class TestLarge64Bit:
+    @pytest.mark.parametrize("n", LARGE_PRIMES)
+    def test_large_primes(self, n):
+        assert is_prime(n) is True
+        assert is_prime(str(n)) is True
+
+    @pytest.mark.parametrize("n", LARGE_COMPOSITES)
+    def test_large_composites(self, n):
+        assert is_prime(n) is False
+
     def test_near_int64_max_prime(self):
         assert is_prime(LARGE_64BIT_PRIME) is True
 
     def test_two_pow_63_minus_one_composite(self):
         assert is_prime(MERSENNE_COMPOSITE) is False
+
+    def test_largest_prime_below_2_64(self):
+        assert is_prime(18_446_744_073_709_551_557) is True
+
+    def test_mersenne_61(self):
+        assert is_prime((1 << 61) - 1) is True
 
     def test_squares_not_prime(self):
         for k in (10**6, 10**7, 10**8):
@@ -188,6 +228,11 @@ class TestLarge64Bit:
     def test_even_large_not_prime(self):
         assert is_prime(10**18) is False
         assert is_prime((1 << 62)) is False
+
+    def test_large_primes_parallel_matches_serial(self):
+        # Subset: full list would be slow under serial for the biggest primes
+        for n in LARGE_PRIMES[-3:]:
+            assert is_prime(n, parallel=True) is is_prime(n, parallel=False)
 
 
 # ---------------------------------------------------------------------------
