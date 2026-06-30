@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Build a static HTML wiki site from markdown files in this directory."""
+from __future__ import annotations
+
+import html
+import shutil
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    src = Path(__file__).resolve().parent
+    site = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("_site")
+    if site.exists():
+        shutil.rmtree(site)
+    site.mkdir(parents=True)
+
+    files = sorted(p for p in src.glob("*.md") if not p.name.startswith("_") and p.name != "build_site.py")
+    for p in files:
+        shutil.copy(p, site / p.name)
+
+    links = "\n".join(
+        f'    <li><a href="{p.stem}.html">{html.escape(p.stem.replace("-", " "))}</a> '
+        f'(<a href="{p.name}">.md</a>)</li>'
+        for p in files
+    )
+    (site / "index.html").write_text(
+        f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Best-Prime-Number-Function Wiki</title>
+  <style>
+    body {{ font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }}
+    .warn {{ background: #fff3cd; border: 1px solid #ffecb5; padding: 0.75rem 1rem; border-radius: 6px; }}
+    code {{ background: #f4f4f4; padding: 0.1em 0.3em; border-radius: 4px; }}
+  </style>
+</head>
+<body>
+  <h1>Best-Prime-Number-Function Wiki</h1>
+  <p class="warn"><strong>Warning:</strong> This repository and wiki content were largely created by an
+  <strong>AI agent</strong>. Review before production use.</p>
+  <p>Source of truth: <code>docs/wiki/</code> (agents update markdown; Actions publishes this site).</p>
+  <h2>Pages</h2>
+  <ul>
+{links}
+  </ul>
+  <p><a href="https://github.com/BurakAhmet/Best-Prime-Number-Function">GitHub repository</a></p>
+</body>
+</html>
+"""
+    )
+
+    for p in files:
+        title = html.escape(p.stem.replace("-", " "))
+        body = html.escape(p.read_text())
+        (site / f"{p.stem}.html").write_text(
+            f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>{title}</title>
+<style>
+body {{ font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }}
+pre {{ white-space: pre-wrap; word-break: break-word; background: #f6f8fa; padding: 1rem; border-radius: 8px; }}
+</style></head>
+<body>
+<p><a href="index.html">&larr; Wiki home</a></p>
+<h1>{title}</h1>
+<pre>{body}</pre>
+</body></html>
+"""
+        )
+    print(f"Built {len(files)} pages into {site}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
