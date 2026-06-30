@@ -5,20 +5,6 @@
 
 **Fully deterministic** primality testing for natural numbers — from tiny integers to 100+ digit values — with a high-performance path for 64-bit inputs powered by **Numba**.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  is_prime(n)                                                │
-│                                                             │
-│   n < 2⁶⁴  ──►  30030-wheel trial division  (Numba + MT)    │
-│   n ≥ 2⁶⁴  ──►  small-factor sieve → AKS if needed          │
-│                                                             │
-│   ✗  no Miller–Rabin (no random bases)                      │
-│   ✗  no probabilistic / stochastic tests                    │
-│   ✗  no prime sieving libraries (primesieve, …)             │
-│   ✓  deterministic for every natural number                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Deterministic](https://img.shields.io/badge/primality-deterministic-success.svg)](#design-restrictions)
@@ -27,13 +13,54 @@
 [![Release pip/git](https://img.shields.io/badge/Release-pip%20%2F%20git%20tag-green?logo=python)](https://github.com/BurakAhmet/Best-Prime-Number-Function/releases/tag/v1.0.0)
 [![CI](https://github.com/BurakAhmet/Best-Prime-Number-Function/actions/workflows/ci.yml/badge.svg)](https://github.com/BurakAhmet/Best-Prime-Number-Function/actions/workflows/ci.yml)
 
+---
+
+## How this repository works
+
+Think of the repo as **four layers**. Only the first layer is the product; the rest protect quality and run the project autonomously.
+
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│  1. CORE LIBRARY                                                         │
+│     is_prime.py  →  is_prime(n) / lab(n) / CLI                           │
+│     n < 2⁶⁴: 30030-wheel trial division (Numba, optional threads)        │
+│     n ≥ 2⁶⁴: small-factor trial → AKS if needed                         │
+│     Rules: deterministic · no stochastic Miller–Rabin · no prime libs    │
+├──────────────────────────────────────────────────────────────────────────┤
+│  2. PROOF & SPEED (local + CI)                                           │
+│     tests/          pytest + Hypothesis (reproducible)                   │
+│     benchmarks/     speed vs primitive, regression, determinism checks   │
+│     scripts/        restriction linter, CI attestation JSON              │
+├──────────────────────────────────────────────────────────────────────────┤
+│  3. GITHUB ACTIONS (automation)                                          │
+│     Quality gates: CI, Determinism, performance, restriction linter      │
+│     Agents:        issue answers, PR briefing + auto-approve             │
+│     Merge:         Auto-merge same-repo PRs when gates green             │
+│     Ops:           labels/board, prime-of-the-day, wiki Pages, GHCR      │
+├──────────────────────────────────────────────────────────────────────────┤
+│  4. DOCS & TRACKING                                                      │
+│     This README · CONTRIBUTING · docs/wiki · GitHub Wiki/Pages           │
+│     Labels + optional GitHub Project (kanban via status/* labels)        │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+| If you want to… | Go here |
+|-----------------|--------|
+| **Use the prime checker** | [Install](#install) → [Usage](#usage) (`is_prime.py` only) |
+| **Understand the algorithm** | [Algorithm](#algorithm) · [Design restrictions](#design-restrictions) |
+| **Run tests / benchmarks** | [Testing & quality gates](#testing--quality-gates) · [`benchmarks/`](benchmarks/README.md) |
+| **See what CI / bots do** | [Automation map](#automation-map-github-actions) |
+| **Contribute or open a PR** | [Contributing](#contributing) · [CONTRIBUTING.md](CONTRIBUTING.md) |
+| **Install a release / container** | [Releases & packages](#releases--packages) |
+| **Board / labels / agents** | [Project board & labels](#project-board--labels) · [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) |
+
 > **Private repository.** Fast trial division where it matters; unconditional determinism everywhere.
 
 ---
 
 ## Why this exists
 
-Many “fast prime checks” quietly rely on **Miller–Rabin** with random witnesses. That is excellent engineering for cryptography-sized numbers when a tiny error probability is acceptable — but it is **not** a deterministic predicate for every natural number unless you restrict to proven finite witness sets (which only cover bounded ranges, e.g. 64-bit).
+Many “fast prime checks” rely on **Miller–Rabin** with random witnesses. That is fine when a tiny error probability is acceptable — it is **not** a deterministic predicate for **every** natural number unless you stay inside proven finite witness sets (e.g. 64-bit only).
 
 This project optimizes under **strict constraints**:
 
@@ -43,6 +70,15 @@ This project optimizes under **strict constraints**:
 | **No stochastic MR** | No “pick random bases” Miller–Rabin |
 | **No prime libraries** | Algorithm implemented here (NumPy/Numba only for speed) |
 | **All natural numbers** | API accepts big integers / decimal strings |
+
+```text
+  is_prime(n)
+     n < 2⁶⁴  ──►  30030-wheel trial division  (Numba + optional MT)
+     n ≥ 2⁶⁴  ──►  small-factor trial → AKS if needed
+     ✗  no Miller–Rabin (random bases) · no probabilistic tests
+     ✗  no prime sieving libraries (primesieve, …)
+     ✓  deterministic for every natural number
+```
 
 ---
 
@@ -54,17 +90,17 @@ Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$:
 
 1. Reject $n < 2$; accept $2$ and $3$; reject other even numbers.
 2. Reject multiples of $3, 5, 7, 11, 13$ (primes baked into the wheel modulus).
-3. Compute $\lfloor\sqrt{n}\rfloor$ with **hardware `sqrt`** plus exact integer correction (not a pure Newton loop).
-4. Walk only candidates **coprime to** $30030 = 2 \cdot 3 \cdot 5 \cdot 7 \cdot 11 \cdot 13$ using a **hardcoded wheel** of $5760$ steps (table `W30030`), starting at $17$.
-5. For large limits, split the candidate range across threads with **Numba `prange`** (same idea as OpenMP contiguous chunks).
+3. Compute $\lfloor\sqrt{n}\rfloor$ with **hardware `sqrt`** plus exact integer correction.
+4. Walk only candidates **coprime to** $30030 = 2 \cdot 3 \cdot 5 \cdot 7 \cdot 11 \cdot 13$ using a **hardcoded wheel** of $5760$ steps (`W30030`), starting at $17$.
+5. For large limits, split the candidate range across threads with **Numba `prange`**.
 
-If no divisor appears by $\sqrt{n}$, then $n$ is prime. This is the classical proof, just engineered for speed.
+If no divisor appears by $\sqrt{n}$, then $n$ is prime.
 
 ### 2. Large path — $n \ge 2^{64}$
 
-1. Trial division by a list of small primes and odd integers up to a practical bound (or $\sqrt{n}$ when smaller).
+1. Trial division by small primes / odds up to a practical bound (or $\sqrt{n}$ when smaller).
 2. If that bound reaches $\sqrt{n}$, the answer is exact.
-3. Otherwise run the **AKS** primality test (unconditional, deterministic). AKS is correct for all $n$ but can be **slow** for huge primes with no small factors — that is an inherent cost of this restriction set, not a bug in the API.
+3. Otherwise run **AKS** (unconditional, deterministic — can be **slow** for huge primes with no small factors).
 
 ```mermaid
 flowchart TD
@@ -86,6 +122,17 @@ flowchart TD
   J -->|no| Z1
 ```
 
+### Performance notes
+
+| Regime | Typical behaviour |
+|--------|-------------------|
+| Small $n$ | Microseconds or less (JIT) |
+| Hard 64-bit primes near $2^{63}$ | Sub-second to ~1s multi-core |
+| Huge composites with a small factor | Near-instant |
+| Huge primes (AKS) | May take a very long time |
+
+Indicative speedups vs a naive pure-Python odd trial (`benchmarks/`): ~20× on $10^9+7$, ~90–100× on a 12-digit prime; harder 64-bit primes are optimized-only in CI timings. See **[benchmarks/README.md](benchmarks/README.md)** and the wiki **[Hall of fame](docs/wiki/Hall-of-fame.md)**.
+
 ---
 
 ## Install
@@ -98,115 +145,67 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Optional (tests):
-
-```bash
-pip install pytest
-pytest -q
-```
+For tests: `pip install pytest` (also listed in `requirements.txt` with Hypothesis).
 
 ---
 
 ## Usage
 
+### Python API
+
 ```python
-from is_prime import is_prime
+from is_prime import is_prime, lab
 
 is_prime(17)                       # True
 is_prime(100)                      # False
 is_prime(9223372036854775783)      # True  (64-bit fast path)
 is_prime("9" * 100)                # False (100-digit composite)
-is_prime(10**99)                   # False
+is_prime(10**9 + 7, parallel=False)  # serial, still deterministic
 
-# Serial trial division only (still deterministic)
-is_prime(10**9 + 7, parallel=False)
+info = lab(97)   # path, isqrt, elapsed_ms, is_prime, …
 ```
 
 ### CLI
 
 ```bash
-python is_prime.py
-python is_prime.py 9223372036854775783
+python3 is_prime.py                              # default large 64-bit prime
+python3 is_prime.py 9223372036854775783
+NUMBA_NUM_THREADS=$(nproc) python3 is_prime.py 9223372036854775783
 
-# Multi-threaded Numba (also reads OMP_NUM_THREADS)
-NUMBA_NUM_THREADS=$(nproc) python is_prime.py 9223372036854775783
-
-# Lab diagnostics (path, ⌊√n⌋, timing, note)
-python is_prime.py --lab 9223372036854775783
-python is_prime.py --lab --json 97
+# Diagnostics (which path, ⌊√n⌋, timing)
+python3 is_prime.py --lab 9223372036854775783
+python3 is_prime.py --lab --json 97
+python3 is_prime.py --serial 100                 # force parallel=False
 ```
 
-Example **CLI** output (illustrative timings; wall time depends on CPU and thread count):
+Example output (timings depend on CPU / threads):
 
 ```text
 TEST:    9223372036854775783 (19 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    734124797 ns  (734.124797 ms)
+TIME:    … ns  (… ms)
 ```
 
-That block is **not** the pytest suite. Automated tests are run with `pytest` and do not print `TEST` / `THREADS` / `RESULT` / `TIME` lines.
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | prime |
+| `1` | not prime |
 
-| CLI exit code | Meaning |
-|---------------|---------|
-| `0` | `n` is prime |
-| `1` | `n` is not prime |
-
-Python API also exposes `lab(n)` returning a dict (`path`, `isqrt`, `elapsed_ms`, `is_prime`, …).
+That CLI text is **not** the pytest suite (`pytest` does not print `TEST` / `THREADS` lines).
 
 ---
 
+## Design restrictions
 
----
+Non-negotiable (enforced by review + `scripts/check_restrictions.py` in CI):
 
-## Speed comparison (primitive vs optimized)
+1. **Determinism for every natural number** — threads OK; randomness not OK.
+2. **No stochastic Miller–Rabin** / “probably prime” engines.
+3. **No dedicated prime libraries** as the engine (e.g. primesieve, sympy.isprime).
+4. **Allowed:** NumPy / Numba to accelerate *our* trial division.
 
-A dedicated benchmark lives in [`benchmarks/`](benchmarks/README.md). It times a **primitive** pure-Python odd trial division against this package’s **optimized** `is_prime` on the same values.
-
-```bash
-NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py
-NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py --include-hard
-```
-
-### Sample results (12 threads, best of 3; indicative)
-
-| Case | Primitive (ms) | Optimized (ms) | Speedup |
-|------|---------------:|---------------:|--------:|
-| $10^9+7$ | ~0.68 | ~0.03 | **~21×** |
-| $10^9+9$ | ~0.69 | ~0.03 | **~21×** |
-| Mersenne $2^{31}-1$ | ~0.83 | ~0.05 | **~17×** |
-| 12-digit prime $999999999989$ | ~18–19 | ~0.19 | **~90–100×** |
-| Near $2^{63}$ prime (optimized only) | — | ~690 | *(primitive omitted: too slow)* |
-| Mersenne $2^{61}-1$ (optimized only) | — | ~340 | *(primitive omitted: too slow)* |
-
-On tiny inputs, overhead dominates (speedups ~1×). As $\sqrt{n}$ grows, the wheel + Numba path pulls far ahead. Full methodology and flags: **[benchmarks/README.md](benchmarks/README.md)**.
-
-## Performance notes
-
-| Regime | Method | Typical behaviour |
-|--------|--------|-------------------|
-| Small $n$ | Wheel trial division (JIT) | Microseconds or less |
-| Hard 64-bit primes near $2^{63}$ | Full wheel to $\sqrt{n}$, multi-threaded | Sub-second to ~1s on a modern multi-core CPU |
-| Huge composites with a small factor | Tiny trial | Near-instant |
-| Huge primes | AKS | May take a very long time |
-
-The 64-bit path is optimized with:
-
-- Hardcoded wheel tables (no runtime wheel generation)
-- Hardware `sqrt` for $\lfloor\sqrt{n}\rfloor$
-- Loop unrolling in the mod checks
-- Optional multi-threading via Numba
-
----
-
-## Design restrictions (non-negotiable)
-
-1. **Determinism for every natural number** — the mathematical predicate is fixed; implementation may use threads but not randomness.
-2. **No stochastic Miller–Rabin** — including “probably prime” APIs.
-3. **No dedicated prime libraries** — e.g. `primesieve`, `sympy.isprime` as the engine (tests may use only pure Python references).
-4. **Allowed** — NumPy / Numba for array storage and JIT/parallel speedups of *our* trial division.
-
-Fixed-base Miller–Rabin below proven bounds *is* deterministic on those bounds, but it does **not** generalize to all naturals with a finite fixed witness list. This repo therefore uses **trial division** (and **AKS** for oversized integers) instead.
+Fixed-base MR can be deterministic on **bounded** ranges only; this repo uses **trial division** (+ **AKS** for oversized integers) so the API stays correct for all naturals under the restriction set.
 
 ---
 
@@ -214,188 +213,173 @@ Fixed-base Miller–Rabin below proven bounds *is* deterministic on those bounds
 
 ```text
 Best-Prime-Number-Function/
-├── README.md           # You are here
-├── LICENSE             # MIT
-├── requirements.txt
-├── pyproject.toml
-├── is_prime.py         # Implementation + CLI
-├── benchmarks/         # Primitive vs optimized speed comparison
-└── tests/
-    └── test_is_prime.py
+├── is_prime.py              # Core: is_prime, lab, CLI          ← the product
+├── tests/                   # pytest + Hypothesis properties
+├── benchmarks/              # Speed, regression, determinism scripts
+├── scripts/
+│   ├── check_restrictions.py    # Fail CI if forbidden engines appear
+│   ├── write_attestation.py     # CI “certificate of correctness” JSON
+│   └── design_github_project.py # Optional: configure Projects v2 via API
+├── docs/
+│   ├── PROJECT_BOARD.md     # Labels + Project kanban design
+│   └── wiki/                # In-repo wiki (also published)
+├── .github/workflows/       # All automation (see table below)
+├── Dockerfile               # GHCR container image
+├── pyproject.toml / requirements.txt
+├── CONTRIBUTING.md
+└── README.md                # You are here
 ```
 
 ---
 
-## Continuous integration
+## Testing & quality gates
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on pushes and pull requests to `main`:
-
-1. **Tests** — `pytest -m "not slow"` on Python 3.9 / 3.11 / 3.12 (edge cases, exhaustive small range, wheel tables, fast large primes). Slow multi-second 64-bit primes are marked `@pytest.mark.slow` and omitted from the default gate.
-2. **Determinism** (`.github/workflows/determinism.yml`) — on every push/PR, runs repeated serial/parallel trials and `benchmarks/check_determinism.py` so results cannot depend on run order or threads.
-3. **Performance** — benchmarks the **candidate** commit against the **PR base** (or `main` on push). Fails if optimized timings regress by more than **20%** on measurable cases (see `benchmarks/check_regression.py`). Artifacts upload both JSON result files.
+### What we test
 
 ```bash
-# Locally mirror CI tests
-pytest -q -m "not slow"
-
-# Full suite including slow primes
-pytest -q
-
-# Local performance check against committed baseline snapshot
-NUMBA_NUM_THREADS=2 python benchmarks/compare_speed.py --json /tmp/cand.json
-python benchmarks/check_regression.py --baseline benchmarks/baseline.json --candidate /tmp/cand.json
+python3 scripts/check_restrictions.py   # no forbidden patterns in impl code
+pytest -q -m "not slow"                 # default CI gate
+pytest -q                               # includes @pytest.mark.slow 64-bit primes
+NUMBA_NUM_THREADS=2 python3 benchmarks/check_determinism.py
 ```
 
----
+Coverage highlights:
 
-## Testing
+- Exhaustive vs slow reference on $0 \ldots 4999$
+- Hypothesis properties (`tests/test_properties.py`, **`derandomize=True`** so CI is reproducible)
+- Wheel / `isqrt` integrity, serial vs parallel agreement
+- Large 64-bit primes and composites, Carmichael numbers, big-int strings, API errors
+
+### What CI enforces on every push / PR to `main`
+
+| Gate | Workflow | Role |
+|------|----------|------|
+| Restriction linter | **CI** | Bans MR / primesieve / random engines in implementation paths |
+| Fast tests | **CI** | `pytest -m "not slow"` on Python **3.9 / 3.11 / 3.12** |
+| Performance | **CI** | Candidate vs PR base (or previous commit); fail if optimized path regresses **>20%** on measurable cases |
+| Attestation | **CI** | Re-runs lint + tests + determinism; uploads `attestation.json` artifact |
+| Determinism | **Determinism** | Repeated serial/parallel trials must agree |
+
+Local performance check against the committed snapshot:
 
 ```bash
-pytest -q
+NUMBA_NUM_THREADS=2 python3 benchmarks/compare_speed.py --json /tmp/cand.json
+python3 benchmarks/check_regression.py \
+  --baseline benchmarks/baseline.json --candidate /tmp/cand.json
 ```
 
-The suite includes:
+---
 
-- Exhaustive comparison to a slow reference on $0, 1, \ldots, 4999$
-- **Hypothesis** property tests (`tests/test_properties.py`, `derandomize=True` for reproducible CI)
-- Wheel table integrity (length, step sum, residue map)
-- `_isqrt_u64` vs `math.isqrt` (including values greater than $2^{53}$)
-- Parallel vs serial agreement
-- **Many large 64-bit primes**, including:
-  - $10^9 + 7$, $10^9 + 9$
-  - Mersenne primes $2^{31} - 1$, $2^{61} - 1$
-  - $999999999989$, $1000000000039$, $999999999999999989$
-  - $9223372036854775783$ (near $2^{63}$)
-  - $18446744073709551557$ (largest prime below $2^{64}$)
-- Matching large composites (neighbours, products, $2^{63} - 1$, …)
-- 100-digit composites with small factors
-- Carmichael numbers (must be composite under trial division)
-- Small Mersenne primes / composites
-- API validation (negatives, types, decimal strings)
+## Automation map (GitHub Actions)
+
+Everything under `.github/workflows/` is optional for **using** `is_prime`; it runs the repo for maintainers and agents.
+
+### Quality & publish
+
+| Workflow | Trigger | What it does |
+|----------|---------|----------------|
+| [**CI**](.github/workflows/ci.yml) | push / PR → `main` | Linter, pytest, performance, attestation artifact |
+| [**Determinism**](.github/workflows/determinism.yml) | push / PR → `main` | Repeat trials + `check_determinism.py` |
+| [**Auto-merge**](.github/workflows/auto-merge.yml) | PR / check_suite | Squash-merge **same-repo**, non-draft PRs when tests + determinism (+ perf) are green (not forks; avoids `workflow_run` “action_required” for bots like Copilot) |
+| [**Publish package**](.github/workflows/publish-package.yml) | release / manual | Build & push **GHCR** container (Packages tab) |
+| [**Publish wiki**](.github/workflows/publish-wiki.yml) | changes under `docs/wiki/` | GitHub Pages site from wiki markdown |
+
+### Agents & board
+
+| Workflow | Trigger | What it does |
+|----------|---------|----------------|
+| [**Issue agent**](.github/workflows/issue-agent.yml) | issue opened / reopened | Keyword answers (MR policy, install, CI, …) + restrictions briefing + labels |
+| [**PR agent**](.github/workflows/pr-agent.yml) | PR open / sync | Briefing, best-effort Copilot review request, **auto-approve** same-repo PRs |
+| [**Project autonomy**](.github/workflows/project-autonomy.yml) | issues / PRs | Moves **labels** (kanban + agent pipeline; no “Needs human” lane) |
+| [**Project sync**](.github/workflows/project-sync.yml) | manual / optional | Re-seed GitHub Project **if** secret `PROJECT_TOKEN` has `project` scopes |
+| [**Prime of the day**](.github/workflows/prime-of-the-day.yml) | daily 12:00 UTC / manual | Deterministic date → `n` → `lab()`; upserts issue labeled `prime-of-the-day` |
+
+**Agent context files** (not workflows): [`.github/copilot-instructions.md`](.github/copilot-instructions.md), [`.github/AGENT_BRIEFING.md`](.github/AGENT_BRIEFING.md).
+
+**Policy in one line:** same-repo PRs may be auto-approved and auto-merged after green **CI** + **Determinism**; **forks are never** auto-approved or auto-merged. Prefer branch protection requiring those checks.
+
+```text
+  Issue opened ──► Issue agent (answer + labels)
+       │
+  PR opened ──► PR agent (brief + approve if same-repo)
+       │            Project autonomy (status/in-review, agent/waiting-ci)
+       ▼
+  CI + Determinism (+ performance) green
+       │
+       └──► Auto-merge (squash) ──► status/done, agent/done
+```
 
 ---
 
+## Project board & labels
+
+Work is tracked with **labels** so Actions can move items without a human-only column. A GitHub **Project** can mirror the same Status if you configure it in the UI (or run `scripts/design_github_project.py` with `project` API scopes).
+
+| Track | Labels / meaning |
+|-------|------------------|
+| **Kanban** | `status/backlog` → `ready` → `in-progress` → `in-review` → `done` |
+| **Agent ops** | `agent/triaged` → `implementing` → `waiting-ci` → `done` |
+| **Quality checklist** | `quality/checklist` + `todo` / `partial` / `done` |
+| **Area / priority / size** | `area/*`, `priority/p0`…`p3`, `size/S|M|L` |
+| **Restriction risk** | `restriction-risk/low` or `high` |
+
+Full design: **[docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md)**.
+
+> **Note:** Renaming Project columns and adding cards is a **GitHub Projects UI/API** action. Repo scripts and Copilot PRs only change **git** files unless something has `project` token scopes.
 
 ---
 
-## Issue & PR automation (agents)
+## Wiki & docs site
 
-Workflows brief humans and coding agents with **project restrictions**, auto-answer common issue topics, **auto-approve** and **auto-merge** same-repository PRs (forks are not auto-approved/merged), run a daily **Prime of the day** challenge, and upload a **Certificate of correctness** attestation from CI.
+| Location | Role |
+|----------|------|
+| [docs/wiki/](docs/wiki/) | Source of truth in git |
+| [GitHub Wiki](https://github.com/BurakAhmet/Best-Prime-Number-Function/wiki) | Same pages for browsing |
+| [GitHub Pages](https://burakahmet.github.io/Best-Prime-Number-Function/) | HTML mirror (`publish-wiki` workflow) |
 
-| Workflow | When | Behaviour |
-|----------|------|-----------|
-| [Issue agent](.github/workflows/issue-agent.yml) | Issue opened / reopened | Keyword-based answers (MR policy, performance, install, CI, contributing) + labels + full restrictions briefing |
-| [PR agent](.github/workflows/pr-agent.yml) | PR opened / reopened / sync | Restrictions briefing, best-effort Copilot review request, **auto-approve** for same-repo PRs |
-| [Auto-merge](.github/workflows/auto-merge.yml) | CI / Determinism completed | Squash-merge same-repo PRs when tests + determinism (+ performance if present) are green |
-| [Prime of the day](.github/workflows/prime-of-the-day.yml) | Daily 12:00 UTC / manual | Deterministic date→`n` via `lab()`; upserts issue `prime-of-the-day` |
-| [CI](.github/workflows/ci.yml) | push / PR | Restriction linter, pytest, performance gate, **attestation.json** artifact |
-
-Agent context files:
-
-- [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — rules for coding agents
-- [`.github/AGENT_BRIEFING.md`](.github/AGENT_BRIEFING.md) — short brief for triage bots
-- [`scripts/check_restrictions.py`](scripts/check_restrictions.py) — fails CI if forbidden engines appear in implementation code
-
-> Auto-approve / auto-merge do **not** replace status checks. Prefer keeping branch protection requiring green **CI** + **Determinism**.
+Useful pages: [Project restrictions](docs/wiki/Project-restrictions.md), [Algorithm overview](docs/wiki/Algorithm-overview.md), [CI and automation](docs/wiki/CI-and-automation.md), [Hall of fame](docs/wiki/Hall-of-fame.md), [Agent briefing](docs/wiki/Agent-briefing.md).
 
 ---
 
-## Wiki
+## Releases & packages
 
-In-repo wiki pages (always available in the tree):
+| Channel | How |
+|---------|-----|
+| **GitHub Release** (e.g. `v1.0.0`) | Source of version tags; attach wheels if built |
+| **pip from git** | `pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git@v1.0.0"` |
+| **GHCR container** | Shows under repo **Packages**; published by **Publish package** |
 
-| Page | Topic |
-|------|--------|
-| [docs/wiki/Home.md](docs/wiki/Home.md) | Index |
-| [Project restrictions](docs/wiki/Project-restrictions.md) | Non-negotiable rules |
-| [Hall of fame](docs/wiki/Hall-of-fame.md) | Slow 64-bit primes + indicative timings |
-| [CI and automation](docs/wiki/CI-and-automation.md) | Workflows, lab CLI, attestation |
-| [Algorithm overview](docs/wiki/Algorithm-overview.md) | Wheel + AKS |
-| [CI and automation](docs/wiki/CI-and-automation.md) | Actions catalogue |
-| [Agent briefing](docs/wiki/Agent-briefing.md) | Instructions for agents |
-| [Contributing (wiki)](docs/wiki/Contributing.md) | Contribution summary |
-
-GitHub **Wiki** (designed pages + sidebar):  
-https://github.com/BurakAhmet/Best-Prime-Number-Function/wiki
-
-GitHub **Pages** mirror:  
-https://burakahmet.github.io/Best-Prime-Number-Function/
-
-## Project board (autonomous)
-
-Work is tracked with **labels** and a GitHub **Project** (Status columns + custom fields) so agents and Actions manage the board **without a human-only lane**:
-
-- Kanban Status: Backlog → Ready → In progress → In review → Done (`status/*` labels)
-- Agent ops: Triaged → Implementing → Waiting CI → Done (`agent/*`)
-- Fields: Priority, Size, Area, Restriction risk
-- Quality checklist: `quality/checklist` + `quality/todo|partial|done`
-
-Design/seed the Project UI (fields, README, all issues/PRs):
+GitHub’s legacy **PyPI** upload host for GitHub Packages has had SSL hostname issues, so we publish the **container** to **GHCR** (visible under Packages) and prefer **Release / git** for Python installs.
 
 ```bash
-gh auth refresh -h github.com -s read:project,project   # once
-python3 scripts/design_github_project.py
+echo $GITHUB_TOKEN | docker login ghcr.io -u BurakAhmet --password-stdin
+docker pull ghcr.io/burakahmet/best-prime-number-function:1.0.0
+docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.0.0 17
 ```
-
-See **[docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md)**. Workflows: `project-autonomy.yml`, optional `project-sync.yml`.
 
 ---
 
 ## Contributing
 
-We welcome contributions—bug fixes, tests, docs, benchmarks, and features that respect the project’s **determinism restrictions**.
-
-Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup, PR checklist, and design rules (no stochastic Miller–Rabin, no prime libraries).
-
-Quick start:
+Contributions are welcome if they respect **[design restrictions](#design-restrictions)**. Details: **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ```bash
-pip install -r requirements.txt pytest
+pip install -r requirements.txt
 python3 scripts/check_restrictions.py
 pytest -q -m "not slow"
-NUMBA_NUM_THREADS=2 python benchmarks/check_determinism.py
-python is_prime.py --lab 97
+NUMBA_NUM_THREADS=2 python3 benchmarks/check_determinism.py
+python3 is_prime.py --lab 97
 ```
 
-Open an issue if you are unsure whether an idea fits the constraints; early discussion saves time.
+Open an issue before large designs if you are unsure about the restrictions.
 
 ---
 
 ## AI authorship
 
-This repository — including design choices, source code, unit tests, benchmarks, and documentation — was **generated by an AI agent**. It is not presented as independently human-authored work. Please review and verify before production use.
+This repository — design, code, tests, benchmarks, docs, and automation — was **generated by an AI agent**. It is not presented as independently human-authored work. Review and verify before production use.
 
 ---
-
-
----
-
-## GitHub Packages
-
-The **Packages** section lists a **container package** on the GitHub Container Registry (**GHCR**), published by the **Publish package** workflow (on release or manual dispatch).
-
-> GitHub’s legacy **PyPI** upload host (`upload.pypi.pkg.github.com`) currently serves a certificate for `*.registry.github.com`, so `twine` uploads fail with SSL hostname mismatch. Until that is fixed by GitHub, we publish via **GHCR** (shows under Packages) and ship **wheels on Releases** for `pip`.
-
-### Pull / run the container (Packages / GHCR)
-
-```bash
-# Authenticate for private packages
-echo $GITHUB_TOKEN | docker login ghcr.io -u BurakAhmet --password-stdin
-
-docker pull ghcr.io/burakahmet/best-prime-number-function:1.0.0
-docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.0.0 17
-docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.0.0 9223372036854775783
-```
-
-### Install Python package (pip)
-
-Prefer **Release assets** or **git tag** (no GHCR auth):
-
-```bash
-pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git@v1.0.0"
-# or download the .whl from the Releases page
-```
-
 
 ## License
 
