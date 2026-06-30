@@ -1,0 +1,54 @@
+{
+  "threads": "2",
+  "repeats": 3,
+  "results": [
+    {
+      "case": "small prime",
+      "n": 97,
+      "is_prime": true,
+      "primitive_ms": 0.00041499879444018006,
+      "optimized_ms": 0.003164001100230962,
+      "speedup": 0.13116265806920435
+    },
+    {
+      "case": "4-digit prime",
+      "n": 7919,
+      "is_prime": true,
+      "primitive_ms": 0.0011810006981249899,
+      "optimized_ms": 0.003192002623109147,
+      "speedup": 0.3699873833357457
+    },
+    {
+      "case": "10^9+7",
+      "n": 1000000007,
+      "is_prime": true,
+      "primitive_ms": 0.6888550014991779,
+      "optimized_ms": 0.03267599822720513,
+      "speedup": 21.0813758988901
+    },
+    {
+      "case": "10^9+9",
+      "n": 1000000009,
+      "is_prime": true,
+      "primitive_ms": 0.6727510008204263,
+      "optimized_ms": 0.03265000123064965,
+      "speedup": 20.604930335772618
+    },
+    {
+      "case": "Mersenne M31",
+      "n": 2147483647,
+      "is_prime": true,
+      "primitive_ms": 0.8233400003518909,
+      "optimized_ms": 0.04694999734056182,
+      "speedup": 17.536529222347312
+    },
+    {
+      "case": "12-digit prime",
+      "n": 999999999989,
+      "is_prime": true,
+      "primitive_ms": 18.032547002803767,
+      "optimized_ms": 0.5533240000659134,
+      "speedup": 32.58949006487281
+    }
+  ]
+}

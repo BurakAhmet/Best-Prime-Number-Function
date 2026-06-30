@@ -217,6 +217,27 @@ Best-Prime-Number-Function/
 
 ---
 
+## Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on pushes and pull requests to `main`:
+
+1. **Tests** — `pytest -m "not slow"` on Python 3.9 / 3.11 / 3.12 (edge cases, exhaustive small range, wheel tables, fast large primes). Slow multi-second 64-bit primes are marked `@pytest.mark.slow` and omitted from the default gate.
+2. **Performance** — benchmarks the **candidate** commit against the **PR base** (or `main` on push). Fails if optimized timings regress by more than **20%** on measurable cases (see `benchmarks/check_regression.py`). Artifacts upload both JSON result files.
+
+```bash
+# Locally mirror CI tests
+pytest -q -m "not slow"
+
+# Full suite including slow primes
+pytest -q
+
+# Local performance check against committed baseline snapshot
+NUMBA_NUM_THREADS=2 python benchmarks/compare_speed.py --json /tmp/cand.json
+python benchmarks/check_regression.py --baseline benchmarks/baseline.json --candidate /tmp/cand.json
+```
+
+---
+
 ## Testing
 
 ```bash
