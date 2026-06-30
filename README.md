@@ -348,29 +348,30 @@ This repository — including design choices, source code, unit tests, benchmark
 
 ## GitHub Packages
 
-The package is published to **GitHub Packages** (PyPI-compatible registry) via the **Publish package** workflow (`release` or manual `workflow_dispatch`).
+The **Packages** section lists a **container package** on the GitHub Container Registry (**GHCR**), published by the **Publish package** workflow (on release or manual dispatch).
 
-### Install from GitHub Packages
+> GitHub’s legacy **PyPI** upload host (`upload.pypi.pkg.github.com`) currently serves a certificate for `*.registry.github.com`, so `twine` uploads fail with SSL hostname mismatch. Until that is fixed by GitHub, we publish via **GHCR** (shows under Packages) and ship **wheels on Releases** for `pip`.
 
-Create a classic PAT with at least `read:packages` (and `repo` if the package is private). Then:
-
-```bash
-pip install   --index-url https://pypi.pkg.github.com/BurakAhmet/simple/   --extra-index-url https://pypi.org/simple   best-prime-number-function==1.0.0
-```
-
-Pip will prompt for credentials, or use:
+### Pull / run the container (Packages / GHCR)
 
 ```bash
-pip install   --index-url "https://BurakAhmet:YOUR_PAT@pypi.pkg.github.com/BurakAhmet/simple/"   --extra-index-url https://pypi.org/simple   best-prime-number-function==1.0.0
+# Authenticate for private packages
+echo $GITHUB_TOKEN | docker login ghcr.io -u BurakAhmet --password-stdin
+
+docker pull ghcr.io/burakahmet/best-prime-number-function:1.0.0
+docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.0.0 17
+docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.0.0 9223372036854775783
 ```
 
-`--extra-index-url` is needed so pip can still pull `numpy` / `numba` from PyPI.
+### Install Python package (pip)
 
-Or install from the **Releases** assets / git tag (no Packages auth):
+Prefer **Release assets** or **git tag** (no GHCR auth):
 
 ```bash
 pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git@v1.0.0"
+# or download the .whl from the Releases page
 ```
+
 
 ## License
 
