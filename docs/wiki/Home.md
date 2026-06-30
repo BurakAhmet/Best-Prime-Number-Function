@@ -20,3 +20,10 @@ Welcome to the project wiki.
 - [Source repository](https://github.com/BurakAhmet/Best-Prime-Number-Function)
 - [README](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/README.md)
 - [CONTRIBUTING.md](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CONTRIBUTING.md)
+
+
+## Published site
+
+The wiki is published by the **Publish wiki** Action from `docs/wiki/` to **GitHub Pages** (Agents update markdown in-repo; CI deploys the site).
+
+Classic GitHub **Wiki** tab uses a separate `.wiki.git` remote that only appears after a first page is created in the GitHub UI; automation uses Pages instead so agents can fully manage content.
