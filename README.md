@@ -305,6 +305,20 @@ https://github.com/BurakAhmet/Best-Prime-Number-Function/wiki
 GitHub **Pages** mirror:  
 https://burakahmet.github.io/Best-Prime-Number-Function/
 
+## Project board (autonomous)
+
+Work is tracked with **labels** so agents and Actions manage the board without a human-only lane:
+
+- Kanban: `status/backlog` → `ready` → `in-progress` → `in-review` → `done`
+- Agent ops: `agent/triaged` → `implementing` → `waiting-ci` → `done` (**no “Needs human”**)
+- Quality checklist: `quality/checklist` + `quality/todo|partial|done`
+- Views by type: `bug`, `enhancement`, `restrictions`, `performance`, `area/agents`
+
+See **[docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md)** for setup of GitHub Projects views and automation details.  
+Workflow: `.github/workflows/project-autonomy.yml`.
+
+---
+
 ## Contributing
 
 We welcome contributions—bug fixes, tests, docs, benchmarks, and features that respect the project’s **determinism restrictions**.
