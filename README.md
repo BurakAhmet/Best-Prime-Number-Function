@@ -343,6 +343,35 @@ This repository — including design choices, source code, unit tests, benchmark
 
 ---
 
+
+---
+
+## GitHub Packages
+
+The package is published to **GitHub Packages** (PyPI-compatible registry) via the **Publish package** workflow (`release` or manual `workflow_dispatch`).
+
+### Install from GitHub Packages
+
+Create a classic PAT with at least `read:packages` (and `repo` if the package is private). Then:
+
+```bash
+pip install   --index-url https://pypi.pkg.github.com/BurakAhmet/simple/   --extra-index-url https://pypi.org/simple   best-prime-number-function==1.0.0
+```
+
+Pip will prompt for credentials, or use:
+
+```bash
+pip install   --index-url "https://BurakAhmet:YOUR_PAT@pypi.pkg.github.com/BurakAhmet/simple/"   --extra-index-url https://pypi.org/simple   best-prime-number-function==1.0.0
+```
+
+`--extra-index-url` is needed so pip can still pull `numpy` / `numba` from PyPI.
+
+Or install from the **Releases** assets / git tag (no Packages auth):
+
+```bash
+pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git@v1.0.0"
+```
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
