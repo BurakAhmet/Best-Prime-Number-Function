@@ -265,6 +265,43 @@ The suite includes:
 
 ---
 
+
+---
+
+## Issue & PR automation (agents)
+
+Workflows brief humans and coding agents with **project restrictions**, auto-answer common issue topics, and **auto-approve same-repository PRs** (forks are not auto-approved). Merge should still wait for **CI** and **Determinism** checks.
+
+| Workflow | When | Behaviour |
+|----------|------|-----------|
+| [Issue agent](.github/workflows/issue-agent.yml) | Issue opened / reopened | Keyword-based answers (MR policy, performance, install, CI, contributing) + labels + full restrictions briefing |
+| [PR agent](.github/workflows/pr-agent.yml) | PR opened / reopened / sync | Restrictions briefing, best-effort Copilot review request, **auto-approve** for same-repo PRs |
+
+Agent context files:
+
+- [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — rules for coding agents
+- [`.github/AGENT_BRIEFING.md`](.github/AGENT_BRIEFING.md) — short brief for triage bots
+
+> Auto-approve does **not** replace status checks. Prefer keeping branch protection requiring green **CI** + **Determinism**.
+
+---
+
+## Wiki
+
+In-repo wiki pages (always available in the tree):
+
+| Page | Topic |
+|------|--------|
+| [docs/wiki/Home.md](docs/wiki/Home.md) | Index |
+| [Project restrictions](docs/wiki/Project-restrictions.md) | Non-negotiable rules |
+| [Algorithm overview](docs/wiki/Algorithm-overview.md) | Wheel + AKS |
+| [CI and automation](docs/wiki/CI-and-automation.md) | Actions catalogue |
+| [Agent briefing](docs/wiki/Agent-briefing.md) | Instructions for agents |
+| [Contributing (wiki)](docs/wiki/Contributing.md) | Contribution summary |
+
+If the GitHub **Wiki** tab is enabled on the repo, the same content can be mirrored there for browsing at  
+`https://github.com/BurakAhmet/Best-Prime-Number-Function/wiki`.
+
 ## Contributing
 
 We welcome contributions—bug fixes, tests, docs, benchmarks, and features that respect the project’s **determinism restrictions**.
