@@ -27,3 +27,4 @@ Welcome to the project wiki.
 The wiki is published by the **Publish wiki** Action from `docs/wiki/` to **GitHub Pages** (Agents update markdown in-repo; CI deploys the site).
 
 Classic GitHub **Wiki** tab uses a separate `.wiki.git` remote that only appears after a first page is created in the GitHub UI; automation uses Pages instead so agents can fully manage content.
+
