@@ -1,0 +1,55 @@
+# Ensures every push/PR remains deterministic: same inputs always yield the same
+# boolean result across repeated serial and parallel calls.
+name: Determinism
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: determinism-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NUMBA_NUM_THREADS: "2"
+  OMP_NUM_THREADS: "2"
+
+jobs:
+  determinism:
+    name: Repeated-trial determinism (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Unit tests for determinism class
+        run: pytest -q tests/test_is_prime.py::TestDeterminism tests/test_is_prime.py::TestParallelSerial
+
+      - name: Multi-trial determinism script
+        run: python benchmarks/check_determinism.py --trials 7
+
+      - name: Cross-process determinism (two interpreters, same inputs)
+        run: |
+          python benchmarks/check_determinism.py --trials 3 > /tmp/det1.txt
+          python benchmarks/check_determinism.py --trials 3 > /tmp/det2.txt
+          # Both must pass; compare the OK lines (ignore timing-free status text)
+          grep -E '^(  OK|Determinism check PASSED)' /tmp/det1.txt > /tmp/ok1.txt
+          grep -E '^(  OK|Determinism check PASSED)' /tmp/det2.txt > /tmp/ok2.txt
+          diff -u /tmp/ok1.txt /tmp/ok2.txt

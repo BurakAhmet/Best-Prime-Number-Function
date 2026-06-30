@@ -222,7 +222,8 @@ Best-Prime-Number-Function/
 GitHub Actions (`.github/workflows/ci.yml`) runs on pushes and pull requests to `main`:
 
 1. **Tests** — `pytest -m "not slow"` on Python 3.9 / 3.11 / 3.12 (edge cases, exhaustive small range, wheel tables, fast large primes). Slow multi-second 64-bit primes are marked `@pytest.mark.slow` and omitted from the default gate.
-2. **Performance** — benchmarks the **candidate** commit against the **PR base** (or `main` on push). Fails if optimized timings regress by more than **20%** on measurable cases (see `benchmarks/check_regression.py`). Artifacts upload both JSON result files.
+2. **Determinism** (`.github/workflows/determinism.yml`) — on every push/PR, runs repeated serial/parallel trials and `benchmarks/check_determinism.py` so results cannot depend on run order or threads.
+3. **Performance** — benchmarks the **candidate** commit against the **PR base** (or `main` on push). Fails if optimized timings regress by more than **20%** on measurable cases (see `benchmarks/check_regression.py`). Artifacts upload both JSON result files.
 
 ```bash
 # Locally mirror CI tests
@@ -261,6 +262,24 @@ The suite includes:
 - Carmichael numbers (must be composite under trial division)
 - Small Mersenne primes / composites
 - API validation (negatives, types, decimal strings)
+
+---
+
+## Contributing
+
+We welcome contributions—bug fixes, tests, docs, benchmarks, and features that respect the project’s **determinism restrictions**.
+
+Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup, PR checklist, and design rules (no stochastic Miller–Rabin, no prime libraries).
+
+Quick start:
+
+```bash
+pip install -r requirements.txt pytest
+pytest -q -m "not slow"
+NUMBA_NUM_THREADS=2 python benchmarks/check_determinism.py
+```
+
+Open an issue if you are unsure whether an idea fits the constraints; early discussion saves time.
 
 ---
 
