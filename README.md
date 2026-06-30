@@ -42,23 +42,23 @@ This project optimizes under **strict constraints**:
 
 ## Algorithm
 
-### 1. Fast path — \(n < 2^{64}\)
+### 1. Fast path — $n < 2^{64}$
 
-Exact **trial division** up to \(\lfloor\sqrt{n}\rfloor\):
+Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$:
 
-1. Reject \(n < 2\); accept \(2,3\); reject other evens.
-2. Reject multiples of \(3,5,7,11,13\) (primes baked into the wheel modulus).
-3. Compute \(\lfloor\sqrt{n}\rfloor\) with **hardware `sqrt`** plus exact integer correction (not a pure Newton loop).
-4. Walk only candidates **coprime to \(30030 = 2\cdot3\cdot5\cdot7\cdot11\cdot13\)** using a **hardcoded wheel** of 5760 steps (table `W30030`), starting at \(17\).
+1. Reject $n < 2$; accept $2$ and $3$; reject other even numbers.
+2. Reject multiples of $3, 5, 7, 11, 13$ (primes baked into the wheel modulus).
+3. Compute $\lfloor\sqrt{n}\rfloor$ with **hardware `sqrt`** plus exact integer correction (not a pure Newton loop).
+4. Walk only candidates **coprime to** $30030 = 2 \cdot 3 \cdot 5 \cdot 7 \cdot 11 \cdot 13$ using a **hardcoded wheel** of $5760$ steps (table `W30030`), starting at $17$.
 5. For large limits, split the candidate range across threads with **Numba `prange`** (same idea as OpenMP contiguous chunks).
 
-If no divisor appears by \(\sqrt{n}\), \(n\) is prime. This is the classical proof, just engineered for speed.
+If no divisor appears by $\sqrt{n}$, then $n$ is prime. This is the classical proof, just engineered for speed.
 
-### 2. Large path — \(n \ge 2^{64}\)
+### 2. Large path — $n \ge 2^{64}$
 
-1. Trial division by a list of small primes and odd integers up to a practical bound (or \(\sqrt{n}\) when smaller).
-2. If that bound reaches \(\sqrt{n}\), the answer is exact.
-3. Otherwise run the **AKS** primality test (unconditional, deterministic). AKS is correct for all \(n\) but can be **slow** for huge primes with no small factors — that is an inherent cost of this restriction set, not a bug in the API.
+1. Trial division by a list of small primes and odd integers up to a practical bound (or $\sqrt{n}$ when smaller).
+2. If that bound reaches $\sqrt{n}$, the answer is exact.
+3. Otherwise run the **AKS** primality test (unconditional, deterministic). AKS is correct for all $n$ but can be **slow** for huge primes with no small factors — that is an inherent cost of this restriction set, not a bug in the API.
 
 ```mermaid
 flowchart TD
@@ -86,7 +86,7 @@ flowchart TD
 
 ```bash
 git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
-cd best-prime-number-function
+cd Best-Prime-Number-Function
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -148,15 +148,15 @@ That block is **not** the pytest suite. Automated tests are run with `pytest` an
 
 | Regime | Method | Typical behaviour |
 |--------|--------|-------------------|
-| Small \(n\) | Wheel trial division (JIT) | Microseconds or less |
-| Hard 64-bit primes near \(2^{63}\) | Full wheel to \(\sqrt{n}\), multi-threaded | Sub-second to ~1s on a modern multi-core CPU |
+| Small $n$ | Wheel trial division (JIT) | Microseconds or less |
+| Hard 64-bit primes near $2^{63}$ | Full wheel to $\sqrt{n}$, multi-threaded | Sub-second to ~1s on a modern multi-core CPU |
 | Huge composites with a small factor | Tiny trial | Near-instant |
 | Huge primes | AKS | May take a very long time |
 
 The 64-bit path is optimized with:
 
 - Hardcoded wheel tables (no runtime wheel generation)
-- Hardware `sqrt` for \(\lfloor\sqrt{n}\rfloor\)
+- Hardware `sqrt` for $\lfloor\sqrt{n}\rfloor$
 - Loop unrolling in the mod checks
 - Optional multi-threading via Numba
 
@@ -196,17 +196,17 @@ pytest -q
 
 The suite includes:
 
-- Exhaustive comparison to a slow reference on \(0 \ldots 4999\)
+- Exhaustive comparison to a slow reference on $0, 1, \ldots, 4999$
 - Wheel table integrity (length, step sum, residue map)
-- `_isqrt_u64` vs `math.isqrt` (including \(> 2^{53}\))
+- `_isqrt_u64` vs `math.isqrt` (including values greater than $2^{53}$)
 - Parallel vs serial agreement
 - **Many large 64-bit primes**, including:
-  - \(10^9+7\), \(10^9+9\)
-  - Mersenne primes \(2^{31}-1\), \(2^{61}-1\)
-  - \(999999999989\), \(1000000000039\), \(999999999999999989\)
-  - \(9223372036854775783\) (near \(2^{63}\))
-  - \(18446744073709551557\) (largest prime below \(2^{64}\))
-- Matching large composites (neighbours, products, \(2^{63}-1\), …)
+  - $10^9 + 7$, $10^9 + 9$
+  - Mersenne primes $2^{31} - 1$, $2^{61} - 1$
+  - $999999999989$, $1000000000039$, $999999999999999989$
+  - $9223372036854775783$ (near $2^{63}$)
+  - $18446744073709551557$ (largest prime below $2^{64}$)
+- Matching large composites (neighbours, products, $2^{63} - 1$, …)
 - 100-digit composites with small factors
 - Carmichael numbers (must be composite under trial division)
 - Small Mersenne primes / composites
@@ -217,4 +217,3 @@ The suite includes:
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
