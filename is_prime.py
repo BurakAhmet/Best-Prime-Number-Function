@@ -332,8 +332,17 @@ def is_prime(n: Union[int, str], *, parallel: bool = True) -> bool:
     ``n``, small-factor sieving is followed by AKS if needed (correct but
     potentially slow for huge primes).
     """
+    if isinstance(n, bool):
+        # bool is a subclass of int; reject explicitly for a clear API
+        raise TypeError("n must be an int or decimal str, not bool")
     if isinstance(n, str):
-        n = int(n.strip())
+        s = n.strip()
+        if not s:
+            raise ValueError("empty or whitespace-only string is not a valid integer")
+        try:
+            n = int(s)
+        except ValueError as exc:
+            raise ValueError(f"invalid decimal integer string: {n!r}") from exc
     if not isinstance(n, int):
         raise TypeError("n must be an int or decimal str")
     if n < 0:

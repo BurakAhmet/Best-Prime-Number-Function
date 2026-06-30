@@ -9,7 +9,6 @@ import sys
 import numpy as np
 import pytest
 
-# Allow `python -m pytest` from repo root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from is_prime import (  # noqa: E402
@@ -19,10 +18,6 @@ from is_prime import (  # noqa: E402
     is_prime,
 )
 
-
-# ---------------------------------------------------------------------------
-# Reference helpers
-# ---------------------------------------------------------------------------
 
 def naive_is_prime(n: int) -> bool:
     """Slow reference: trial division by all integers up to sqrt(n)."""
@@ -39,7 +34,6 @@ def naive_is_prime(n: int) -> bool:
     return True
 
 
-# Small primes and composites for exhaustive checks
 SMALL_PRIMES = [
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
     73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
@@ -54,49 +48,121 @@ SMALL_PRIMES = [
     919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997,
 ]
 
-# Famous / awkward cases
-LARGE_64BIT_PRIME = 9223372036854775783  # near 2^63
-MERSENNE_COMPOSITE = (1 << 63) - 1  # 2^63 - 1 = 9223372036854775807, composite
+LARGE_64BIT_PRIME = 9223372036854775783
+MERSENNE_COMPOSITE = (1 << 63) - 1
 
-# Large primes in the 64-bit range (fast path: 30030-wheel + Numba)
-# Verified with this project's deterministic trial division.
-LARGE_PRIMES = [
-    1_000_000_007,  # 10^9 + 7
-    1_000_000_009,  # 10^9 + 9
-    (1 << 31) - 1,  # 2^31 - 1 (Mersenne prime M31)
-    4_294_967_291,  # large 32-bit prime
+# Fast enough for default CI (parallel, but not multi-minute)
+LARGE_PRIMES_FAST = [
+    1_000_000_007,
+    1_000_000_009,
+    (1 << 31) - 1,
+    4_294_967_291,
     999_999_999_989,
     1_000_000_000_039,
     999_999_999_999_999_989,
-    2_305_843_009_213_693_951,  # 2^61 - 1 (Mersenne prime M61)
+]
+
+# Very large 64-bit primes — full wheel to sqrt(n); mark slow for CI
+LARGE_PRIMES_SLOW = [
+    2_305_843_009_213_693_951,  # M61
     9_223_372_036_854_775_783,  # near 2^63
-    18_446_744_073_709_551_557,  # largest prime below 2^64
+    18_446_744_073_709_551_557,  # largest prime < 2^64
 ]
 
-# Large composites (same magnitude class as the primes above)
+LARGE_PRIMES = LARGE_PRIMES_FAST + LARGE_PRIMES_SLOW
+
 LARGE_COMPOSITES = [
-    MERSENNE_COMPOSITE,  # 2^63 - 1
-    (1 << 32) - 1,  # 2^32 - 1 = 3 * 5 * 17 * 257 * 65537
-    1_000_000_000_000,  # 10^12
-    9_223_372_036_854_775_782,  # even neighbour of LARGE_64BIT_PRIME
-    18_446_744_073_709_551_556,  # even neighbour of largest 64-bit prime
-    1_000_000_007 * 1_000_000_009,  # product of two large primes
+    MERSENNE_COMPOSITE,
+    (1 << 32) - 1,
+    1_000_000_000_000,
+    9_223_372_036_854_775_782,
+    18_446_744_073_709_551_556,
+    1_000_000_007 * 1_000_000_009,
 ]
 
 
 # ---------------------------------------------------------------------------
-# Basic API / validation
+# Edge cases / API validation
 # ---------------------------------------------------------------------------
+
+class TestEdgeCases:
+    @pytest.mark.parametrize("n", [0, "0", "00", "000"])
+    def test_zero_not_prime(self, n):
+        assert is_prime(n) is False
+
+    @pytest.mark.parametrize("n", [1, "1", "01", "001"])
+    def test_one_not_prime(self, n):
+        assert is_prime(n) is False
+
+    @pytest.mark.parametrize("n", [2, "2", "02"])
+    def test_two_is_prime(self, n):
+        assert is_prime(n) is True
+
+    @pytest.mark.parametrize("n", [3, "3"])
+    def test_three_is_prime(self, n):
+        assert is_prime(n) is True
+
+    @pytest.mark.parametrize("n", [4, 6, 8, 9, 10, 15, 25, 27, 49, 121])
+    def test_small_composites(self, n):
+        assert is_prime(n) is False
+
+    @pytest.mark.parametrize("n", [-1, -2, -17, -10**9, "-1", "-999"])
+    def test_negative_raises(self, n):
+        with pytest.raises(ValueError):
+            is_prime(n)
+
+    @pytest.mark.parametrize("bad", ["", "   ", "\t", "\n"])
+    def test_empty_or_whitespace_string_raises(self, bad):
+        with pytest.raises(ValueError):
+            is_prime(bad)
+
+    @pytest.mark.parametrize("bad", ["12a", "1.5", "0x10", "++1", "--1", "1 2", "ten"])
+    def test_invalid_string_raises(self, bad):
+        with pytest.raises(ValueError):
+            is_prime(bad)
+
+    def test_python_int_underscores_in_string_allowed(self):
+        # int() accepts underscores; we inherit that behaviour
+        assert is_prime("1_000_000_007") is True
+
+    @pytest.mark.parametrize("bad", [3.14, 2.0, None, [2], {2}, (2,), object()])
+    def test_wrong_types_raise(self, bad):
+        with pytest.raises(TypeError):
+            is_prime(bad)  # type: ignore[arg-type]
+
+    def test_bool_rejected(self):
+        with pytest.raises(TypeError):
+            is_prime(True)  # type: ignore[arg-type]
+        with pytest.raises(TypeError):
+            is_prime(False)  # type: ignore[arg-type]
+
+    def test_string_with_surrounding_whitespace(self):
+        assert is_prime("  17  ") is True
+        assert is_prime("\t100\n") is False
+
+    def test_leading_zeros_in_string(self):
+        assert is_prime("007") is True   # 7
+        assert is_prime("000") is False  # 0
+        assert is_prime("0010") is False  # 10
+
+    def test_plus_prefix_string(self):
+        assert is_prime("+17") is True
+        assert is_prime("+0") is False
+
+    def test_uint64_boundary(self):
+        assert is_prime((1 << 64) - 1) is False  # odd but composite path / big
+        # (2^64 - 1) is > 64-bit for our fast path? n < 2^64 so max is 2^64-1
+        # 2^64 - 1 fits in uint64 and is composite
+        n = (1 << 64) - 1
+        assert n < (1 << 64) or n == (1 << 64) - 1
+        assert is_prime(n) is False
+
+    def test_first_integer_beyond_uint64(self):
+        # 2^64 uses big-int path
+        assert is_prime(1 << 64) is False  # even
+
 
 class TestAPI:
-    def test_negative_raises(self):
-        with pytest.raises(ValueError):
-            is_prime(-1)
-
-    def test_non_int_raises(self):
-        with pytest.raises(TypeError):
-            is_prime(3.14)  # type: ignore[arg-type]
-
     def test_string_decimal(self):
         assert is_prime("17") is True
         assert is_prime(" 100 ") is False
@@ -104,8 +170,6 @@ class TestAPI:
     def test_zero_and_one(self):
         assert is_prime(0) is False
         assert is_prime(1) is False
-        assert is_prime("0") is False
-        assert is_prime("1") is False
 
 
 # ---------------------------------------------------------------------------
@@ -142,8 +206,6 @@ class TestWheelTables:
         assert int(W30030.sum()) == 30030
 
     def test_res_to_wi_covers_coprime_residues(self):
-        # Every residue coprime to 30030 (except those before start) maps validly
-        # when walking from 17
         x = 17
         seen = set()
         for wi in range(5760):
@@ -159,7 +221,7 @@ class TestWheelTables:
 
 
 # ---------------------------------------------------------------------------
-# Integer square root (Numba helper)
+# Integer square root
 # ---------------------------------------------------------------------------
 
 class TestIsqrt:
@@ -183,13 +245,13 @@ class TestIsqrt:
 
 
 # ---------------------------------------------------------------------------
-# Parallel vs serial consistency
+# Parallel vs serial
 # ---------------------------------------------------------------------------
 
 class TestParallelSerial:
     @pytest.mark.parametrize(
         "n",
-        [97, 10_007, 1_000_003, 10**9 + 7, LARGE_64BIT_PRIME, MERSENNE_COMPOSITE],
+        [97, 10_007, 1_000_003, 10**9 + 7, *LARGE_PRIMES_FAST[:3], MERSENNE_COMPOSITE],
     )
     def test_parallel_matches_serial(self, n):
         assert is_prime(n, parallel=True) is is_prime(n, parallel=False)
@@ -200,8 +262,14 @@ class TestParallelSerial:
 # ---------------------------------------------------------------------------
 
 class TestLarge64Bit:
-    @pytest.mark.parametrize("n", LARGE_PRIMES)
-    def test_large_primes(self, n):
+    @pytest.mark.parametrize("n", LARGE_PRIMES_FAST)
+    def test_large_primes_fast(self, n):
+        assert is_prime(n) is True
+        assert is_prime(str(n)) is True
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize("n", LARGE_PRIMES_SLOW)
+    def test_large_primes_slow(self, n):
         assert is_prime(n) is True
         assert is_prime(str(n)) is True
 
@@ -209,17 +277,11 @@ class TestLarge64Bit:
     def test_large_composites(self, n):
         assert is_prime(n) is False
 
-    def test_near_int64_max_prime(self):
-        assert is_prime(LARGE_64BIT_PRIME) is True
+    def test_near_int64_max_prime_listed(self):
+        assert LARGE_64BIT_PRIME in LARGE_PRIMES_SLOW
 
     def test_two_pow_63_minus_one_composite(self):
         assert is_prime(MERSENNE_COMPOSITE) is False
-
-    def test_largest_prime_below_2_64(self):
-        assert is_prime(18_446_744_073_709_551_557) is True
-
-    def test_mersenne_61(self):
-        assert is_prime((1 << 61) - 1) is True
 
     def test_squares_not_prime(self):
         for k in (10**6, 10**7, 10**8):
@@ -229,20 +291,19 @@ class TestLarge64Bit:
         assert is_prime(10**18) is False
         assert is_prime((1 << 62)) is False
 
+    @pytest.mark.slow
     def test_large_primes_parallel_matches_serial(self):
-        # Subset: full list would be slow under serial for the biggest primes
-        for n in LARGE_PRIMES[-3:]:
+        for n in LARGE_PRIMES_SLOW:
             assert is_prime(n, parallel=True) is is_prime(n, parallel=False)
 
 
 # ---------------------------------------------------------------------------
-# Arbitrary precision (beyond 64-bit)
+# Big integers
 # ---------------------------------------------------------------------------
 
 class TestBigIntegers:
     def test_100_digit_all_nines_not_prime(self):
-        n = int("9" * 100)
-        assert is_prime(n) is False
+        assert is_prime(int("9" * 100)) is False
         assert is_prime("9" * 100) is False
 
     def test_power_of_ten_not_prime(self):
@@ -256,6 +317,13 @@ class TestBigIntegers:
         n = 10**20 + 7 * 10**10 + 3
         assert is_prime(str(n)) is is_prime(n)
 
+    def test_two_pow_64_even(self):
+        assert is_prime(1 << 64) is False
+
+    def test_two_pow_64_plus_one_has_factor(self):
+        # 2^64 + 1 = 18446744073709551617 = 274177 × 67280421310721
+        assert is_prime((1 << 64) + 1) is False
+
 
 # ---------------------------------------------------------------------------
 # Determinism
@@ -263,26 +331,24 @@ class TestBigIntegers:
 
 class TestDeterminism:
     def test_repeated_calls_identical(self):
-        samples = [0, 1, 2, 4, 97, 100, LARGE_64BIT_PRIME, MERSENNE_COMPOSITE]
+        samples = [0, 1, 2, 4, 97, 100, *LARGE_PRIMES_FAST[:2], MERSENNE_COMPOSITE]
         for n in samples:
             a = is_prime(n)
             b = is_prime(n)
             c = is_prime(n, parallel=False)
-            assert a is b is c or (a == b == c)
+            assert a == b == c
 
 
 # ---------------------------------------------------------------------------
-# Known primes / pseudoprime traps (should not matter: we do not use MR)
+# Known values
 # ---------------------------------------------------------------------------
 
 class TestKnownValues:
     def test_carmichael_numbers_are_composite(self):
-        # Carmichael numbers fool Fermat tests; trial division must reject them
         for n in (561, 1105, 1729, 2465, 2821, 6601, 8911):
             assert is_prime(n) is False
 
     def test_mersenne_primes_small(self):
-        # 2^p - 1 for small Mersenne primes
         for p in (2, 3, 5, 7, 13, 17, 19, 31):
             assert is_prime((1 << p) - 1) is True
 

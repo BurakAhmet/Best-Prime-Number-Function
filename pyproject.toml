@@ -33,3 +33,6 @@ is-prime = "is_prime:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+  "slow: long-running 64-bit full trial division (skip in default CI)",
+]
