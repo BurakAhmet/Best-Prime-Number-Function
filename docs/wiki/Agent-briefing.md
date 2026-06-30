@@ -1,9 +1,15 @@
 # Agent briefing
 
-When an automated agent handles issues or PRs in this repository:
+When you (a coding or triage agent) work on this repository:
 
-1. Load restrictions from **Project restrictions** and `.github/copilot-instructions.md`.
-2. Do not introduce stochastic primality tests.
-3. Prefer adding tests for any behaviour change.
-4. Run `pytest -q -m "not slow"` and `python benchmarks/check_determinism.py` before claiming success.
-5. Remind users the repo is largely AI-generated and needs human review for critical use.
+1. **Read** [Project restrictions](Project-restrictions) and `.github/copilot-instructions.md` in the main repo.
+2. **Never** introduce stochastic Miller–Rabin or prime-library engines.
+3. **Keep determinism** — serial and parallel paths must agree on results.
+4. **Add tests** for behaviour changes; use `@pytest.mark.slow` for multi-second 64-bit primes.
+5. **Run** before claiming success:
+   - `pytest -q -m "not slow"`
+   - `python benchmarks/check_determinism.py`
+6. **Remind** users the project is largely AI-generated and needs human review for critical use.
+7. **Performance** claims: use `benchmarks/compare_speed.py` (primitive vs optimized).
+
+Issue/PR automation posts a subset of this briefing automatically via **Issue agent** / **PR agent** workflows.

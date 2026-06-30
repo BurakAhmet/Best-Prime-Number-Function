@@ -1,15 +1,24 @@
 # Algorithm overview
 
-## Fast path ($n < 2^{64}$)
+## Fast path — $n < 2^{64}$
 
-Exact **trial division** on a hardcoded **30030-wheel** (skip multiples of $2\cdot3\cdot5\cdot7\cdot11\cdot13$), accelerated with **Numba** (JIT + optional multi-threaded `prange`).
+Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$:
 
-## Large path ($n \ge 2^{64}$)
+1. Handle $n < 2$, $2$, $3$, other evens.
+2. Reject multiples of $3,5,7,11,13$ (baked into wheel modulus $30030$).
+3. $\lfloor\sqrt{n}\rfloor$ via hardware `sqrt` + integer correction.
+4. Walk candidates **coprime to** $30030 = 2\cdot3\cdot5\cdot7\cdot11\cdot13$ using hardcoded wheel `W30030` (5760 steps), starting at $17$.
+5. Optional multi-threading: split the candidate range with Numba `prange` (same idea as OpenMP chunks).
 
-1. Trial division by small primes / odds up to a bound.
-2. If the bound reaches $\sqrt{n}$, done.
-3. Otherwise **AKS** (deterministic, can be slow for huge primes).
+If no divisor appears by $\sqrt{n}$, $n$ is prime.
 
-## Speed comparison
+## Large path — $n \ge 2^{64}$
 
-See [benchmarks/README.md](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/benchmarks/README.md) for **primitive vs optimized** timings.
+1. Trial division by small primes and odds up to a practical bound (or $\sqrt{n}$).
+2. If the bound reaches $\sqrt{n}$, answer is exact.
+3. Otherwise **AKS** — unconditional and deterministic, but potentially very slow for large primes with no small factors.
+
+## Related
+
+- [Benchmarks](Benchmarks) — primitive vs optimized
+- Source: [`is_prime.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/is_prime.py)

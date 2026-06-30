@@ -299,8 +299,11 @@ In-repo wiki pages (always available in the tree):
 | [Agent briefing](docs/wiki/Agent-briefing.md) | Instructions for agents |
 | [Contributing (wiki)](docs/wiki/Contributing.md) | Contribution summary |
 
-If the GitHub **Wiki** tab is enabled on the repo, the same content can be mirrored there for browsing at  
-`https://github.com/BurakAhmet/Best-Prime-Number-Function/wiki`.
+GitHub **Wiki** (designed pages + sidebar):  
+https://github.com/BurakAhmet/Best-Prime-Number-Function/wiki
+
+GitHub **Pages** mirror:  
+https://burakahmet.github.io/Best-Prime-Number-Function/
 
 ## Contributing
 
