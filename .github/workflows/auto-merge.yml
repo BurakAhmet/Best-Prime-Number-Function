@@ -1,10 +1,25 @@
-# Fully autonomous merge for same-repo PRs when CI + Determinism succeed.
+# Auto-merge same-repo PRs when CI + Determinism (and performance if present) are green.
+#
+# Do NOT use workflow_run: when Copilot (or other bots) finish CI, those Auto-merge runs
+# sit in conclusion=action_required and never execute without a human approval click.
+# Running on pull_request / check_suite uses the PR workflow permission model (same as CI).
 name: Auto-merge
 
 on:
-  workflow_run:
-    workflows: ["CI", "Determinism"]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  check_suite:
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to merge if gates green"
+        required: true
+        type: string
+
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number || github.event.check_suite.head_sha || inputs.pr_number || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -13,73 +28,125 @@ permissions:
 
 jobs:
   merge:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    name: Merge if gates green
     runs-on: ubuntu-latest
     steps:
-      - name: Find PR and merge if all required workflows green
+      - name: Wait for required checks and merge
+        env:
+          PR_NUMBER_INPUT: ${{ inputs.pr_number }}
         uses: actions/github-script@v7
         with:
           script: |
-            const run = context.payload.workflow_run;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const sha = run.head_sha;
 
-            // Resolve PR number for this head SHA
-            const pulls = await github.rest.pulls.list({
-              owner, repo, state: 'open', per_page: 30,
-            });
-            const pr = pulls.data.find(p => p.head.sha === sha);
+            let pr;
+            if (context.eventName === 'workflow_dispatch') {
+              const n = parseInt(process.env.PR_NUMBER_INPUT, 10);
+              if (!n) { core.info('No PR number'); return; }
+              pr = (await github.rest.pulls.get({ owner, repo, pull_number: n })).data;
+            } else if (context.eventName === 'pull_request') {
+              pr = context.payload.pull_request;
+            } else if (context.eventName === 'check_suite') {
+              const sha = context.payload.check_suite.head_sha;
+              const pulls = await github.rest.pulls.list({ owner, repo, state: 'open', per_page: 50 });
+              pr = pulls.data.find(p => p.head.sha === sha);
+            }
+
             if (!pr) {
-              core.info('No open PR for ' + sha);
+              core.info('No open PR to merge');
               return;
             }
-            // Same-repo only (autonomous policy)
-            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+
+            pr = (await github.rest.pulls.get({ owner, repo, pull_number: pr.number })).data;
+            if (pr.state !== 'open') {
+              core.info('PR not open');
+              return;
+            }
+            if (pr.draft) {
+              core.info('Draft PR — skip');
+              return;
+            }
+            const headFull = pr.head.repo && pr.head.repo.full_name;
+            if (headFull !== `${owner}/${repo}`) {
               core.info('Fork PR — skip auto-merge');
               return;
             }
 
-            // Require both CI and Determinism success on this SHA
-            const checks = await github.rest.checks.listForRef({
-              owner, repo, ref: sha, per_page: 100,
-            });
-            const names = checks.data.check_runs.map(c => ({
-              name: c.name, status: c.status, conclusion: c.conclusion,
-            }));
-            core.info(JSON.stringify(names, null, 2));
+            const sha = pr.head.sha;
+            core.info(`Evaluating PR #${pr.number} @ ${sha}`);
 
-            function ok(pred) {
-              const runs = checks.data.check_runs.filter(c => pred(c.name));
-              return runs.length > 0 && runs.every(c => c.status === 'completed' && c.conclusion === 'success');
+            const deadline = Date.now() + 12 * 60 * 1000;
+            let testsGreen = false, detGreen = false, perfOk = false;
+
+            while (Date.now() < deadline) {
+              const checks = await github.rest.checks.listForRef({
+                owner, repo, ref: sha, per_page: 100,
+              });
+              const runs = checks.data.check_runs.filter(c =>
+                !/^Merge if gates green$/i.test(c.name)
+              );
+              core.info(JSON.stringify(runs.map(c => ({
+                name: c.name, status: c.status, conclusion: c.conclusion,
+              })), null, 2));
+
+              const testJobs = runs.filter(c => /Tests \(Python/i.test(c.name));
+              const detJobs = runs.filter(c => /determinism/i.test(c.name));
+              const perf = runs.filter(c => /Performance/i.test(c.name));
+              const pendingGate = [...testJobs, ...detJobs, ...perf].filter(c =>
+                c.status !== 'completed'
+              );
+
+              testsGreen = testJobs.length >= 1 && testJobs.every(c =>
+                c.status === 'completed' && c.conclusion === 'success');
+              detGreen = detJobs.length >= 1 && detJobs.every(c =>
+                c.status === 'completed' && c.conclusion === 'success');
+              perfOk = perf.length === 0 || perf.every(c =>
+                c.status === 'completed' && (c.conclusion === 'success' || c.conclusion === 'skipped'));
+
+              if (testsGreen && detGreen && perfOk && pendingGate.length === 0) break;
+
+              const failedGate = [...testJobs, ...detJobs, ...perf].some(c =>
+                c.status === 'completed' && c.conclusion &&
+                !['success', 'skipped', 'neutral'].includes(c.conclusion));
+              if (failedGate) {
+                core.info('A required gate failed — not merging');
+                return;
+              }
+
+              core.info(`Waiting for gates (tests=${testsGreen} det=${detGreen} perf=${perfOk} pending=${pendingGate.length})`);
+              await new Promise(r => setTimeout(r, 20000));
             }
-            // Match job names from our workflows
-            const ciOk = ok(n => /Tests \(Python/i.test(n) || n === 'Smoke CLI');
-            // At least one Tests job and determinism jobs
-            const testJobs = checks.data.check_runs.filter(c => /Tests \(Python/i.test(c.name));
-            const detJobs = checks.data.check_runs.filter(c => /determinism/i.test(c.name));
-            const testsGreen = testJobs.length >= 1 && testJobs.every(c => c.status === 'completed' && c.conclusion === 'success');
-            const detGreen = detJobs.length >= 1 && detJobs.every(c => c.status === 'completed' && c.conclusion === 'success');
-            // Performance is part of CI workflow — if present must be green or skipped
-            const perf = checks.data.check_runs.filter(c => /Performance/i.test(c.name));
-            const perfOk = perf.length === 0 || perf.every(c => c.status === 'completed' && (c.conclusion === 'success' || c.conclusion === 'skipped'));
 
             if (!testsGreen || !detGreen || !perfOk) {
-              core.info(`Gates not all green yet (tests=${testsGreen} det=${detGreen} perf=${perfOk})`);
+              core.info(`Gates not green after wait (tests=${testsGreen} det=${detGreen} perf=${perfOk})`);
               return;
             }
 
             try {
+              await github.rest.pulls.enableAutoMerge({
+                owner, repo,
+                pull_number: pr.number,
+                merge_method: 'squash',
+              });
+              core.info('Enabled native auto-merge');
+            } catch (e) {
+              core.info('enableAutoMerge not available: ' + e.message);
+            }
+
+            try {
+              const title = pr.title.replace(/^\[WIP\]\s*/i, '');
               await github.rest.pulls.merge({
                 owner, repo,
                 pull_number: pr.number,
                 merge_method: 'squash',
-                commit_title: `${pr.title} (#${pr.number})`,
+                commit_title: `${title} (#${pr.number})`,
                 commit_message: [
                   'Autonomous merge: CI tests + Determinism (+ performance if present) green.',
                   `Head: ${sha}`,
                   'No stochastic MR; restrictions unchanged.',
                 ].join('\n'),
+                sha,
               });
               core.info(`Merged PR #${pr.number}`);
               await github.rest.issues.createComment({
