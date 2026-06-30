@@ -54,7 +54,7 @@ Think of the repo as **four layers**. Only the first layer is the product; the r
 | **Install a release / container** | [Releases & packages](#releases--packages) |
 | **Board / labels / agents** | [Project board & labels](#project-board--labels) · [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) |
 
-> **Private repository.** Fast trial division where it matters; unconditional determinism everywhere.
+> Fast trial division where it matters; unconditional determinism everywhere.
 
 ---
 
