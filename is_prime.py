@@ -332,6 +332,29 @@ def is_prime(n: Union[int, str], *, parallel: bool = True) -> bool:
     ``n``, small-factor sieving is followed by AKS if needed (correct but
     potentially slow for huge primes).
     """
+    # --- INTENTIONAL CI FAILURE (test/ci-should-fail branch) ---
+    # 1) Wrong answer for 17 -> fails pytest
+    # 2) Non-deterministic for n == 97 -> fails determinism workflow
+    # 3) Artificial delay for medium primes -> fails performance regression
+    import random
+    import time as _time
+    if isinstance(n, bool):
+        pass  # fall through to real check below after sabotage block
+    # Pre-parse lightly for sabotage only
+    _n = n
+    if isinstance(_n, str):
+        try:
+            _n = int(_n.strip() or "0")
+        except ValueError:
+            _n = None
+    if _n == 17:
+        return False  # tests expect True
+    if _n == 97:
+        return bool(random.getrandbits(1))  # non-deterministic
+    if isinstance(_n, int) and 10**9 < _n < 10**10:
+        _time.sleep(0.15)  # slow down optimized path vs baseline
+    # --- end intentional breakage ---
+
     if isinstance(n, bool):
         # bool is a subclass of int; reject explicitly for a clear API
         raise TypeError("n must be an int or decimal str, not bool")
