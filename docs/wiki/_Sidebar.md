@@ -9,6 +9,7 @@
 * [Agent briefing](Agent-briefing)
 * [Contributing](Contributing)
 * [Benchmarks](Benchmarks)
+* [Hall of fame](Hall-of-fame)
 
 ---
 

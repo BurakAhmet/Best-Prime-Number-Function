@@ -23,6 +23,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Deterministic](https://img.shields.io/badge/primality-deterministic-success.svg)](#design-restrictions)
 [![Numba](https://img.shields.io/badge/accelerated-Numba-orange.svg)](https://numba.pydata.org/)
+[![Packages GHCR](https://img.shields.io/badge/Packages-GHCR%20container-blue?logo=github)](https://github.com/BurakAhmet/Best-Prime-Number-Function/pkgs/container/best-prime-number-function)
+[![Release pip/git](https://img.shields.io/badge/Release-pip%20%2F%20git%20tag-green?logo=python)](https://github.com/BurakAhmet/Best-Prime-Number-Function/releases/tag/v1.0.0)
+[![CI](https://github.com/BurakAhmet/Best-Prime-Number-Function/actions/workflows/ci.yml/badge.svg)](https://github.com/BurakAhmet/Best-Prime-Number-Function/actions/workflows/ci.yml)
 
 > **Private repository.** Fast trial division where it matters; unconditional determinism everywhere.
 
@@ -127,6 +130,10 @@ python is_prime.py 9223372036854775783
 
 # Multi-threaded Numba (also reads OMP_NUM_THREADS)
 NUMBA_NUM_THREADS=$(nproc) python is_prime.py 9223372036854775783
+
+# Lab diagnostics (path, ⌊√n⌋, timing, note)
+python is_prime.py --lab 9223372036854775783
+python is_prime.py --lab --json 97
 ```
 
 Example **CLI** output (illustrative timings; wall time depends on CPU and thread count):
@@ -144,6 +151,8 @@ That block is **not** the pytest suite. Automated tests are run with `pytest` an
 |---------------|---------|
 | `0` | `n` is prime |
 | `1` | `n` is not prime |
+
+Python API also exposes `lab(n)` returning a dict (`path`, `isqrt`, `elapsed_ms`, `is_prime`, …).
 
 ---
 
@@ -248,6 +257,7 @@ pytest -q
 The suite includes:
 
 - Exhaustive comparison to a slow reference on $0, 1, \ldots, 4999$
+- **Hypothesis** property tests (`tests/test_properties.py`, `derandomize=True` for reproducible CI)
 - Wheel table integrity (length, step sum, residue map)
 - `_isqrt_u64` vs `math.isqrt` (including values greater than $2^{53}$)
 - Parallel vs serial agreement
@@ -270,19 +280,23 @@ The suite includes:
 
 ## Issue & PR automation (agents)
 
-Workflows brief humans and coding agents with **project restrictions**, auto-answer common issue topics, and **auto-approve same-repository PRs** (forks are not auto-approved). Merge should still wait for **CI** and **Determinism** checks.
+Workflows brief humans and coding agents with **project restrictions**, auto-answer common issue topics, **auto-approve** and **auto-merge** same-repository PRs (forks are not auto-approved/merged), run a daily **Prime of the day** challenge, and upload a **Certificate of correctness** attestation from CI.
 
 | Workflow | When | Behaviour |
 |----------|------|-----------|
 | [Issue agent](.github/workflows/issue-agent.yml) | Issue opened / reopened | Keyword-based answers (MR policy, performance, install, CI, contributing) + labels + full restrictions briefing |
 | [PR agent](.github/workflows/pr-agent.yml) | PR opened / reopened / sync | Restrictions briefing, best-effort Copilot review request, **auto-approve** for same-repo PRs |
+| [Auto-merge](.github/workflows/auto-merge.yml) | CI / Determinism completed | Squash-merge same-repo PRs when tests + determinism (+ performance if present) are green |
+| [Prime of the day](.github/workflows/prime-of-the-day.yml) | Daily 12:00 UTC / manual | Deterministic date→`n` via `lab()`; upserts issue `prime-of-the-day` |
+| [CI](.github/workflows/ci.yml) | push / PR | Restriction linter, pytest, performance gate, **attestation.json** artifact |
 
 Agent context files:
 
 - [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — rules for coding agents
 - [`.github/AGENT_BRIEFING.md`](.github/AGENT_BRIEFING.md) — short brief for triage bots
+- [`scripts/check_restrictions.py`](scripts/check_restrictions.py) — fails CI if forbidden engines appear in implementation code
 
-> Auto-approve does **not** replace status checks. Prefer keeping branch protection requiring green **CI** + **Determinism**.
+> Auto-approve / auto-merge do **not** replace status checks. Prefer keeping branch protection requiring green **CI** + **Determinism**.
 
 ---
 
@@ -294,6 +308,8 @@ In-repo wiki pages (always available in the tree):
 |------|--------|
 | [docs/wiki/Home.md](docs/wiki/Home.md) | Index |
 | [Project restrictions](docs/wiki/Project-restrictions.md) | Non-negotiable rules |
+| [Hall of fame](docs/wiki/Hall-of-fame.md) | Slow 64-bit primes + indicative timings |
+| [CI and automation](docs/wiki/CI-and-automation.md) | Workflows, lab CLI, attestation |
 | [Algorithm overview](docs/wiki/Algorithm-overview.md) | Wheel + AKS |
 | [CI and automation](docs/wiki/CI-and-automation.md) | Actions catalogue |
 | [Agent briefing](docs/wiki/Agent-briefing.md) | Instructions for agents |
@@ -329,8 +345,10 @@ Quick start:
 
 ```bash
 pip install -r requirements.txt pytest
+python3 scripts/check_restrictions.py
 pytest -q -m "not slow"
 NUMBA_NUM_THREADS=2 python benchmarks/check_determinism.py
+python is_prime.py --lab 97
 ```
 
 Open an issue if you are unsure whether an idea fits the constraints; early discussion saves time.

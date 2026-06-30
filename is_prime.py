@@ -369,12 +369,101 @@ def is_prime(n: Union[int, str], *, parallel: bool = True) -> bool:
     return _aks_is_prime(n)
 
 
-def main() -> None:
-    import sys
+def lab(n: Union[int, str], *, parallel: bool = True) -> dict:
+    """
+    Run a small diagnostic on ``n``: path used, isqrt (64-bit), result, elapsed ms.
+
+    Returns a dict suitable for printing or JSON. Does not change determinism rules.
+    """
     import time
 
-    arg = sys.argv[1] if len(sys.argv) > 1 else "9223372036854775783"
-    # Touch JIT once so the timed run is representative for 64-bit inputs
+    if isinstance(n, bool):
+        raise TypeError("n must be an int or decimal str, not bool")
+    if isinstance(n, str):
+        s = n.strip()
+        if not s:
+            raise ValueError("empty or whitespace-only string is not a valid integer")
+        n_int = int(s)
+    else:
+        if not isinstance(n, int):
+            raise TypeError("n must be an int or decimal str")
+        n_int = n
+    if n_int < 0:
+        raise ValueError("n must be a natural number (n >= 0)")
+
+    path = "u64_wheel_numba" if n_int < (1 << 64) else "bigint_trial_or_aks"
+    info: dict = {
+        "n": n_int,
+        "bit_length": n_int.bit_length(),
+        "path": path,
+        "parallel": bool(parallel and n_int < (1 << 64)),
+    }
+    if n_int < (1 << 64) and n_int >= 2:
+        info["isqrt"] = int(_isqrt_u64(np.uint64(n_int)))
+    elif n_int >= 2:
+        info["isqrt"] = math.isqrt(n_int)
+    else:
+        info["isqrt"] = None
+
+    t0 = time.perf_counter()
+    prime = is_prime(n_int, parallel=parallel)
+    info["elapsed_ms"] = (time.perf_counter() - t0) * 1000.0
+    info["is_prime"] = prime
+    info["note"] = (
+        "Exact 30030-wheel trial division up to isqrt(n)."
+        if path == "u64_wheel_numba"
+        else "Big-int path: small-factor trial, AKS if needed (may be slow)."
+    )
+    return info
+
+
+
+def main() -> None:
+    import argparse
+    import json
+    import time
+
+    parser = argparse.ArgumentParser(description="Deterministic is_prime CLI")
+    parser.add_argument(
+        "n",
+        nargs="?",
+        default="9223372036854775783",
+        help="Non-negative integer (decimal string OK)",
+    )
+    parser.add_argument(
+        "--lab",
+        action="store_true",
+        help="Print diagnostic lab output (path, isqrt, timing, note)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="With --lab, emit JSON",
+    )
+    parser.add_argument(
+        "--serial",
+        action="store_true",
+        help="Force parallel=False",
+    )
+    args = parser.parse_args()
+    parallel = not args.serial
+
+    if args.lab:
+        info = lab(args.n, parallel=parallel)
+        if args.json:
+            print(json.dumps(info, indent=2))
+        else:
+            print(f"N:         {info['n']}")
+            print(f"BITS:      {info['bit_length']}")
+            print(f"PATH:      {info['path']}")
+            print(f"ISQRT:     {info['isqrt']}")
+            print(f"PARALLEL:  {info['parallel']}")
+            print(f"RESULT:    {'prime' if info['is_prime'] else 'not prime'}")
+            print(f"TIME_MS:   {info['elapsed_ms']:.6f}")
+            print(f"NOTE:      {info['note']}")
+        raise SystemExit(0 if info["is_prime"] else 1)
+
+    arg = args.n
     if int(arg) < (1 << 64):
         is_prime(97, parallel=False)
 
@@ -382,7 +471,7 @@ def main() -> None:
     threads = int(nt) if nt else get_num_threads()
 
     t0 = time.perf_counter_ns()
-    prime = is_prime(arg)
+    prime = is_prime(arg, parallel=parallel)
     dt = time.perf_counter_ns() - t0
 
     print(f"TEST:    {arg} ({len(arg)} chars)")

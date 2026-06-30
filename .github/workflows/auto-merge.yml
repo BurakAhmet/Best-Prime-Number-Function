@@ -1,0 +1,91 @@
+# Fully autonomous merge for same-repo PRs when CI + Determinism succeed.
+name: Auto-merge
+
+on:
+  workflow_run:
+    workflows: ["CI", "Determinism"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  merge:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find PR and merge if all required workflows green
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = run.head_sha;
+
+            // Resolve PR number for this head SHA
+            const pulls = await github.rest.pulls.list({
+              owner, repo, state: 'open', per_page: 30,
+            });
+            const pr = pulls.data.find(p => p.head.sha === sha);
+            if (!pr) {
+              core.info('No open PR for ' + sha);
+              return;
+            }
+            // Same-repo only (autonomous policy)
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.info('Fork PR — skip auto-merge');
+              return;
+            }
+
+            // Require both CI and Determinism success on this SHA
+            const checks = await github.rest.checks.listForRef({
+              owner, repo, ref: sha, per_page: 100,
+            });
+            const names = checks.data.check_runs.map(c => ({
+              name: c.name, status: c.status, conclusion: c.conclusion,
+            }));
+            core.info(JSON.stringify(names, null, 2));
+
+            function ok(pred) {
+              const runs = checks.data.check_runs.filter(c => pred(c.name));
+              return runs.length > 0 && runs.every(c => c.status === 'completed' && c.conclusion === 'success');
+            }
+            // Match job names from our workflows
+            const ciOk = ok(n => /Tests \(Python/i.test(n) || n === 'Smoke CLI');
+            // At least one Tests job and determinism jobs
+            const testJobs = checks.data.check_runs.filter(c => /Tests \(Python/i.test(c.name));
+            const detJobs = checks.data.check_runs.filter(c => /determinism/i.test(c.name));
+            const testsGreen = testJobs.length >= 1 && testJobs.every(c => c.status === 'completed' && c.conclusion === 'success');
+            const detGreen = detJobs.length >= 1 && detJobs.every(c => c.status === 'completed' && c.conclusion === 'success');
+            // Performance is part of CI workflow — if present must be green or skipped
+            const perf = checks.data.check_runs.filter(c => /Performance/i.test(c.name));
+            const perfOk = perf.length === 0 || perf.every(c => c.status === 'completed' && (c.conclusion === 'success' || c.conclusion === 'skipped'));
+
+            if (!testsGreen || !detGreen || !perfOk) {
+              core.info(`Gates not all green yet (tests=${testsGreen} det=${detGreen} perf=${perfOk})`);
+              return;
+            }
+
+            try {
+              await github.rest.pulls.merge({
+                owner, repo,
+                pull_number: pr.number,
+                merge_method: 'squash',
+                commit_title: `${pr.title} (#${pr.number})`,
+                commit_message: [
+                  'Autonomous merge: CI tests + Determinism (+ performance if present) green.',
+                  `Head: ${sha}`,
+                  'No stochastic MR; restrictions unchanged.',
+                ].join('\n'),
+              });
+              core.info(`Merged PR #${pr.number}`);
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number,
+                body: '**Autonomous merge** completed after green **CI** and **Determinism** checks.',
+              });
+            } catch (e) {
+              core.warning('Merge failed: ' + e.message);
+            }

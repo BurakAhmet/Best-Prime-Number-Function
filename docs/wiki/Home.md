@@ -31,6 +31,7 @@
 | **[Agent briefing](Agent-briefing)** | Instructions for coding / triage agents |
 | **[Contributing](Contributing)** | How to contribute safely |
 | **[Benchmarks](Benchmarks)** | Primitive vs optimized speed |
+| **[Hall of fame](Hall-of-fame)** | Slow 64-bit primes + indicative timings |
 
 **Source of truth in git:** [`docs/wiki/`](https://github.com/BurakAhmet/Best-Prime-Number-Function/tree/main/docs/wiki) — keep this Wiki in sync when those files change.
 

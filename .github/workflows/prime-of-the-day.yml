@@ -1,0 +1,123 @@
+# Fully autonomous daily deterministic prime challenge (no stochastic MR).
+name: Prime of the day
+
+on:
+  schedule:
+    - cron: "0 12 * * *"   # 12:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  potd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Compute deterministic challenge
+        id: potd
+        env:
+          NUMBA_NUM_THREADS: "2"
+        run: |
+          python3 << 'PY'
+          import datetime as dt
+          import json
+          import os
+          from is_prime import is_prime, lab
+
+          # Deterministic seed from UTC date only
+          day = dt.datetime.now(dt.timezone.utc).date()
+          ordinal = day.toordinal()
+          # Challenge: is N prime, where N is deterministic from the date
+          n = 10**6 + (ordinal * 9973) % 10**6
+          if n % 2 == 0:
+              n += 1
+          info = lab(n, parallel=True)
+          payload = {
+              "date": day.isoformat(),
+              "n": n,
+              "is_prime": info["is_prime"],
+              "elapsed_ms": round(info["elapsed_ms"], 3),
+              "path": info["path"],
+              "isqrt": info["isqrt"],
+          }
+          print(json.dumps(payload, indent=2))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"date={payload['date']}\n")
+              f.write(f"n={payload['n']}\n")
+              f.write(f"prime={'true' if payload['is_prime'] else 'false'}\n")
+              f.write(f"ms={payload['elapsed_ms']}\n")
+          with open("potd.json", "w") as f:
+              json.dump(payload, f, indent=2)
+          PY
+
+      - name: Upsert GitHub Issue comment (Prime of the day)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const potd = JSON.parse(fs.readFileSync('potd.json', 'utf8'));
+            const title = `Prime of the day — ${potd.date}`;
+            const body = [
+              `## Prime of the day — \`${potd.date}\``,
+              '',
+              'Autonomous deterministic challenge (UTC date → fixed odd `n`, then `is_prime` / `lab`).',
+              '',
+              `| | |`,
+              `|---|---|`,
+              `| **n** | \`${potd.n}\` |`,
+              `| **Prime?** | **${potd.is_prime ? 'yes' : 'no'}** |`,
+              `| **Path** | \`${potd.path}\` |`,
+              `| **⌊√n⌋** | \`${potd.isqrt}\` |`,
+              `| **Time** | ${potd.elapsed_ms} ms |`,
+              '',
+              'No stochastic Miller–Rabin. Reproduce:',
+              '```bash',
+              `python is_prime.py --lab ${potd.n}`,
+              '```',
+              '',
+              '<sub>Posted by **Prime of the day** workflow (fully autonomous).</sub>',
+            ].join('\n');
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'prime-of-the-day',
+              per_page: 5,
+            });
+            let number;
+            if (issues.data.length) {
+              number = issues.data[0].number;
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: number,
+                title,
+                body,
+              });
+            } else {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: 'prime-of-the-day',
+                  color: '5319E7',
+                  description: 'Autonomous daily prime challenge',
+                });
+              } catch (_) {}
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['prime-of-the-day', 'agent/done', 'status/done', 'area/agents'],
+              });
+              number = created.data.number;
+            }
+            core.info(`Prime of the day issue #${number}`);
