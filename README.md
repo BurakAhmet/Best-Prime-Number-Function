@@ -144,6 +144,31 @@ That block is **not** the pytest suite. Automated tests are run with `pytest` an
 
 ---
 
+
+---
+
+## Speed comparison (primitive vs optimized)
+
+A dedicated benchmark lives in [`benchmarks/`](benchmarks/README.md). It times a **primitive** pure-Python odd trial division against this package’s **optimized** `is_prime` on the same values.
+
+```bash
+NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py
+NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py --include-hard
+```
+
+### Sample results (12 threads, best of 3; indicative)
+
+| Case | Primitive (ms) | Optimized (ms) | Speedup |
+|------|---------------:|---------------:|--------:|
+| $10^9+7$ | ~0.68 | ~0.03 | **~21×** |
+| $10^9+9$ | ~0.69 | ~0.03 | **~21×** |
+| Mersenne $2^{31}-1$ | ~0.83 | ~0.05 | **~17×** |
+| 12-digit prime $999999999989$ | ~18–19 | ~0.19 | **~90–100×** |
+| Near $2^{63}$ prime (optimized only) | — | ~690 | *(primitive omitted: too slow)* |
+| Mersenne $2^{61}-1$ (optimized only) | — | ~340 | *(primitive omitted: too slow)* |
+
+On tiny inputs, overhead dominates (speedups ~1×). As $\sqrt{n}$ grows, the wheel + Numba path pulls far ahead. Full methodology and flags: **[benchmarks/README.md](benchmarks/README.md)**.
+
 ## Performance notes
 
 | Regime | Method | Typical behaviour |
@@ -182,6 +207,7 @@ Best-Prime-Number-Function/
 ├── requirements.txt
 ├── pyproject.toml
 ├── is_prime.py         # Implementation + CLI
+├── benchmarks/         # Primitive vs optimized speed comparison
 └── tests/
     └── test_is_prime.py
 ```

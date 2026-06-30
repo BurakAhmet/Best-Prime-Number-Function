@@ -1,0 +1,34 @@
+Threads (Numba/OMP env): 12
+Repeats (best of): 3
+
+Case                                        n  Prim?   Primitive ms   Optimized ms    Speedup
+---------------------------------------------------------------------------------------------
+small prime                                97    yes          0.000          0.003       0.1×
+4-digit prime                            7919    yes          0.001          0.003       0.4×
+10^9+7                             1000000007    yes          0.677          0.033      20.6×
+10^9+9                             1000000009    yes          0.695          0.033      21.3×
+Mersenne M31                       2147483647    yes          0.829          0.047      17.5×
+12-digit prime                   999999999989    yes         19.329          0.194      99.4×
+
+
+Primitive = odd trial division up to isqrt(n), pure Python.
+Optimized = 30030-wheel + Numba (parallel when beneficial).
+Wrote benchmarks/results.json
+Threads (Numba/OMP env): 12
+Repeats (best of): 2
+
+Case                                        n  Prim?   Primitive ms   Optimized ms    Speedup
+---------------------------------------------------------------------------------------------
+small prime                                97    yes          0.001          0.004       0.2×
+4-digit prime                            7919    yes          0.001          0.003       0.4×
+10^9+7                             1000000007    yes          0.693          0.033      21.0×
+10^9+9                             1000000009    yes          0.674          0.034      19.6×
+Mersenne M31                       2147483647    yes          0.821          0.047      17.3×
+12-digit prime                   999999999989    yes         17.614          0.197      89.6×
+near 2^63 prime           9223372036854775783    yes       skipped*        689.093          —
+Mersenne M61              2305843009213693951    yes       skipped*        342.260          —
+
+* Hard cases: primitive timing skipped (use --primitive-hard; can take many minutes).
+
+Primitive = odd trial division up to isqrt(n), pure Python.
+Optimized = 30030-wheel + Numba (parallel when beneficial).
