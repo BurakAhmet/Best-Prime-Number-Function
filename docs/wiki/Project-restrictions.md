@@ -1,13 +1,23 @@
 # Project restrictions
 
-These rules apply to all contributors and automated agents.
+These rules apply to **all** contributors and **automated agents**.
 
-1. **Deterministic** — no randomness; same input ⇒ same output.
-2. **No stochastic Miller–Rabin** or other probabilistic primality engines.
-3. **No prime libraries** (primesieve, sympy.isprime, …) as the core implementation.
-4. **Allowed:** NumPy / Numba for performance of *our* algorithms.
-5. **Correctness:**
-   - $n < 2^{64}$: exact 30030-wheel trial division up to $\lfloor\sqrt{n}\rfloor$
-   - larger $n$: small-factor trial, then AKS if needed (may be slow)
+## Non-negotiable
 
-See also `.github/copilot-instructions.md` in the main repo.
+1. **Deterministic** — no randomness; same input ⇒ same output, always.
+2. **No stochastic Miller–Rabin** — no random bases, no “probably prime” engines as the core.
+3. **No prime libraries** as the implementation (e.g. primesieve, sympy.isprime as the engine).
+4. **Allowed:** NumPy / Numba for speeding up *our* trial division and helpers.
+5. **Correctness model**
+   - $n < 2^{64}$: exact **30030-wheel** trial division up to $\lfloor\sqrt{n}\rfloor$
+   - larger $n$: small-factor trial, then **AKS** (may be slow for huge primes)
+
+## Why not “just use MR”?
+
+Fixed witness Miller–Rabin is deterministic only on **proven finite ranges** (e.g. 64-bit with a known base set). That does **not** give a uniform finite-base proof for **every** natural number. This project optimizes under the stricter goal: deterministic for all $n$ in theory, with a fast engineered path for 64-bit inputs.
+
+## Agent files in the main repo
+
+- [`.github/copilot-instructions.md`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/.github/copilot-instructions.md)
+- [`.github/AGENT_BRIEFING.md`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/.github/AGENT_BRIEFING.md)
+- [CONTRIBUTING.md](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CONTRIBUTING.md)
