@@ -1,0 +1,96 @@
+# Fully autonomous board management via labels (no human-only column).
+# Kanban: status/* | Agent ops: agent/triaged → implementing → waiting-ci → done
+name: Project autonomy
+
+on:
+  issues:
+    types: [opened, reopened, closed]
+  pull_request_target:
+    types: [opened, reopened, synchronize, closed, ready_for_review]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  autonomous-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            function stripPrefixes(labels, prefixes) {
+              return labels.filter(n => !prefixes.some(p => n.startsWith(p)));
+            }
+
+            async function setWith(number, { add = [], strip = [] }) {
+              const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: number });
+              let labels = issue.labels.map(l => typeof l === 'string' ? l : l.name);
+              labels = stripPrefixes(labels, strip);
+              for (const a of add) {
+                if (!labels.includes(a)) labels.push(a);
+              }
+              await github.rest.issues.setLabels({ owner, repo, issue_number: number, labels });
+            }
+
+            if (context.eventName === 'issues') {
+              const issue = context.payload.issue;
+              const action = context.payload.action;
+              const title = issue.title || '';
+              const isQuality = title.startsWith('[Quality]') ||
+                issue.labels.some(l => (l.name || l) === 'quality/checklist');
+
+              if (action === 'opened' || action === 'reopened') {
+                if (isQuality) {
+                  // Quality checklist: only ensure agent triaged; keep status/quality from seed
+                  await setWith(issue.number, { add: ['agent/triaged'] });
+                } else {
+                  // New work: backlog + agent triaged (fully autonomous intake)
+                  await setWith(issue.number, {
+                    add: ['status/backlog', 'agent/triaged'],
+                    strip: ['status/', 'agent/'],
+                  });
+                }
+              }
+              if (action === 'closed') {
+                await setWith(issue.number, {
+                  add: ['status/done', 'agent/done'],
+                  strip: ['status/', 'agent/'],
+                });
+                // If quality checklist item, mark quality done
+                if (isQuality) {
+                  await setWith(issue.number, {
+                    add: ['quality/done'],
+                    strip: ['quality/todo', 'quality/partial'],
+                  });
+                }
+              }
+            }
+
+            if (context.eventName === 'pull_request_target') {
+              const pr = context.payload.pull_request;
+              const action = context.payload.action;
+              if (['opened', 'reopened', 'synchronize', 'ready_for_review'].includes(action)) {
+                // PR under autonomous agent pipeline: implementing → waiting CI
+                await setWith(pr.number, {
+                  add: ['status/in-review', 'agent/waiting-ci', 'area/agents'],
+                  strip: ['status/', 'agent/'],
+                });
+              }
+              if (action === 'closed' && pr.merged) {
+                await setWith(pr.number, {
+                  add: ['status/done', 'agent/done'],
+                  strip: ['status/', 'agent/'],
+                });
+              }
+              if (action === 'closed' && !pr.merged) {
+                // Returned to backlog for autonomous re-queue
+                await setWith(pr.number, {
+                  add: ['status/backlog', 'agent/triaged'],
+                  strip: ['status/', 'agent/'],
+                });
+              }
+            }
