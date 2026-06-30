@@ -323,15 +323,21 @@ https://burakahmet.github.io/Best-Prime-Number-Function/
 
 ## Project board (autonomous)
 
-Work is tracked with **labels** so agents and Actions manage the board without a human-only lane:
+Work is tracked with **labels** and a GitHub **Project** (Status columns + custom fields) so agents and Actions manage the board **without a human-only lane**:
 
-- Kanban: `status/backlog` → `ready` → `in-progress` → `in-review` → `done`
-- Agent ops: `agent/triaged` → `implementing` → `waiting-ci` → `done` (**no “Needs human”**)
+- Kanban Status: Backlog → Ready → In progress → In review → Done (`status/*` labels)
+- Agent ops: Triaged → Implementing → Waiting CI → Done (`agent/*`)
+- Fields: Priority, Size, Area, Restriction risk
 - Quality checklist: `quality/checklist` + `quality/todo|partial|done`
-- Views by type: `bug`, `enhancement`, `restrictions`, `performance`, `area/agents`
 
-See **[docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md)** for setup of GitHub Projects views and automation details.  
-Workflow: `.github/workflows/project-autonomy.yml`.
+Design/seed the Project UI (fields, README, all issues/PRs):
+
+```bash
+gh auth refresh -h github.com -s read:project,project   # once
+python3 scripts/design_github_project.py
+```
+
+See **[docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md)**. Workflows: `project-autonomy.yml`, optional `project-sync.yml`.
 
 ---
 

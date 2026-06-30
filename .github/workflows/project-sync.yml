@@ -1,0 +1,34 @@
+# Re-apply Project design / seed items from labels.
+# Optional: set secret PROJECT_TOKEN (classic PAT with repo + project + read:project).
+# Without the secret, this workflow no-ops successfully.
+name: Project sync
+
+on:
+  workflow_dispatch:
+  # Also after autonomy label moves (optional; needs token)
+  issues:
+    types: [closed, reopened]
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Design / seed GitHub Project
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PROJECT_TITLE: Best-Prime-Number-Function
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "No PROJECT_TOKEN secret — skip Project API sync."
+            echo "Locally: gh auth refresh -s read:project,project && python3 scripts/design_github_project.py"
+            exit 0
+          fi
+          python3 scripts/design_github_project.py
