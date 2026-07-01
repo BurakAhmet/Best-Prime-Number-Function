@@ -48,14 +48,15 @@ lab(97)  # path, isqrt, elapsed_ms, e2e_ms, note, …
 | `0` | prime |
 | `1` | not prime |
 
-CLI `TIME` is **end-to-end**: it starts at module import (`t0`) and stops after the answer (imports, table I/O, native load, and the check all count). Default CLI argument is `1000000007` (snappy demo); hard 64-bit primes are in the examples above.
+CLI `TIME` is **end-to-end**: it starts at module import (`t0`) and stops after the answer (imports, table I/O, native load, and the check all count). With no argument, the CLI uses the near-$2^{63}$ prime `9223372036854775783` (best with `wheel_core.so` built).
 
 ```text
-TEST:    1000000007 (10 chars)
-THREADS: 1
+TEST:    9223372036854775783 (19 chars)
+THREADS: 12
 RESULT:  prime
 TIME:    … ns  (… ms)
 ```
+
 
 ### Developer loop
 

@@ -49,7 +49,8 @@ cd Best-Prime-Number-Function
 pip install -r requirements.txt
 bash scripts/compile_wheel_core.sh
 python -c "from is_prime import is_prime; print(is_prime(17))"
-python is_prime.py 1000000007
+python is_prime.py 1000000007          # fast demo
+python is_prime.py                     # default: near-2^63 prime
 pytest -q -m "not slow"
 ```
 

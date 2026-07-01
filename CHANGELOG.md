@@ -16,9 +16,9 @@ All notable changes to this project are documented in this file.
 - Supported-platforms note and Linux CI assertion that `lab(n)["path"] == "u64_wheel_c"`.
 
 ### Changed
-- Default CLI argument is now `1000000007` (fast demo); hard primes remain in docs/examples.
 - CI builds `wheel_core.so` before tests; performance gate prioritizes e2e TIME vs previous commit.
 - Package version **1.1.0**.
+- README/docs examples highlight both fast demos (`1000000007`) and the default hard 64-bit CLI prime.
 
 ### Fixed
 - C wheel index wrap in unrolled loops (false prime on large semiprimes).
