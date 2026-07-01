@@ -3,7 +3,14 @@ recursive-include is_prime_data *.u8
 recursive-include is_prime_data *.u16
 recursive-include is_prime_data *.py
 recursive-include is_prime_data *.c
-recursive-include is_prime_data *.so
-include scripts/*.py
-include scripts/*.sh
+global-exclude is_prime_data/wheel_core.so
+include setup.py
+include best_prime/py.typed
+include scripts/compile_wheel_core.sh
+include scripts/generate_wheel_core_c.py
 include CHANGELOG.md
+include LICENSE
+include README.md
+prune dist
+prune build
+prune .venv

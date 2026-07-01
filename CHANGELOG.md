@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.1] — 2026-07-01
+
+### Added
+- **Installable library packaging**: `pip install -e .` / `pip install git+https://…` with console scripts `is-prime` and `best-prime`.
+- Friendly import package `best_prime` (re-exports `is_prime`, `lab`, `__version__`).
+- Optional **native OpenMP build during install** via `setup.py` (skips cleanly if no compiler).
+- `examples/basic_usage.py` and README **Install as a Python library** section.
+
+### Changed
+- Wheels no longer embed a prebuilt Linux-only `wheel_core.so` as `py3-none-any`; the core is compiled at install when possible.
+
 ## [1.3.0] — 2026-07-01
 
 ### Added

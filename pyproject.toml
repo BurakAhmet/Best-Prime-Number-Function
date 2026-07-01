@@ -1,23 +1,39 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "best-prime-number-function"
-version = "1.3.0"
+version = "1.3.1"
 description = "Fully deterministic primality testing (tiered wheels, OpenMP C u64/u128, Numba fallback; AKS only for huge ints)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "BurakAhmet" }]
-keywords = ["prime", "primality", "deterministic", "openmp", "numba", "aks", "trial-division"]
+authors = [{ name = "BurakAhmet", email = "ahmetburakbicer@gmail.com" }]
+keywords = [
+  "prime",
+  "primality",
+  "deterministic",
+  "openmp",
+  "numba",
+  "aks",
+  "trial-division",
+]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Mathematics",
+  "Typing :: Typed",
 ]
 dependencies = [
   "numpy>=1.22",
@@ -25,10 +41,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0"]
+# Native OpenMP core is built automatically when gcc+OpenMP are available.
+# These extras are for development and full CI.
+test = ["pytest>=7.0", "hypothesis>=6.0"]
+dev = ["pytest>=7.0", "hypothesis>=6.0", "build", "wheel"]
+
+[project.urls]
+Homepage = "https://github.com/BurakAhmet/Best-Prime-Number-Function"
+Repository = "https://github.com/BurakAhmet/Best-Prime-Number-Function"
+Issues = "https://github.com/BurakAhmet/Best-Prime-Number-Function/issues"
+Changelog = "https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/BurakAhmet/Best-Prime-Number-Function#readme"
 
 [project.scripts]
 is-prime = "is_prime:main"
+best-prime = "is_prime:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -38,11 +65,15 @@ markers = [
 ]
 
 [tool.setuptools]
+# Flat module is_prime.py + data package + friendly best_prime re-exports.
 py-modules = ["is_prime"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["is_prime_data*"]
+include = ["is_prime_data*", "best_prime*"]
 
+# Do not ship a prebuilt .so in the pure wheel (platform-specific).
+# setup.py builds wheel_core.so during install when a compiler is available.
 [tool.setuptools.package-data]
-is_prime_data = ["*.npy", "*.u8", "*.u16", "*.py", "*.c", "*.so"]
+is_prime_data = ["*.npy", "*.u8", "*.u16", "*.py", "*.c"]
+best_prime = ["py.typed"]

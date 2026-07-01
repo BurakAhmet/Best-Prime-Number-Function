@@ -15,6 +15,46 @@
 
 ---
 
+## Install as a Python library
+
+```bash
+# from a clone (editable / development)
+git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
+cd Best-Prime-Number-Function
+python3 -m pip install -e .
+
+# or directly from GitHub
+python3 -m pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
+
+# optional: force-build the OpenMP C core if it was skipped at install
+bash scripts/compile_wheel_core.sh
+```
+
+```python
+from best_prime import is_prime, lab, __version__
+# equivalent: from is_prime import is_prime, lab
+
+print(__version__)
+print(is_prime(17))                 # True
+print(is_prime(10**9 + 7))          # True
+print(is_prime("100000000000000000039"))  # True (~10^20; fast with wheel_core.so)
+
+info = lab(10**9 + 7)
+print(info["path"], info["elapsed_ms"])
+```
+
+| Import | Notes |
+|--------|--------|
+| `from best_prime import is_prime, lab` | Preferred library import |
+| `from is_prime import is_prime, lab` | Same API (implementation module) |
+| CLI `is-prime` / `best-prime` | Console scripts after install |
+
+**Native speed:** install tries to compile `is_prime_data/wheel_core.so` (needs `gcc` + OpenMP). Without it, stdlib / Numba paths still work; hard 64-bit and ~$10^{20}$ checks are much faster with the `.so`.
+
+See also [`examples/basic_usage.py`](examples/basic_usage.py).
+
+---
+
 ## Quick start
 
 ```bash
@@ -352,7 +392,8 @@ Start here: [Project restrictions](docs/wiki/Project-restrictions.md) · [Algori
 | Channel | How |
 |---------|-----|
 | **GitHub Release** | Version tags (e.g. `v1.0.0`) |
-| **pip from git** | `pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git@v1.0.0"` |
+| **pip (editable / library)** | `pip install -e .` from a clone (see [Install as a Python library](#install-as-a-python-library)) |
+| **pip from git** | `pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"` |
 | **GHCR container** | Repo **Packages** tab; published by **Publish package** |
 
 ```bash

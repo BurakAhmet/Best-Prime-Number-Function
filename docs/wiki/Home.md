@@ -47,13 +47,23 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 ```bash
 git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
 cd Best-Prime-Number-Function
-pip install -r requirements.txt
+
+# library install (preferred)
+pip install -e .
+# optional if OpenMP core was not built at install time:
 bash scripts/compile_wheel_core.sh
-python -c "from is_prime import is_prime; print(is_prime(17))"
-python is_prime.py 1000000007          # fast demo
+
+python -c "from best_prime import is_prime; print(is_prime(17))"
+is-prime 1000000007                    # console script
 python is_prime.py                     # default: near-2^63 prime
 python is_prime.py 100000000000000000039  # ~10^20 prime (u128_wheel_c)
 pytest -q -m "not slow"
+```
+
+As a dependency from GitHub:
+
+```bash
+pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
 ```
 
 ---

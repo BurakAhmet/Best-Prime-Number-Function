@@ -21,7 +21,8 @@ PRs that violate those rules will not be merged, even if they look faster on pap
 git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
 cd Best-Prime-Number-Function
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt pytest
+pip install -e ".[dev]"
+# OpenMP core is built during install when gcc+OpenMP are available; else:
 bash scripts/compile_wheel_core.sh
 python3 scripts/check_restrictions.py
 python3 scripts/check_wiki_sync.py
@@ -30,6 +31,9 @@ OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
 OMP_NUM_THREADS=2 python3 benchmarks/compare_e2e.py --json /tmp/e2e.json
 python3 scripts/check_e2e_regression.py \
   --baseline benchmarks/e2e_results.json --candidate /tmp/e2e.json
+# library smoke:
+python3 -c "from best_prime import is_prime; assert is_prime(17)"
+python3 examples/basic_usage.py
 ```
 
 **Primary perf metric:** end-to-end CLI `TIME` (`compare_e2e.py`).  
