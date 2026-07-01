@@ -12,7 +12,7 @@
 | | |
 |--|--|
 | **Library** | `is_prime(n)` in Python (`int` or decimal `str`) |
-| **Fast path** | $n < 2^{64}$: **30030-wheel** trial division + **Numba** (optional multi-thread) |
+| **Fast path** | $n < 2^{64}$: **9699690-wheel** trial division + **Numba** (optional multi-thread) |
 | **Large path** | Small-factor trial, then **AKS** if needed (deterministic, can be slow) |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
@@ -58,7 +58,7 @@ pytest -q -m "not slow"
 is_prime(n)
     │
     ├─ n < 2          → False
-    ├─ n < 2⁶⁴        → 30030-wheel trial division to √n  (Numba / threads)
+    ├─ n < 2⁶⁴        → 9699690-wheel trial division to √n  (Numba / threads)
     └─ n ≥ 2⁶⁴        → small factors → AKS if still undecided
 ```
 

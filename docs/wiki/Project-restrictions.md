@@ -9,7 +9,7 @@ These rules apply to **all** contributors and **automated agents**.
 3. **No prime libraries** as the implementation (e.g. primesieve, sympy.isprime as the engine).
 4. **Allowed:** NumPy / Numba for speeding up *our* trial division and helpers.
 5. **Correctness model**
-   - $n < 2^{64}$: exact **30030-wheel** trial division up to $\lfloor\sqrt{n}\rfloor$
+   - $n < 2^{64}$: exact **primorial-wheel** trial division (modulus $9699690$) up to $\lfloor\sqrt{n}\rfloor$
    - larger $n$: small-factor trial, then **AKS** (may be slow for huge primes)
 
 ## Why not “just use MR”?

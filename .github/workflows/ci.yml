@@ -32,10 +32,18 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      - name: Install build tools for OpenMP wheel core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest
+
+      - name: Build wheel_core.so
+        run: bash scripts/compile_wheel_core.sh
 
       - name: Restriction linter
         run: python3 scripts/check_restrictions.py
@@ -53,6 +61,8 @@ jobs:
             echo "expected exit code 1 for composite 100" >&2
             exit 1
           fi
+          python is_prime.py 1000000007 | tee /tmp/cli_out.txt
+          grep -q 'RESULT:  prime' /tmp/cli_out.txt
 
   performance:
     name: Performance vs baseline / base branch
@@ -79,10 +89,24 @@ jobs:
           cache: pip
           cache-dependency-path: candidate/requirements.txt
 
+      - name: Install build tools for OpenMP wheel core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r candidate/requirements.txt
+
+      - name: Build wheel cores (candidate always; baseline if script exists)
+        run: |
+          if [ -f candidate/scripts/compile_wheel_core.sh ]; then
+            bash candidate/scripts/compile_wheel_core.sh
+          fi
+          if [ -f baseline_src/scripts/compile_wheel_core.sh ]; then
+            bash baseline_src/scripts/compile_wheel_core.sh
+          fi
 
       - name: Benchmark baseline ref
         working-directory: baseline_src
@@ -91,13 +115,13 @@ jobs:
             echo "Baseline tree has no benchmark script; using committed baseline.json from candidate"
             cp "$GITHUB_WORKSPACE/candidate/benchmarks/baseline.json" "$GITHUB_WORKSPACE/baseline_run.json"
           else
-            NUMBA_NUM_THREADS=2 python benchmarks/compare_speed.py --repeats 3 --json "$GITHUB_WORKSPACE/baseline_run.json"
+            NUMBA_NUM_THREADS=2 OMP_NUM_THREADS=2 python benchmarks/compare_speed.py --repeats 3 --json "$GITHUB_WORKSPACE/baseline_run.json"
           fi
 
       - name: Benchmark candidate
         working-directory: candidate
         run: |
-          NUMBA_NUM_THREADS=2 python benchmarks/compare_speed.py --repeats 3 --json "$GITHUB_WORKSPACE/candidate_run.json"
+          NUMBA_NUM_THREADS=2 OMP_NUM_THREADS=2 python benchmarks/compare_speed.py --repeats 3 --json "$GITHUB_WORKSPACE/candidate_run.json"
 
       - name: Compare candidate vs baseline ref (must not regress)
         working-directory: candidate
@@ -107,6 +131,13 @@ jobs:
             --candidate "$GITHUB_WORKSPACE/candidate_run.json" \
             --threshold 0.20 \
             --min-ms 0.05
+
+      - name: End-to-end CLI TIME smoke (candidate)
+        working-directory: candidate
+        run: |
+          if [ -f benchmarks/compare_e2e.py ]; then
+            OMP_NUM_THREADS=2 python benchmarks/compare_e2e.py --repeats 2 --json "$GITHUB_WORKSPACE/e2e_candidate.json"
+          fi
 
       - name: Upload benchmark artifacts
         if: always()
@@ -126,10 +157,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install build tools for OpenMP wheel core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
       - run: pip install -r requirements.txt pytest
+      - run: bash scripts/compile_wheel_core.sh
       - name: Run gates and write attestation
         env:
           NUMBA_NUM_THREADS: "2"
+          OMP_NUM_THREADS: "2"
         run: |
           python3 scripts/check_restrictions.py
           pytest -q -m "not slow"

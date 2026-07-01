@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "best-prime-number-function"
 version = "1.0.0"
-description = "Fully deterministic primality testing (30030-wheel + Numba; AKS for big integers)"
+description = "Fully deterministic primality testing (9699690-wheel + Numba; AKS for big integers)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -39,3 +39,10 @@ markers = [
 
 [tool.setuptools]
 py-modules = ["is_prime"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["is_prime_data*"]
+
+[tool.setuptools.package-data]
+is_prime_data = ["*.npy", "*.u8", "*.u16", "*.py", "*.c", "*.so"]

@@ -33,7 +33,7 @@ jobs:
               '2. **No stochastic Miller–Rabin** / “probably prime” engines.',
               '3. **No prime libraries** (e.g. primesieve, sympy.isprime) as the implementation core.',
               '4. **Allowed:** NumPy / Numba for accelerating *our* trial division.',
-              '5. **64-bit path:** 30030-wheel trial division up to √n; **larger n:** small factors then AKS (can be slow).',
+              '5. **64-bit path:** 9699690-wheel trial division up to √n; **larger n:** small factors then AKS (can be slow).',
               '',
               'Please read [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md), [README](../blob/main/README.md), and [.github/copilot-instructions.md](../blob/main/.github/copilot-instructions.md).',
               '',

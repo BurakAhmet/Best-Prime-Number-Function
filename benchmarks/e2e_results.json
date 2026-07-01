@@ -1,0 +1,53 @@
+{
+  "repeats": 3,
+  "results": [
+    {
+      "case": "small prime",
+      "n": 97,
+      "is_prime": true,
+      "e2e_ms": 0.403264
+    },
+    {
+      "case": "4-digit prime",
+      "n": 7919,
+      "is_prime": true,
+      "e2e_ms": 0.412189
+    },
+    {
+      "case": "10^9+7",
+      "n": 1000000007,
+      "is_prime": true,
+      "e2e_ms": 2.593882
+    },
+    {
+      "case": "10^9+9",
+      "n": 1000000009,
+      "is_prime": true,
+      "e2e_ms": 2.351144
+    },
+    {
+      "case": "Mersenne M31",
+      "n": 2147483647,
+      "is_prime": true,
+      "e2e_ms": 3.098632
+    },
+    {
+      "case": "12-digit prime",
+      "n": 999999999989,
+      "is_prime": true,
+      "e2e_ms": 54.817967
+    },
+    {
+      "case": "near 2^63 prime",
+      "n": 9223372036854775783,
+      "is_prime": true,
+      "e2e_ms": 775.70765
+    },
+    {
+      "case": "Mersenne M61",
+      "n": 2305843009213693951,
+      "is_prime": true,
+      "e2e_ms": 394.987814
+    }
+  ]
+}

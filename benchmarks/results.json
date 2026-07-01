@@ -1,54 +1,70 @@
 {
   "threads": "12",
-  "repeats": 3,
+  "repeats": 5,
   "results": [
     {
       "case": "small prime",
       "n": 97,
       "is_prime": true,
-      "primitive_ms": 0.00044199987314641476,
-      "optimized_ms": 0.0033180003811139613,
-      "speedup": 0.1332127252493024
+      "primitive_ms": 0.00043299996832502075,
+      "optimized_ms": 0.0005050001163908746,
+      "speedup": 0.857425482234691
     },
     {
       "case": "4-digit prime",
       "n": 7919,
       "is_prime": true,
-      "primitive_ms": 0.0012179989425931126,
-      "optimized_ms": 0.003182998625561595,
-      "speedup": 0.3826577029634168
+      "primitive_ms": 0.001424999936716631,
+      "optimized_ms": 0.001371000053040916,
+      "speedup": 1.0393872221638079
     },
     {
       "case": "10^9+7",
       "n": 1000000007,
       "is_prime": true,
-      "primitive_ms": 0.6767550003132783,
-      "optimized_ms": 0.032785002986202016,
-      "speedup": 20.642212556701587
+      "primitive_ms": 0.8849159999044787,
+      "optimized_ms": 0.030549000257451553,
+      "speedup": 28.967101785552828
     },
     {
       "case": "10^9+9",
       "n": 1000000009,
       "is_prime": true,
-      "primitive_ms": 0.6946249995962717,
-      "optimized_ms": 0.03265899795223959,
-      "speedup": 21.26902364279789
+      "primitive_ms": 0.6842930001766945,
+      "optimized_ms": 0.029817999802617123,
+      "speedup": 22.94899070046389
     },
     {
       "case": "Mersenne M31",
       "n": 2147483647,
       "is_prime": true,
-      "primitive_ms": 0.8289489996968769,
-      "optimized_ms": 0.04745499973068945,
-      "speedup": 17.46810672007633
+      "primitive_ms": 0.8153879998644697,
+      "optimized_ms": 0.04300999989936827,
+      "speedup": 18.958102808004103
     },
     {
       "case": "12-digit prime",
       "n": 999999999989,
       "is_prime": true,
-      "primitive_ms": 19.328754999150988,
-      "optimized_ms": 0.19440200048848055,
-      "speedup": 99.42672889467683
+      "primitive_ms": 22.426785999869026,
+      "optimized_ms": 0.19242899998062057,
+      "speedup": 116.54577013925976
+    },
+    {
+      "case": "near 2^63 prime",
+      "n": 9223372036854775783,
+      "is_prime": true,
+      "primitive_ms": null,
+      "optimized_ms": 683.2747480002581,
+      "speedup": null
+    },
+    {
+      "case": "Mersenne M61",
+      "n": 2305843009213693951,
+      "is_prime": true,
+      "primitive_ms": null,
+      "optimized_ms": 327.7091439999822,
+      "speedup": null
     }
   ]
 }

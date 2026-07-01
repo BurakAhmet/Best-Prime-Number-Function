@@ -1,54 +1,54 @@
 {
   "threads": "2",
-  "repeats": 3,
+  "repeats": 5,
   "results": [
     {
       "case": "small prime",
       "n": 97,
       "is_prime": true,
-      "primitive_ms": 0.00041499879444018006,
-      "optimized_ms": 0.003164001100230962,
-      "speedup": 0.13116265806920435
+      "primitive_ms": 0.00034799995773937553,
+      "optimized_ms": 0.00047399953473359346,
+      "speedup": 0.7341778466828355
     },
     {
       "case": "4-digit prime",
       "n": 7919,
       "is_prime": true,
-      "primitive_ms": 0.0011810006981249899,
-      "optimized_ms": 0.003192002623109147,
-      "speedup": 0.3699873833357457
+      "primitive_ms": 0.0012680002328124829,
+      "optimized_ms": 0.0012099999366910197,
+      "speedup": 1.047934131533987
     },
     {
       "case": "10^9+7",
       "n": 1000000007,
       "is_prime": true,
-      "primitive_ms": 0.6888550014991779,
-      "optimized_ms": 0.03267599822720513,
-      "speedup": 21.0813758988901
+      "primitive_ms": 0.7265310005095671,
+      "optimized_ms": 0.030404999961319845,
+      "speedup": 23.895115982036963
     },
     {
       "case": "10^9+9",
       "n": 1000000009,
       "is_prime": true,
-      "primitive_ms": 0.6727510008204263,
-      "optimized_ms": 0.03265000123064965,
-      "speedup": 20.604930335772618
+      "primitive_ms": 0.7229689999803668,
+      "optimized_ms": 0.030385999707505107,
+      "speedup": 23.79283245375004
     },
     {
       "case": "Mersenne M31",
       "n": 2147483647,
       "is_prime": true,
-      "primitive_ms": 0.8233400003518909,
-      "optimized_ms": 0.04694999734056182,
-      "speedup": 17.536529222347312
+      "primitive_ms": 0.8860010002536001,
+      "optimized_ms": 0.044393000280251727,
+      "speedup": 19.958123908280616
     },
     {
       "case": "12-digit prime",
       "n": 999999999989,
       "is_prime": true,
-      "primitive_ms": 18.032547002803767,
-      "optimized_ms": 0.5533240000659134,
-      "speedup": 32.58949006487281
+      "primitive_ms": 19.181159999789088,
+      "optimized_ms": 0.5145940003785654,
+      "speedup": 37.27435606648796
     }
   ]
 }

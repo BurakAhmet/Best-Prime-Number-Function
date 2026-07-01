@@ -2,7 +2,7 @@
 
 Copy or attach this context when triaging **Best-Prime-Number-Function**.
 
-**Repo:** deterministic `is_prime` (30030-wheel + Numba; AKS for big ints).  
+**Repo:** deterministic `is_prime` (9699690-wheel + Numba; AKS for big ints).  
 **Forbidden:** stochastic Miller–Rabin, prime sieving libraries as engine, non-deterministic results.  
 **Required:** respect CONTRIBUTING.md and README “Design restrictions”.  
 **CI gates:** `CI` (pytest not slow + performance vs base), `Determinism` (repeated trials).  

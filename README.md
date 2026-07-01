@@ -23,7 +23,7 @@ Think of the repo as **four layers**. Only the first layer is the product; the r
 +--------------------------------------------------------------------------+
 |  1. CORE LIBRARY                                                         |
 |     is_prime.py  ->  is_prime(n) / lab(n) / CLI                          |
-|     n < 2^64: 30030-wheel trial division (Numba, optional threads)       |
+|     n < 2^64: tiered wheel (stdlib / lazy Numba) minimizing CLI TIME   |
 |     n >= 2^64: small-factor trial -> AKS if needed                       |
 |     Rules: deterministic, no stochastic Miller-Rabin, no prime libs      |
 +--------------------------------------------------------------------------+
@@ -73,7 +73,7 @@ This project optimizes under **strict constraints**:
 
 ```text
   is_prime(n)
-     n < 2⁶⁴  ──►  30030-wheel trial division  (Numba + optional MT)
+     n < 2⁶⁴  ──►  9699690-wheel trial division  (Numba + optional MT)
      n ≥ 2⁶⁴  ──►  small-factor trial → AKS if needed
      ✗  no Miller–Rabin (random bases) · no probabilistic tests
      ✗  no prime sieving libraries (primesieve, …)
@@ -86,15 +86,14 @@ This project optimizes under **strict constraints**:
 
 ### 1. Fast path — $n < 2^{64}$
 
-Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$:
+Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$, with tiered engines chosen for **end-to-end CLI `TIME`** (import → answer):
 
-1. Reject $n < 2$; accept $2$ and $3$; reject other even numbers.
-2. Reject multiples of $3, 5, 7, 11, 13$ (primes baked into the wheel modulus).
-3. Compute $\lfloor\sqrt{n}\rfloor$ with **hardware `sqrt`** plus exact integer correction.
-4. Walk only candidates **coprime to** $30030 = 2 \cdot 3 \cdot 5 \cdot 7 \cdot 11 \cdot 13$ using a **hardcoded wheel** of $5760$ steps (`W30030`), starting at $17$.
-5. For large limits, split the candidate range across threads with **Numba `prange`**.
+1. Reject $n < 2$; accept $2$ and $3$; reject other evens; reject multiples of primes $\le 53$.
+2. $n < 10^4$: tiny pure-Python loop (no NumPy/Numba).
+3. $n \le 4\cdot10^{12}$: **stdlib** `9699690`-wheel from `is_prime_data/w9699690_steps.u8`.
+4. Harder 64-bit $n$: prefer `is_prime_data/wheel_core.so` (OpenMP C, build with `scripts/compile_wheel_core.sh`); else lazy NumPy/Numba.
 
-If no divisor appears by $\sqrt{n}$, then $n$ is prime.
+The classic 30030 step list is embedded zlib-compressed as `_W30030_STEPS_Z` (no giant source list). Legacy `W30030` / `RES_TO_WI` still load lazily for tests. If no divisor appears by $\sqrt{n}$, then $n$ is prime.
 
 ### 2. Large path — $n \ge 2^{64}$
 
@@ -107,7 +106,7 @@ flowchart TD
   A[Input n] --> B{n < 2}
   B -->|yes| Z1[False]
   B -->|no| C{n < 2^64?}
-  C -->|yes| D[30030-wheel trial division]
+  C -->|yes| D[Tiered 9699690-wheel path]
   D --> E{divisor ≤ √n?}
   E -->|yes| Z1
   E -->|no| Z2[True]
@@ -131,7 +130,7 @@ flowchart TD
 | Huge composites with a small factor | Near-instant |
 | Huge primes (AKS) | May take a very long time |
 
-Indicative speedups vs a naive pure-Python odd trial (`benchmarks/`): ~20× on $10^9+7$, ~90–100× on a 12-digit prime; harder 64-bit primes are optimized-only in CI timings. See **[benchmarks/README.md](benchmarks/README.md)** and the wiki **[Hall of fame](docs/wiki/Hall-of-fame.md)**.
+Indicative speedups vs a naive pure-Python odd trial (`benchmarks/`): ~22× on $10^9+7$, ~100× on a 12-digit prime; harder 64-bit primes are optimized-only in timings (often ~5–15% faster than the prior 30030-only path on multi-core). See **[benchmarks/README.md](benchmarks/README.md)** and the wiki **[Hall of fame](docs/wiki/Hall-of-fame.md)**.
 
 ---
 
@@ -144,6 +143,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+**CLI `TIME` is end-to-end:** it starts at module import (`t0`) and stops after the answer, so import, table I/O, JIT, and the check all count.
+
+Paths chosen to minimize that metric:
+- `n < 10^4`: tiny pure-Python loop (no NumPy/Numba)
+- `n ≤ 4·10^12`: stdlib `9699690`-wheel from `is_prime_data/*.u8` (no NumPy/Numba)
+- larger 64-bit: lazy NumPy/Numba + precomputed tables (serial kernels disk-cached)
+- `n ≥ 2^64`: small-factor trial then AKS
+
+Regenerate tables with `python scripts/generate_wheel_data.py`. E2E benchmark: `python benchmarks/compare_e2e.py`.
 
 For tests: `pip install pytest` (also listed in `requirements.txt` with Hypothesis).
 
@@ -205,7 +214,7 @@ Non-negotiable (enforced by review + `scripts/check_restrictions.py` in CI):
 3. **No dedicated prime libraries** as the engine (e.g. primesieve, sympy.isprime).
 4. **Allowed:** NumPy / Numba to accelerate *our* trial division.
 
-Fixed-base MR can be deterministic on **bounded** ranges only; this repo uses **trial division** (+ **AKS** for oversized integers) so the API stays correct for all naturals under the restriction set.
+Fixed-base MR can be deterministic on **bounded** ranges only; this repo uses **primorial-wheel trial division** (+ **AKS** for oversized integers) so the API stays correct for all naturals under the restriction set.
 
 ---
 

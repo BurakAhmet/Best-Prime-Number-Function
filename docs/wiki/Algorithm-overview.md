@@ -2,15 +2,13 @@
 
 ## Fast path — $n < 2^{64}$
 
-Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$:
+CLI **`TIME` is end-to-end** (import → answer). Paths minimize that total:
 
-1. Handle $n < 2$, $2$, $3$, other evens.
-2. Reject multiples of $3,5,7,11,13$ (baked into wheel modulus $30030$).
-3. $\lfloor\sqrt{n}\rfloor$ via hardware `sqrt` + integer correction.
-4. Walk candidates **coprime to** $30030 = 2\cdot3\cdot5\cdot7\cdot11\cdot13$ using hardcoded wheel `W30030` (5760 steps), starting at $17$.
-5. Optional multi-threading: split the candidate range with Numba `prange` (same idea as OpenMP chunks).
+1. $n < 10^4$: tiny pure-Python loop (no NumPy/Numba).
+2. $n \le 4\cdot10^{12}$: **stdlib** `9699690`-wheel from `is_prime_data/w9699690_steps.u8` (no NumPy/Numba).
+3. Harder 64-bit $n$: lazy NumPy/Numba + precomputed `w9699690_u64x2.npy` / `res9699690_u32.npy`; 16× unrolled trial division; `prange` when $\lfloor\sqrt{n}\rfloor \ge 50\,000$.
 
-If no divisor appears by $\sqrt{n}$, $n$ is prime.
+Legacy `W30030` / `RES_TO_WI` load lazily for tests. Regenerate with `python scripts/generate_wheel_data.py`. E2E bench: `python benchmarks/compare_e2e.py`.
 
 ## Large path — $n \ge 2^{64}$
 

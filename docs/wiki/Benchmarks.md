@@ -5,7 +5,7 @@ Both methods are **deterministic**. The gap is engineering (wheel + Numba + thre
 | Method | Description |
 |--------|-------------|
 | **Primitive** | Pure Python: odds only up to `isqrt(n)` |
-| **Optimized** | `is_prime()` — 30030-wheel + Numba (+ threads) |
+| **Optimized** | `is_prime()` — 9699690-wheel + Numba (+ threads) |
 
 ## Run
 

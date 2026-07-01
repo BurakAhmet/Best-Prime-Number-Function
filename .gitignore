@@ -2,7 +2,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+!is_prime_data/wheel_core.so
 .Python
+# Large derivable Numba fallback tables (built on demand if missing)
+is_prime_data/w9699690_u64x2.npy
+is_prime_data/res9699690_u32.npy
+is_prime_data/__pycache__/
 .venv/
 venv/
 .env

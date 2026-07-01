@@ -13,7 +13,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from is_prime import (  # noqa: E402
     RES_TO_WI,
+    RES_WHEEL,
     W30030,
+    WHEEL_MOD,
+    WHEEL_NW,
+    W_WHEEL,
     _isqrt_u64,
     is_prime,
 )
@@ -218,6 +222,30 @@ class TestWheelTables:
         for r in range(30030):
             if math.gcd(r, 30030) != 1:
                 assert RES_TO_WI[r] == 0xFFFF
+
+    def test_fast_wheel_modulus_and_length(self):
+        assert WHEEL_MOD == 9_699_690
+        assert WHEEL_NW == 1_658_880
+        assert W_WHEEL.shape == (WHEEL_NW,)
+        assert int(W_WHEEL.sum()) == WHEEL_MOD
+
+    def test_fast_wheel_residues_cover_coprimes(self):
+        x = 23
+        seen = set()
+        for wi in range(WHEEL_NW):
+            assert RES_WHEEL[x % WHEEL_MOD] == wi
+            seen.add(x % WHEEL_MOD)
+            x += int(W_WHEEL[wi])
+        assert len(seen) == WHEEL_NW
+
+    def test_fast_wheel_non_coprime_invalid(self):
+        for r in range(0, WHEEL_MOD, 17):  # sample stride; full scan is heavy
+            if math.gcd(r, WHEEL_MOD) != 1:
+                assert RES_WHEEL[r] == 0xFFFFFFFF
+        # spot-check a dense prefix
+        for r in range(10_000):
+            if math.gcd(r, WHEEL_MOD) != 1:
+                assert RES_WHEEL[r] == 0xFFFFFFFF
 
 
 # ---------------------------------------------------------------------------
