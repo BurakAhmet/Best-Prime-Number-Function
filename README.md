@@ -205,6 +205,22 @@ flowchart TD
 
 Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on the 64-bit paths and on practical multi-limb sizes (candidates restricted by a primorial wheel / prime sieve segment). Only for still-larger inputs does unfinished trial fall through to **AKS** (correct, but can be very slow).
 
+### Time complexity
+
+Let $N = n$ when discussing bit size, and write $L = \lfloor\sqrt{n}\rfloor$. Arithmetic cost below is in **word operations** on $O(1)$- or $O(\log n)$-word integers as implemented (64-bit core; multi-limb mod for the u128 path).
+
+| Path | Worst-case (prime / no small factor) | Notes |
+|------|--------------------------------------|--------|
+| Tiny loop / odd trial | $\Theta(L) = \Theta(\sqrt{n})$ | Constant-factor 6-wheel style steps |
+| Primorial **wheel** trial (stdlib, Numba, OpenMP C) | $\Theta\!\left(\dfrac{\varphi(W)}{W}\,L\right) = \Theta(\sqrt{n})$ | $W \in \{30030,\,9699690\}$; density $\varphi(W)/W < 1$ cuts the constant, **not** the asymptotic class |
+| OpenMP wheel / seg-primes ($t$ threads) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* | Same work, split across cores; prime case has little early exit |
+| Segmented sieve + prime-only trial (large $L$) | $\tilde{O}(\sqrt{n})$ | Fewer mods ($\sim \pi(L)$) plus sieving; still $\Theta(\sqrt{n}/\log n)$ mods in the prime case |
+| Partial trial then **AKS** (huge $n$) | Poly in $\log n$ for AKS *in theory* | Practical AKS here is far costlier than trial on moderate sizes; used only when full trial is abandoned |
+
+**Composite early exit:** if the least prime factor is $p$, work is roughly $\Theta(p)$ (or $\Theta(\varphi(W)/W \cdot p)$ on a wheel), so smooth composites are much cheaper than the prime worst case.
+
+**Contrast (not used in the library):** deterministic Miller–Rabin for a fixed 64-bit witness set is $\Theta(k \cdot M(\log n)\cdot\log n)$ for $k$ modular exponentiations — much faster for hard 64-bit primes, but that is a different correctness model than “full trial / AKS for every natural number.” See `benchmarks/compare_miller_rabin.py`.
+
 ### Build the optional C core
 
 ```bash
