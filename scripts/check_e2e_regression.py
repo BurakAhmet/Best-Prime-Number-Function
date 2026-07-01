@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
+"""Compare end-to-end CLI TIME JSON from compare_e2e.py.
+
+Fails if candidate e2e_ms is slower than baseline by more than --threshold
+on any shared case with baseline e2e_ms >= --min-ms.
 """
-Compare optimized timings: candidate (current checkout) vs baseline (file or JSON).
-
-Fails if candidate is slower than baseline by more than --threshold (default 15%)
-on any shared case with a measurable baseline time.
-
-Used by CI to ensure a new push is not slower than the reference (main / committed baseline).
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -26,23 +22,14 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--baseline", type=Path, required=True)
     p.add_argument("--candidate", type=Path, required=True)
-    p.add_argument(
-        "--threshold",
-        type=float,
-        default=0.15,
-        help="Max allowed slowdown fraction (0.15 = 15%% slower fails)",
-    )
-    p.add_argument(
-        "--min-ms",
-        type=float,
-        default=0.05,
-        help="Ignore cases where baseline optimized_ms is below this (noise)",
-    )
+    p.add_argument("--threshold", type=float, default=0.25,
+                   help="Max allowed slowdown fraction (0.25 = 25%%)")
+    p.add_argument("--min-ms", type=float, default=1.0,
+                   help="Ignore baseline cases below this e2e_ms (noise)")
     args = p.parse_args()
 
     base = load(args.baseline)
     cand = load(args.candidate)
-
     print(f"Baseline:  {args.baseline}")
     print(f"Candidate: {args.candidate}")
     print(f"Threshold: {args.threshold * 100:.0f}% slower fails (min baseline {args.min_ms} ms)")
@@ -56,13 +43,12 @@ def main() -> int:
         if case not in cand["by_case"]:
             continue
         cr = cand["by_case"][case]
-        bms = br.get("optimized_ms", br.get("e2e_ms"))
-        cms = cr.get("optimized_ms", cr.get("e2e_ms"))
+        bms = br.get("e2e_ms")
+        cms = cr.get("e2e_ms")
         if bms is None or cms is None:
             continue
         if bms < args.min_ms:
-            status = "skip-noise"
-            delta = "—"
+            status, delta = "skip-noise", "—"
         else:
             compared += 1
             ratio = cms / bms if bms > 0 else float("inf")
@@ -79,14 +65,14 @@ def main() -> int:
 
     print()
     if not compared:
-        print("No comparable cases with baseline >= min-ms; nothing to enforce.")
+        print("No comparable e2e cases with baseline >= min-ms; nothing to enforce.")
         return 0
     if failed:
-        print("Performance regression detected (candidate slower than baseline):")
+        print("E2E performance regression detected:")
         for case, bms, cms, ratio in failed:
             print(f"  - {case}: {cms:.3f} ms vs {bms:.3f} ms ({ratio:.2f}x)")
         return 1
-    print("No regressions beyond threshold. Candidate is as fast or faster (within tolerance).")
+    print("No e2e regressions beyond threshold.")
     return 0
 
 

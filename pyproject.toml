@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "best-prime-number-function"
-version = "1.0.0"
-description = "Fully deterministic primality testing (9699690-wheel + Numba; AKS for big integers)"
+version = "1.1.0"
+description = "Fully deterministic primality testing (tiered wheels, OpenMP C, Numba fallback; AKS for big ints)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "BurakAhmet" }]
-keywords = ["prime", "primality", "deterministic", "numba", "aks", "trial-division"]
+keywords = ["prime", "primality", "deterministic", "openmp", "numba", "aks", "trial-division"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",

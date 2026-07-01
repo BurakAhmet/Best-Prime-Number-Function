@@ -12,7 +12,7 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 2. **No stochastic Miller–Rabin** — no random bases, no “probably prime” APIs as the engine.
 3. **No prime libraries** — do not depend on primesieve, sympy.isprime, etc. for the implementation.
 4. **Allowed** — NumPy, Numba (JIT / parallel) for *our* trial division / helpers.
-5. **Correctness model** — for `n < 2^64`: exact trial division on a 9699690-wheel (primorial `2·3·5·7·11·13·17·19`) up to `isqrt(n)`. For larger `n`: small-factor trial then AKS if needed (may be slow).
+5. **Correctness model** — for `n < 2^64`: exact trial division on a tiered wheels + optional OpenMP C `wheel_core.so` up to `isqrt(n)`. For larger `n`: small-factor trial then AKS if needed (may be slow).
 
 ## When answering issues
 
@@ -34,3 +34,6 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 - `tests/` — pytest suite
 - `benchmarks/` — primitive vs optimized speed, regression, determinism checks
 - `.github/workflows/` — CI, determinism, issue/PR agents
+
+- On Linux CI after `compile_wheel_core.sh`, `lab(n)['path']` must be `u64_wheel_c` for 64-bit n above the tiny threshold.
+- Primary perf metric is e2e CLI TIME (`compare_e2e.py`).

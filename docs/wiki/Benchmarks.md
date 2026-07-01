@@ -1,26 +1,20 @@
-# Benchmarks — primitive vs optimized
+# Benchmarks
 
-Both methods are **deterministic**. The gap is engineering (wheel + Numba + threads), not weaker math on the 64-bit path.
+Two complementary metrics:
 
-| Method | Description |
-|--------|-------------|
-| **Primitive** | Pure Python: odds only up to `isqrt(n)` |
-| **Optimized** | `is_prime()` — 9699690-wheel + Numba (+ threads) |
+| Script | What it measures |
+|--------|------------------|
+| [`benchmarks/compare_e2e.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/benchmarks/compare_e2e.py) | **End-to-end CLI `TIME`** (module import → answer). Primary optimization target and CI perf gate. |
+| [`benchmarks/compare_speed.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/benchmarks/compare_speed.py) | In-process `is_prime()` after engines are warm. Useful for hot-loop regressions. |
 
-## Run
+Both methods compared in-process against a naive odd trial baseline are **deterministic** (no Miller–Rabin).
 
 ```bash
-NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py
-NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py --include-hard
+bash scripts/compile_wheel_core.sh
+OMP_NUM_THREADS=2 python benchmarks/compare_e2e.py --include-hard
+OMP_NUM_THREADS=2 python benchmarks/compare_speed.py --include-hard
+python scripts/check_e2e_regression.py \
+  --baseline benchmarks/e2e_results.json --candidate /tmp/e2e.json
 ```
 
-## Sample speedups (indicative, 12 threads)
-
-| Case | Speedup (optimized vs primitive) |
-|------|----------------------------------:|
-| $10^9+7$ / $10^9+9$ | ~20× |
-| Mersenne $2^{31}-1$ | ~17× |
-| 12-digit prime | ~90–100× |
-| Near $2^{63}$ prime | Optimized ~0.7s; primitive usually skipped (too slow) |
-
-Details: [benchmarks/README.md](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/benchmarks/README.md)
+See also [Hall of fame](Hall-of-fame) for notable 64-bit primes and the automated prime-of-the-day log.

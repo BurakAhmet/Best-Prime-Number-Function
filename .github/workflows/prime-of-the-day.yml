@@ -1,4 +1,5 @@
 # Fully autonomous daily deterministic prime challenge (no stochastic MR).
+# Also appends path + e2e timings to docs/wiki/Hall-of-fame.md.
 name: Prime of the day
 
 on:
@@ -7,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -15,34 +16,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install build tools for OpenMP wheel core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
+
       - run: pip install -r requirements.txt
-      - name: Compute deterministic challenge
+      - run: bash scripts/compile_wheel_core.sh
+
+      - name: Compute deterministic challenge + e2e TIME
         id: potd
         env:
           NUMBA_NUM_THREADS: "2"
+          OMP_NUM_THREADS: "2"
         run: |
           python3 << 'PY'
           import datetime as dt
           import json
           import os
-          from is_prime import is_prime, lab
+          import re
+          import subprocess
+          import sys
+          from is_prime import lab
 
-          # Deterministic seed from UTC date only
           day = dt.datetime.now(dt.timezone.utc).date()
           ordinal = day.toordinal()
-          # Challenge: is N prime, where N is deterministic from the date
           n = 10**6 + (ordinal * 9973) % 10**6
           if n % 2 == 0:
               n += 1
           info = lab(n, parallel=True)
+          # Fresh-process e2e CLI TIME (matches printed TIME metric)
+          out = subprocess.check_output(
+              [sys.executable, "is_prime.py", str(n)], text=True, stderr=subprocess.STDOUT
+          )
+          e2e_ms = None
+          for line in out.splitlines():
+              m = re.match(r"TIME:\s+\d+\s+ns\s+\(([0-9.]+)\s+ms\)", line.strip())
+              if m:
+                  e2e_ms = float(m.group(1))
           payload = {
               "date": day.isoformat(),
               "n": n,
               "is_prime": info["is_prime"],
               "elapsed_ms": round(info["elapsed_ms"], 3),
+              "e2e_ms": round(e2e_ms if e2e_ms is not None else info["e2e_ms"], 3),
               "path": info["path"],
               "isqrt": info["isqrt"],
           }
@@ -52,11 +76,28 @@ jobs:
               f.write(f"n={payload['n']}\n")
               f.write(f"prime={'true' if payload['is_prime'] else 'false'}\n")
               f.write(f"ms={payload['elapsed_ms']}\n")
+              f.write(f"e2e={payload['e2e_ms']}\n")
+              f.write(f"path={payload['path']}\n")
           with open("potd.json", "w") as f:
               json.dump(payload, f, indent=2)
           PY
 
-      - name: Upsert GitHub Issue comment (Prime of the day)
+      - name: Append hall-of-fame log
+        run: python3 scripts/append_hall_of_fame.py --json potd.json
+
+      - name: Commit hall-of-fame update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/wiki/Hall-of-fame.md
+          if git diff --staged --quiet; then
+            echo "No hall-of-fame changes"
+          else
+            git commit -m "docs: append prime-of-the-day ${{ steps.potd.outputs.date }} to hall of fame"
+            git push
+          fi
+
+      - name: Upsert GitHub Issue (Prime of the day)
         uses: actions/github-script@v7
         with:
           script: |
@@ -66,7 +107,7 @@ jobs:
             const body = [
               `## Prime of the day — \`${potd.date}\``,
               '',
-              'Autonomous deterministic challenge (UTC date → fixed odd `n`, then `is_prime` / `lab`).',
+              'Autonomous deterministic challenge (UTC date → fixed odd `n`, then `is_prime` / `lab` + e2e CLI `TIME`).',
               '',
               `| | |`,
               `|---|---|`,
@@ -74,12 +115,17 @@ jobs:
               `| **Prime?** | **${potd.is_prime ? 'yes' : 'no'}** |`,
               `| **Path** | \`${potd.path}\` |`,
               `| **⌊√n⌋** | \`${potd.isqrt}\` |`,
-              `| **Time** | ${potd.elapsed_ms} ms |`,
+              `| **Check** | ${potd.elapsed_ms} ms |`,
+              `| **E2E TIME** | ${potd.e2e_ms} ms |`,
               '',
               'No stochastic Miller–Rabin. Reproduce:',
               '```bash',
+              'bash scripts/compile_wheel_core.sh',
               `python is_prime.py --lab ${potd.n}`,
+              `python is_prime.py ${potd.n}`,
               '```',
+              '',
+              'Logged in [Hall of fame](../blob/main/docs/wiki/Hall-of-fame.md).',
               '',
               '<sub>Posted by **Prime of the day** workflow (fully autonomous).</sub>',
             ].join('\n');

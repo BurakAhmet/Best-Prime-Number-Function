@@ -1,6 +1,6 @@
 # Best-Prime-Number-Function Wiki
 
-**Fully deterministic** primality testing for natural numbers — optimized 64-bit path with Numba, big integers supported under strict correctness rules.
+**Fully deterministic** primality testing for natural numbers — tiered engines (stdlib / OpenMP C / Numba) optimizing end-to-end CLI `TIME`, with **AKS** for big integers under strict correctness rules.
 
 > [!WARNING]
 > **This entire project (code, tests, docs, and wiki) was created and designed by an AI agent**. Treat it as AI-generated work: review code and results before production or research-critical use. Human oversight is recommended.
@@ -12,11 +12,13 @@
 | | |
 |--|--|
 | **Library** | `is_prime(n)` in Python (`int` or decimal `str`) |
-| **Fast path** | $n < 2^{64}$: **9699690-wheel** trial division + **Numba** (optional multi-thread) |
+| **Fast path** | $n < 2^{64}$: tiered **30030** / **9699690** wheel (OpenMP C when `wheel_core.so` is built; else stdlib / Numba) |
 | **Large path** | Small-factor trial, then **AKS** if needed (deterministic, can be slow) |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
-**Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function) (private)
+**Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function)
+
+Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/README.md) (`scripts/check_wiki_sync.py` in CI).
 
 ---
 
@@ -26,14 +28,14 @@
 |------|-------------|
 | **[Home](Home)** | This overview |
 | **[Project restrictions](Project-restrictions)** | Non-negotiable rules for humans **and agents** |
-| **[Algorithm overview](Algorithm-overview)** | Wheel trial division + AKS |
-| **[CI and automation](CI-and-automation)** | Tests, determinism, performance, issue/PR agents |
+| **[Algorithm overview](Algorithm-overview)** | Tiered wheel trial division + AKS |
+| **[CI and automation](CI-and-automation)** | Tests, determinism, e2e performance, issue/PR agents |
 | **[Agent briefing](Agent-briefing)** | Instructions for coding / triage agents |
 | **[Contributing](Contributing)** | How to contribute safely |
-| **[Benchmarks](Benchmarks)** | Primitive vs optimized speed |
-| **[Hall of fame](Hall-of-fame)** | Slow 64-bit primes + indicative timings |
+| **[Benchmarks](Benchmarks)** | E2E CLI `TIME` vs in-process hot loop |
+| **[Hall of fame](Hall-of-fame)** | Notable 64-bit primes + prime-of-the-day log |
 
-**Source of truth in git:** [`docs/wiki/`](https://github.com/BurakAhmet/Best-Prime-Number-Function/tree/main/docs/wiki) — keep this Wiki in sync when those files change.
+**Source of truth in git:** [`docs/wiki/`](https://github.com/BurakAhmet/Best-Prime-Number-Function/tree/main/docs/wiki).
 
 **Also published as Pages:** [burakahmet.github.io/Best-Prime-Number-Function](https://burakahmet.github.io/Best-Prime-Number-Function/)
 
@@ -45,8 +47,9 @@
 git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
 cd Best-Prime-Number-Function
 pip install -r requirements.txt
+bash scripts/compile_wheel_core.sh
 python -c "from is_prime import is_prime; print(is_prime(17))"
-NUMBA_NUM_THREADS=$(nproc) python is_prime.py 9223372036854775783
+python is_prime.py 1000000007
 pytest -q -m "not slow"
 ```
 
@@ -56,10 +59,12 @@ pytest -q -m "not slow"
 
 ```text
 is_prime(n)
-    │
-    ├─ n < 2          → False
-    ├─ n < 2⁶⁴        → 9699690-wheel trial division to √n  (Numba / threads)
-    └─ n ≥ 2⁶⁴        → small factors → AKS if still undecided
+    ├─ n < 10⁴         → pure-Python small loop
+    ├─ n < 2⁶⁴
+    │    ├─ wheel_core.so → OpenMP C 9699690-wheel
+    │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
+    │    └─ else          → Numba 9699690-wheel
+    └─ n ≥ 2⁶⁴         → small factors → AKS if still undecided
 ```
 
 ---
@@ -68,9 +73,10 @@ is_prime(n)
 
 | Workflow | Role |
 |----------|------|
-| **CI** | Fast tests + performance vs previous commit |
+| **CI** | Build `.so`, tests, wiki sync, **e2e** perf vs previous commit, C-path assert on Linux |
 | **Determinism** | Repeated serial/parallel trials must agree |
 | **Issue agent** | Auto-answers + briefs restrictions |
 | **PR agent** | Briefs agents; auto-approves *same-repo* PRs only |
+| **Prime of the day** | Daily challenge + hall-of-fame log (`path` + e2e ms) |
 
 Fork PRs are **not** auto-approved. Prefer requiring green **CI** + **Determinism** before merge.

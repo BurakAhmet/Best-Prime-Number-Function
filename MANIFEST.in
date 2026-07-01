@@ -4,6 +4,6 @@ recursive-include is_prime_data *.u16
 recursive-include is_prime_data *.py
 recursive-include is_prime_data *.c
 recursive-include is_prime_data *.so
-include scripts/compile_wheel_core.sh
-include scripts/generate_wheel_data.py
-include scripts/generate_wheel_core_c.py
+include scripts/*.py
+include scripts/*.sh
+include CHANGELOG.md

@@ -48,7 +48,7 @@ lab(97)  # path, isqrt, elapsed_ms, e2e_ms, note, …
 | `0` | prime |
 | `1` | not prime |
 
-CLI `TIME` is **end-to-end**: it starts at module import (`t0`) and stops after the answer (imports, table I/O, native load, and the check all count).
+CLI `TIME` is **end-to-end**: it starts at module import (`t0`) and stops after the answer (imports, table I/O, native load, and the check all count). Default CLI argument is `1000000007` (snappy demo); hard 64-bit primes are in the examples above.
 
 ```text
 TEST:    1000000007 (10 chars)
@@ -56,6 +56,33 @@ THREADS: 1
 RESULT:  prime
 TIME:    … ns  (… ms)
 ```
+
+### Developer loop
+
+Copy-paste checks matching CI:
+
+```bash
+bash scripts/compile_wheel_core.sh
+python3 scripts/check_restrictions.py
+python3 scripts/check_wiki_sync.py
+pytest -q -m "not slow"
+OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
+OMP_NUM_THREADS=2 python3 benchmarks/compare_e2e.py --json /tmp/e2e.json
+python3 scripts/check_e2e_regression.py \
+  --baseline benchmarks/e2e_results.json --candidate /tmp/e2e.json
+# Optional hot-loop check (warm engines; secondary metric):
+OMP_NUM_THREADS=2 python3 benchmarks/compare_speed.py --json /tmp/hot.json
+```
+
+### Supported platforms
+
+| Platform | `wheel_core.so` (OpenMP C) | Fallback |
+|----------|----------------------------|----------|
+| **Linux x86_64** (CI, Docker) | Built in CI via `scripts/compile_wheel_core.sh`; `lab(n)["path"] == "u64_wheel_c"` is asserted | — |
+| **macOS / Windows / other** | Build locally if `gcc`/`clang` + OpenMP are available | Embedded 30030-wheel (stdlib) and/or **Numba** 9699690-wheel |
+| **Pure Python env** (no compiler, no Numba wheels) | Unavailable | Stdlib paths only (`n ≤ 4·10¹²` fully covered; harder 64-bit needs Numba or a local `.so`) |
+
+The committed `.so` is a Linux convenience artifact; **source of truth** is `is_prime_data/wheel_core.c` rebuilt in CI.
 
 ---
 
@@ -226,26 +253,23 @@ Fixed-base MR is deterministic only on **proven finite ranges**. This repo uses 
 
 ## Testing & quality gates
 
-```bash
-bash scripts/compile_wheel_core.sh          # optional locally; required shape in CI
-python3 scripts/check_restrictions.py
-pytest -q -m "not slow"                     # default CI suite
-pytest -q                                   # includes @pytest.mark.slow hard 64-bit primes
-OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
-OMP_NUM_THREADS=2 python3 benchmarks/compare_speed.py --json /tmp/cand.json
-python3 benchmarks/check_regression.py \
-  --baseline benchmarks/baseline.json --candidate /tmp/cand.json
-python3 benchmarks/compare_e2e.py --include-hard
-```
+See the [Developer loop](#developer-loop) above. Full suite: `pytest -q` (includes `@pytest.mark.slow`).
 
-Coverage highlights: exhaustive checks on $0\ldots4999$; Hypothesis properties with `derandomize=True`; wheel / `isqrt` integrity; serial vs parallel agreement; large primes/composites, Carmichael numbers, big-int strings, API errors.
+**Two metrics (do not mix them up):**
+
+| Metric | Script | CI role |
+|--------|--------|---------|
+| **E2E CLI `TIME`** (primary) | `compare_e2e.py` | Perf gate vs previous commit (`check_e2e_regression.py`, 25% threshold) |
+| **In-process hot loop** (secondary) | `compare_speed.py` | Informational artifact only |
+
+Coverage highlights: exhaustive checks on $0\ldots4999$; Hypothesis with `derandomize=True`; C-path serial==parallel and semiprime matrix (`tests/test_c_core.py`); Linux assertion `lab(n)["path"] == "u64_wheel_c"`; wiki sync (`scripts/check_wiki_sync.py`).
 
 | Gate | Workflow | Role |
 |------|----------|------|
 | Restriction linter | **CI** | Bans MR / primesieve / random engines in implementation paths |
-| Fast tests | **CI** | `pytest -m "not slow"` on Python **3.9 / 3.11 / 3.12** (+ build `wheel_core.so`) |
-| Performance | **CI** | Candidate vs previous commit / PR base; fail if optimized path regresses **>20%** on measurable cases |
-| E2E smoke | **CI** | `benchmarks/compare_e2e.py` on the candidate |
+| Wiki sync | **CI** | Key README facts must appear in `docs/wiki/` |
+| Fast tests | **CI** | `pytest -m "not slow"` on **3.9 / 3.11 / 3.12** (+ build `.so`, assert C path on Linux) |
+| Performance | **CI** | **E2E** candidate vs previous commit / PR base; fail if `e2e_ms` regresses **>25%** on measurable cases |
 | Attestation | **CI** | Re-runs lint + tests + determinism; uploads `attestation.json` |
 | Determinism | **Determinism** | Repeated serial/parallel trials must agree |
 

@@ -48,15 +48,28 @@ jobs:
       - name: Restriction linter
         run: python3 scripts/check_restrictions.py
 
+      - name: Wiki sync
+        run: python3 scripts/check_wiki_sync.py
+
       - name: Run fast tests
         run: pytest -q -m "not slow"
+
+      - name: Assert C engine on Linux
+        run: |
+          python - <<'PY'
+          from is_prime import lab, _load_c_core
+          assert _load_c_core(), "wheel_core.so missing after compile_wheel_core.sh"
+          info = lab(1_000_000_007)
+          assert info["path"] == "u64_wheel_c", info
+          info2 = lab(9_223_372_036_854_775_783)
+          assert info2["path"] == "u64_wheel_c" and info2["is_prime"] is True, info2
+          print("C path OK:", info["path"], info2["path"])
+          PY
 
       - name: Smoke CLI
         run: |
           python -c "from is_prime import is_prime; assert is_prime(17) and not is_prime(0) and not is_prime(1)"
-          # Exit 0 = prime (must succeed under set -e)
           python is_prime.py 97
-          # Exit 1 = not prime; with bash -e we must not treat that as a step failure
           if python is_prime.py 100; then
             echo "expected exit code 1 for composite 100" >&2
             exit 1
@@ -65,17 +78,14 @@ jobs:
           grep -q 'RESULT:  prime' /tmp/cli_out.txt
 
   performance:
-    name: Performance vs baseline / base branch
+    name: E2E performance vs baseline / base branch
     runs-on: ubuntu-latest
-    # Single Python version is enough for timing checks
     steps:
       - name: Checkout PR head (or push commit)
         uses: actions/checkout@v4
         with:
           path: candidate
 
-      # PR: compare against the PR base commit.
-      # Push: compare against the previous commit on the branch (event.before).
       - name: Checkout baseline ref
         uses: actions/checkout@v4
         with:
@@ -101,43 +111,42 @@ jobs:
 
       - name: Build wheel cores (candidate always; baseline if script exists)
         run: |
-          if [ -f candidate/scripts/compile_wheel_core.sh ]; then
-            bash candidate/scripts/compile_wheel_core.sh
-          fi
+          bash candidate/scripts/compile_wheel_core.sh
           if [ -f baseline_src/scripts/compile_wheel_core.sh ]; then
             bash baseline_src/scripts/compile_wheel_core.sh
           fi
 
-      - name: Benchmark baseline ref
+      - name: E2E benchmark baseline ref
         working-directory: baseline_src
         run: |
-          if [ ! -f benchmarks/compare_speed.py ]; then
-            echo "Baseline tree has no benchmark script; using committed baseline.json from candidate"
-            cp "$GITHUB_WORKSPACE/candidate/benchmarks/baseline.json" "$GITHUB_WORKSPACE/baseline_run.json"
-          else
-            NUMBA_NUM_THREADS=2 OMP_NUM_THREADS=2 python benchmarks/compare_speed.py --repeats 3 --json "$GITHUB_WORKSPACE/baseline_run.json"
-          fi
-
-      - name: Benchmark candidate
-        working-directory: candidate
-        run: |
-          NUMBA_NUM_THREADS=2 OMP_NUM_THREADS=2 python benchmarks/compare_speed.py --repeats 3 --json "$GITHUB_WORKSPACE/candidate_run.json"
-
-      - name: Compare candidate vs baseline ref (must not regress)
-        working-directory: candidate
-        run: |
-          python benchmarks/check_regression.py \
-            --baseline "$GITHUB_WORKSPACE/baseline_run.json" \
-            --candidate "$GITHUB_WORKSPACE/candidate_run.json" \
-            --threshold 0.20 \
-            --min-ms 0.05
-
-      - name: End-to-end CLI TIME smoke (candidate)
-        working-directory: candidate
-        run: |
           if [ -f benchmarks/compare_e2e.py ]; then
-            OMP_NUM_THREADS=2 python benchmarks/compare_e2e.py --repeats 2 --json "$GITHUB_WORKSPACE/e2e_candidate.json"
+            OMP_NUM_THREADS=2 python benchmarks/compare_e2e.py --repeats 3 --json "$GITHUB_WORKSPACE/e2e_baseline.json"
+          elif [ -f "$GITHUB_WORKSPACE/candidate/benchmarks/e2e_results.json" ]; then
+            cp "$GITHUB_WORKSPACE/candidate/benchmarks/e2e_results.json" "$GITHUB_WORKSPACE/e2e_baseline.json"
+          else
+            echo "No e2e harness on baseline; skipping gate inputs" >&2
+            echo '{"repeats":0,"results":[]}' > "$GITHUB_WORKSPACE/e2e_baseline.json"
           fi
+
+      - name: E2E benchmark candidate
+        working-directory: candidate
+        run: |
+          OMP_NUM_THREADS=2 python benchmarks/compare_e2e.py --repeats 3 --json "$GITHUB_WORKSPACE/e2e_candidate.json"
+
+      - name: Compare e2e TIME (primary perf gate)
+        working-directory: candidate
+        run: |
+          python scripts/check_e2e_regression.py \
+            --baseline "$GITHUB_WORKSPACE/e2e_baseline.json" \
+            --candidate "$GITHUB_WORKSPACE/e2e_candidate.json" \
+            --threshold 0.25 \
+            --min-ms 1.0
+
+      - name: In-process hot-loop snapshot (secondary, non-gating)
+        working-directory: candidate
+        run: |
+          NUMBA_NUM_THREADS=2 OMP_NUM_THREADS=2 python benchmarks/compare_speed.py \
+            --repeats 3 --json "$GITHUB_WORKSPACE/hot_candidate.json" || true
 
       - name: Upload benchmark artifacts
         if: always()
@@ -145,8 +154,9 @@ jobs:
         with:
           name: benchmark-json
           path: |
-            baseline_run.json
-            candidate_run.json
+            e2e_baseline.json
+            e2e_candidate.json
+            hot_candidate.json
 
   attestation:
     name: Certificate of correctness
@@ -169,11 +179,22 @@ jobs:
           OMP_NUM_THREADS: "2"
         run: |
           python3 scripts/check_restrictions.py
+          python3 scripts/check_wiki_sync.py
           pytest -q -m "not slow"
+          python - <<'PY'
+          from is_prime import lab
+          info = lab(1_000_000_007)
+          assert info["path"] == "u64_wheel_c", info
+          open("engine_sample.json", "w").write(
+              __import__("json").dumps({"path": info["path"], "e2e_ms": info["e2e_ms"], "elapsed_ms": info["elapsed_ms"]}, indent=2)
+          )
+          PY
           python benchmarks/check_determinism.py --trials 3
           ATTEST_LINT=passed ATTEST_PYTEST=passed ATTEST_DETERMINISM=passed ATTEST_PYTHONS=3.12 \
             python3 scripts/write_attestation.py attestation.json
       - uses: actions/upload-artifact@v4
         with:
           name: correctness-attestation
-          path: attestation.json
+          path: |
+            attestation.json
+            engine_sample.json

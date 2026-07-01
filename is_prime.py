@@ -801,7 +801,7 @@ def _main_simple(argv: list[str]) -> int:
             return _main_full(argv)
         else:
             positional.append(a)
-    arg = positional[0] if positional else "9223372036854775783"
+    arg = positional[0] if positional else "1000000007"
     parallel = not serial
     try:
         n = int(arg.strip())
@@ -835,7 +835,7 @@ def _main_full(argv: list[str] | None = None) -> int:
     import json
 
     parser = argparse.ArgumentParser(description="Deterministic is_prime CLI")
-    parser.add_argument("n", nargs="?", default="9223372036854775783")
+    parser.add_argument("n", nargs="?", default="1000000007")
     parser.add_argument("--lab", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--serial", action="store_true")
