@@ -3,7 +3,7 @@
 > [!WARNING]
 > **This repository was created and designed by an AI agent**, including code, tests, docs, benchmarks, and automation. Treat it as **AI-generated work**: review, test, and validate before production or research-critical use.
 
-**Fully deterministic** primality testing for every natural number — from single digits to 100+ digit values — optimized for **end-to-end CLI latency** under strict no-randomness rules.
+**Fully deterministic** primality testing as an installable **Python library** (and optional CLI) — for every natural number, under strict no-randomness rules.
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -15,81 +15,96 @@
 
 ---
 
-## Install as a Python library
+## Python library
+
+### Install
 
 ```bash
-# from a clone (editable / development)
+# dependency from GitHub (no clone required)
+pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
+
+# or editable install while hacking on this repo
 git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
 cd Best-Prime-Number-Function
-python3 -m pip install -e .
+pip install -e .
+```
 
-# or directly from GitHub
-python3 -m pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
+Package name on disk: **`best-prime-number-function`**. Import the API as **`best_prime`** (or the implementation module `is_prime` — same functions).
 
-# optional: force-build the OpenMP C core if it was skipped at install
+If hard primes feel slow, ensure the OpenMP core built successfully (`gcc` + OpenMP). Re-run from a clone:
+
+```bash
 bash scripts/compile_wheel_core.sh
 ```
 
-```python
-from best_prime import is_prime, lab, __version__
-# equivalent: from is_prime import is_prime, lab
+Then set threads for the heavy paths (optional; defaults to all CPUs when unset):
 
-print(__version__)
-print(is_prime(17))                 # True
-print(is_prime(10**9 + 7))          # True
-print(is_prime("100000000000000000039"))  # True (~10^20; fast with wheel_core.so)
-
-info = lab(10**9 + 7)
-print(info["path"], info["elapsed_ms"])
+```bash
+export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba path
 ```
 
-| Import | Notes |
-|--------|--------|
-| `from best_prime import is_prime, lab` | Preferred library import |
-| `from is_prime import is_prime, lab` | Same API (implementation module) |
-| CLI `is-prime` / `best-prime` | Console scripts after install |
+### API
 
-**Native speed:** install tries to compile `is_prime_data/wheel_core.so` (needs `gcc` + OpenMP). Without it, stdlib / Numba paths still work; hard 64-bit and ~$10^{20}$ checks are much faster with the `.so`.
+| Symbol | Role |
+|--------|------|
+| `is_prime(n, *, parallel=True) -> bool` | `True` iff `n` is prime. Fully deterministic. |
+| `lab(n, *, parallel=True) -> dict` | Same check plus diagnostics (`path`, `isqrt`, timings, `note`). |
+| `__version__` | Installed package version (`best_prime` only). |
 
-See also [`examples/basic_usage.py`](examples/basic_usage.py).
+**Accepted `n`:** non-negative `int`, or a decimal `str` (leading zeros / surrounding whitespace OK). Rejects negatives, non-decimal strings, and `bool` (use `int` explicitly if you must).
+
+**`parallel`:** only affects multi-threaded OpenMP / Numba engines on large enough \(\sqrt{n}\). Result never depends on it — serial and parallel must agree.
+
+```python
+from best_prime import is_prime, lab
+
+is_prime(17)                              # True
+is_prime(100)                             # False
+is_prime(9223372036854775783)             # True  (hard 64-bit; wants wheel_core.so)
+is_prime("100000000000000000039")         # True  (~10^20; u128 OpenMP path)
+is_prime("9" * 100)                       # False (tiny factor / big-int path)
+is_prime(10**9 + 7, parallel=False)       # True  (still deterministic)
+
+info = lab(10**9 + 7)
+# info["is_prime"], info["path"], info["isqrt"],
+# info["elapsed_ms"] (check only), info["e2e_ms"] (since process start), info["note"]
+```
+
+Runnable sample: [`examples/basic_usage.py`](examples/basic_usage.py).
+
+### What to expect for performance
+
+| Input size (order of magnitude) | Typical engine (with `.so`) | Notes |
+|---------------------------------|----------------------------|--------|
+| Tiny / moderate | Python loop or stdlib wheel | Sub-ms to tens of ms |
+| Hard 64-bit primes | OpenMP `u64_wheel_c` | Sub-second multi-core on a laptop |
+| Up to ~\(10^{20}\) with practical \(\sqrt{n}\) | OpenMP `u128_wheel_c` | Seconds, not AKS |
+| Huge primes, no small factors | Partial trial → **AKS** | Correct but can be very slow |
+
+Without `wheel_core.so`, the library still works via stdlib wheels and/or Numba; only the slowest 64-bit / multi-limb cases suffer most.
 
 ---
 
-## Quick start
+## CLI
+
+After `pip install`, use the console scripts (same program as `python is_prime.py` from a clone):
 
 ```bash
-git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
-cd Best-Prime-Number-Function
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# Optional but recommended for hard 64-bit primes (needs gcc + OpenMP)
-bash scripts/compile_wheel_core.sh
-
-python3 is_prime.py 97
-python3 is_prime.py 9223372036854775783
-python3 is_prime.py 100000000000000000039   # ~10^20; needs wheel_core.so (u128)
-python3 is_prime.py --lab 1000000007
+is-prime 97
+is-prime 9223372036854775783
+best-prime --lab 1000000007    # alias of is-prime
+is-prime --serial 10**9+7      # force single-threaded engines
 ```
 
-```python
-from is_prime import is_prime, lab
-
-is_prime(17)                         # True
-is_prime(100)                        # False
-is_prime(9223372036854775783)        # True
-is_prime("9" * 100)                  # False
-is_prime(10**9 + 7, parallel=False)  # still deterministic
-
-lab(97)  # path, isqrt, elapsed_ms, e2e_ms, note, …
-```
+No argument defaults to the near-\(2^{63}\) prime `9223372036854775783`.
 
 | Exit code | Meaning |
 |-----------|---------|
 | `0` | prime |
 | `1` | not prime |
+| `2` | invalid input |
 
-CLI `TIME` is **end-to-end**: it starts at module import (`t0`) and stops after the answer (imports, table I/O, native load, and the check all count). With no argument, the CLI uses the near-$2^{63}$ prime `9223372036854775783` (best with `wheel_core.so` built).
+`TIME` on the CLI is **end-to-end** (import + tables/native load + check), not a warm hot-loop only.
 
 ```text
 TEST:    9223372036854775783 (19 chars)
@@ -98,13 +113,13 @@ RESULT:  prime
 TIME:    … ns  (… ms)
 ```
 
-
 ### Developer loop
 
-Copy-paste checks matching CI:
+From a clone, checks matching CI:
 
 ```bash
-bash scripts/compile_wheel_core.sh
+pip install -e ".[dev]"
+bash scripts/compile_wheel_core.sh   # if install skipped the native core
 python3 scripts/check_restrictions.py
 python3 scripts/check_wiki_sync.py
 pytest -q -m "not slow"
@@ -112,8 +127,6 @@ OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
 OMP_NUM_THREADS=2 python3 benchmarks/compare_e2e.py --json /tmp/e2e.json
 python3 scripts/check_e2e_regression.py \
   --baseline benchmarks/e2e_results.json --candidate /tmp/e2e.json
-# Optional hot-loop check (warm engines; secondary metric):
-OMP_NUM_THREADS=2 python3 benchmarks/compare_speed.py --json /tmp/hot.json
 ```
 
 ### Supported platforms
@@ -392,8 +405,7 @@ Start here: [Project restrictions](docs/wiki/Project-restrictions.md) · [Algori
 | Channel | How |
 |---------|-----|
 | **GitHub Release** | Version tags (e.g. `v1.0.0`) |
-| **pip (editable / library)** | `pip install -e .` from a clone (see [Install as a Python library](#install-as-a-python-library)) |
-| **pip from git** | `pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"` |
+| **pip library** | See [Python library](#python-library) (`pip install git+https://…` or `pip install -e .`) |
 | **GHCR container** | Repo **Packages** tab; published by **Publish package** |
 
 ```bash
