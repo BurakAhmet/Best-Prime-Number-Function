@@ -13,9 +13,10 @@ Legacy `W30030` / `RES_TO_WI` load lazily for tests. Build the C core with `bash
 
 ## Large path — $n \ge 2^{64}$
 
-1. Trial division by small primes and odds up to a practical bound (or $\sqrt{n}$).
-2. If the bound reaches $\sqrt{n}$, answer is exact.
-3. Otherwise **AKS** — unconditional and deterministic, but potentially very slow for large primes with no small factors.
+1. If $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits (covers e.g. primes near $10^{20}$):
+   - Prefer OpenMP C **`is_prime_u128_core`** (same wheel / segmented-prime full trial as the 64-bit engine; limbs `lo`/`hi`).
+   - Else stdlib **9699690-wheel** full trial in Python.
+2. For still-larger $n$: partial trial up to a practical bound, then **AKS** if needed (correct but can be very slow).
 
 ## Related
 

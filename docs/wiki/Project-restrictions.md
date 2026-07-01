@@ -10,7 +10,8 @@ These rules apply to **all** contributors and **automated agents**.
 4. **Allowed:** NumPy / Numba, and our own compiled OpenMP helper (`wheel_core.so`), for speeding up *our* trial division.
 5. **Correctness model**
    - $n < 2^{64}$: exact **primorial-wheel** trial division (embedded **30030** and/or modulus **9699690**) up to $\lfloor\sqrt{n}\rfloor$
-   - larger $n$: small-factor trial, then **AKS** (may be slow for huge primes)
+   - $2^{64} \le n$ with $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): same full trial model via OpenMP **u128** core or stdlib wheel
+   - still larger $n$: partial trial, then **AKS** (may be slow for huge primes)
 
 ## Why not “just use MR”?
 

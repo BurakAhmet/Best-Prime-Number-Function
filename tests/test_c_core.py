@@ -66,6 +66,38 @@ class TestCSerialParallelAgree:
         assert is_prime(n, parallel=True) is is_prime(n, parallel=False)
 
 
+class TestCU128Path:
+    """65–128-bit full trial via is_prime_u128_core (no AKS)."""
+
+    P10_20 = 100_000_000_000_000_000_039  # next prime after 10^20
+    P10_19 = 10_000_000_000_000_000_051  # next prime after 10^19 (still < 2^64)
+
+    def test_lab_reports_u128_path(self):
+        info = lab(self.P10_20)
+        assert info["path"] == "u128_wheel_c"
+        assert info["is_prime"] is True
+        assert info["bit_length"] == 67
+
+    def test_ten_to_20_prime(self):
+        assert is_prime(self.P10_20) is True
+        assert is_prime(self.P10_20, parallel=False) is True
+
+    def test_ten_to_20_composites(self):
+        assert is_prime(10**20) is False
+        assert is_prime(10**20 + 1) is False
+        assert is_prime(self.P10_20 - 2) is False
+
+    def test_u128_serial_equals_parallel(self):
+        n = self.P10_20
+        assert is_prime(n, parallel=True) is is_prime(n, parallel=False)
+
+    def test_two_to_64_uses_big_path_not_u64(self):
+        # 2^64 itself is composite power of two; path is big-int family.
+        info = lab(1 << 64)
+        assert info["path"] in {"u128_wheel_c", "bigint_wheel", "bigint_trial_or_aks"}
+        assert info["is_prime"] is False
+
+
 class TestCSemiprimes:
     @pytest.mark.parametrize("a", _SMALL_P)
     @pytest.mark.parametrize("b", _SMALL_P)

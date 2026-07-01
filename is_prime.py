@@ -3,7 +3,10 @@ Deterministic primality testing for natural numbers.
 
 End-to-end CLI ``TIME`` starts at import (``t0``) and stops after the answer,
 so import, table load, JIT, and the check all count. Heavy dependencies
-(NumPy/Numba) and large tables load lazily only on the hard 64-bit path.
+(NumPy/Numba) and large tables load lazily only on hard paths that need them.
+
+Tiered engines: tiny Python loop; 64-bit OpenMP/stdlib/Numba wheels; practical
+multi-limb (≤128-bit) OpenMP u128 or stdlib full trial; AKS only for huge n.
 
 Restrictions: deterministic; no stochastic Miller–Rabin; no prime libraries.
 """
@@ -28,6 +31,8 @@ _SMALL_LIMIT = 10_000
 # Stdlib wheel wins end-to-end TIME up to this n (avoids NumPy/Numba import).
 _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000
+# Full deterministic trial (no AKS) when isqrt(n) is at most this (covers ~10^20).
+_MAX_FULL_TRIAL_ISQRT = 25_000_000_000  # 2.5e10 → n up to ~6.25e20
 _RES_INVALID = 0xFFFFFFFF
 _PRECHECK_PRIMES = (3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53)
 
@@ -63,6 +68,14 @@ def _load_c_core():
     lib = ctypes.CDLL(path)
     lib.is_prime_u64_core.argtypes = [ctypes.c_uint64, ctypes.c_int]
     lib.is_prime_u64_core.restype = ctypes.c_int
+    # Optional 65–128-bit full-trial entry (regenerated wheel_core).
+    if hasattr(lib, "is_prime_u128_core"):
+        lib.is_prime_u128_core.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_int,
+        ]
+        lib.is_prime_u128_core.restype = ctypes.c_int
     nt = os.environ.get("OMP_NUM_THREADS") or os.environ.get("NUMBA_NUM_THREADS")
     if nt:
         _thread_count = max(1, int(nt))
@@ -686,14 +699,43 @@ def _aks_is_prime(n: int) -> bool:
 
 
 
-def _is_prime_big(n: int) -> bool:
+def _is_prime_u128_c(n: int, parallel: bool) -> bool | None:
+    """OpenMP full trial for 65–128-bit n. Returns None if .so lacks the symbol."""
+    lib = _load_c_core()
+    if not lib or not hasattr(lib, "is_prime_u128_core"):
+        return None
+    lo = n & ((1 << 64) - 1)
+    hi = n >> 64
+    return bool(lib.is_prime_u128_core(lo, hi, 1 if parallel else 0))
+
+
+def _is_prime_big_full_trial(n: int, parallel: bool) -> bool:
+    """Exact wheel trial to isqrt(n) for moderate big ints (no AKS)."""
+    decided = _precheck(n)
+    if decided is not None:
+        return decided
+    # Prefer C __int128 path (OpenMP wheel / segmented primes).
+    if n.bit_length() <= 128:
+        c_result = _is_prime_u128_c(n, parallel)
+        if c_result is not None:
+            return c_result
+    # Stdlib fallback: 9699690-wheel (correct, slower without OpenMP).
+    return _wheel_trial(n, _get_steps_9699690(), _WHEEL_START_I)
+
+
+def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
+    """Primality for n >= 2^64. Full trial when practical; else partial + AKS."""
     for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61):
         if n == p:
             return True
         if n % p == 0:
             return False
     sq = math.isqrt(n)
-    limit = min(2_000_000, sq)
+    # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
+    if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
+        return _is_prime_big_full_trial(n, parallel)
+    # Larger: cheap factor scan, then AKS (correct but can be very slow).
+    limit = min(50_000_000, sq)
     for i in range(67, limit + 1, 2):
         if n % i == 0:
             return False
@@ -714,7 +756,7 @@ def is_prime(n: int | str, *, parallel: bool = True) -> bool:
         if n_int <= _PURE_WHEEL_MAX_N:
             return _is_prime_python_wheel(n_int)
         return _is_prime_u64(n_int, parallel)
-    return _is_prime_big(n_int)
+    return _is_prime_big(n_int, parallel=parallel)
 
 
 def _isqrt_u64(n):
@@ -737,12 +779,27 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         else:
             path = "u64_wheel_numba"
     else:
-        path = "bigint_trial_or_aks"
+        sq = math.isqrt(n_int) if n_int >= 2 else 0
+        lib = _load_c_core()
+        if (
+            sq <= _MAX_FULL_TRIAL_ISQRT
+            and n_int.bit_length() <= 128
+            and lib
+            and hasattr(lib, "is_prime_u128_core")
+        ):
+            path = "u128_wheel_c"
+        elif sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
+            path = "bigint_wheel"
+        else:
+            path = "bigint_trial_or_aks"
     info = {
         "n": n_int,
         "bit_length": n_int.bit_length(),
         "path": path,
-        "parallel": bool(parallel and path in {"u64_wheel_numba", "u64_wheel_c"}),
+        "parallel": bool(
+            parallel
+            and path in {"u64_wheel_numba", "u64_wheel_c", "u128_wheel_c"}
+        ),
     }
     if n_int >= 2:
         info["isqrt"] = math.isqrt(n_int)
@@ -758,7 +815,9 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "python_wheel": "Embedded 30030-wheel trial division (stdlib, best e2e TIME).",
         "u64_wheel_c": "OpenMP C extension 9699690-wheel (no Numba JIT).",
         "u64_wheel_numba": "Numba 9699690-wheel trial division up to isqrt(n).",
-        "bigint_trial_or_aks": "Big-int path: small-factor trial, AKS if needed (may be slow).",
+        "u128_wheel_c": "OpenMP C full trial for 65–128-bit n (wheel / seg-primes; no AKS).",
+        "bigint_wheel": "Stdlib 9699690-wheel full trial for moderate big ints (no AKS).",
+        "bigint_trial_or_aks": "Huge-int path: partial trial, AKS if needed (may be slow).",
     }
     info["note"] = notes[path]
     return info
@@ -818,13 +877,24 @@ def _main_simple(argv: list[str]) -> int:
     elif n < (1 << 64):
         if _load_c_core() or n > _PURE_WHEEL_MAX_N:
             prime = _is_prime_u64(n, parallel)
-            threads = _thread_count if _threads_configured else 1
+            threads = _thread_count
         else:
             prime = _is_prime_python_wheel(n)
             threads = 1
     else:
-        prime = _is_prime_big(n)
-        threads = 1
+        prime = _is_prime_big(n, parallel=parallel)
+        # u128 OpenMP path sets _thread_count in _load_c_core.
+        threads = (
+            _thread_count
+            if (
+                parallel
+                and n.bit_length() <= 128
+                and math.isqrt(n) <= _MAX_FULL_TRIAL_ISQRT
+                and _load_c_core()
+                and hasattr(_c_core, "is_prime_u128_core")
+            )
+            else 1
+        )
 
     _print_result(str(n) if positional else arg, prime, threads)
     return 0 if prime else 1

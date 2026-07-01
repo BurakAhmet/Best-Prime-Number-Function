@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.0] — 2026-07-01
+
+### Added
+- **65–128-bit full trial** via OpenMP C `is_prime_u128_core` (limbs `lo`/`hi`): same deterministic wheel / segmented-prime engines as the 64-bit path, no AKS for practical sizes (`isqrt(n) ≤ 2.5·10¹⁰`, e.g. primes near \(10^{20}\)).
+- `lab()` paths `u128_wheel_c` and `bigint_wheel` (stdlib wheel fallback without the `.so` symbol).
+
+### Changed
+- Big-int path no longer jumps to AKS after a tiny factor scan when full trial is practical; AKS remains only for huge inputs.
+
 ## [1.2.0] — 2026-07-01
 
 ### Changed

@@ -28,6 +28,7 @@ bash scripts/compile_wheel_core.sh
 
 python3 is_prime.py 97
 python3 is_prime.py 9223372036854775783
+python3 is_prime.py 100000000000000000039   # ~10^20; needs wheel_core.so (u128)
 python3 is_prime.py --lab 1000000007
 ```
 
@@ -112,7 +113,11 @@ is_prime(n)
        ├─ wheel_core.so present  →  OpenMP C (9699690-wheel)
        ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel (stdlib only)
        └─ else                   →  lazy NumPy/Numba 9699690-wheel
-  n ≥ 2⁶⁴              →  small-factor trial → AKS if needed
+  n ≥ 2⁶⁴
+       ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
+       │                      →  OpenMP C full trial (u128 limbs; no AKS)
+       ├─ same size, no .so  →  stdlib 9699690-wheel full trial
+       └─ larger still       →  partial trial → AKS if needed
 
   ✗  stochastic Miller–Rabin · prime sieving libraries
   ✓  deterministic for every natural number
@@ -136,18 +141,16 @@ flowchart TD
   P4 --> G
   G -->|yes| Z1
   G -->|no| Z2[True]
-  D -->|no| H[Small-factor trial]
-  H --> I{done to √n?}
-  I -->|yes| J{factor found?}
-  J -->|yes| Z1
-  J -->|no| Z2
-  I -->|no| K[AKS]
-  K --> L{prime?}
+  D -->|no| H{practical √n and ≤128-bit?}
+  H -->|yes| P5[OpenMP C u128 full trial / stdlib wheel]
+  P5 --> G
+  H -->|no| I[Partial trial then AKS if needed]
+  I --> L{prime?}
   L -->|yes| Z2
   L -->|no| Z1
 ```
 
-Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on the 64-bit paths (candidates restricted by a primorial wheel). Beyond 64 bits, unfinished trial division falls through to **AKS** (correct, but can be very slow for huge primes with no small factors).
+Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on the 64-bit paths and on practical multi-limb sizes (candidates restricted by a primorial wheel / prime sieve segment). Only for still-larger inputs does unfinished trial fall through to **AKS** (correct, but can be very slow).
 
 ### Build the optional C core
 

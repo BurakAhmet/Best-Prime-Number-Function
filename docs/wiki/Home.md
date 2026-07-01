@@ -1,6 +1,6 @@
 # Best-Prime-Number-Function Wiki
 
-**Fully deterministic** primality testing for natural numbers — tiered engines (stdlib / OpenMP C / Numba) optimizing end-to-end CLI `TIME`, with **AKS** for big integers under strict correctness rules.
+**Fully deterministic** primality testing for natural numbers — tiered engines (stdlib / OpenMP C / Numba) optimizing end-to-end CLI `TIME`, with full trial through practical multi-limb sizes and **AKS** only for huge inputs.
 
 > [!WARNING]
 > **This entire project (code, tests, docs, and wiki) was created and designed by an AI agent**. Treat it as AI-generated work: review code and results before production or research-critical use. Human oversight is recommended.
@@ -13,7 +13,8 @@
 |--|--|
 | **Library** | `is_prime(n)` in Python (`int` or decimal `str`) |
 | **Fast path** | $n < 2^{64}$: tiered **30030** / **9699690** wheel (OpenMP C when `wheel_core.so` is built; else stdlib / Numba) |
-| **Large path** | Small-factor trial, then **AKS** if needed (deterministic, can be slow) |
+| **Mid-large path** | $n \ge 2^{64}$ with practical $\sqrt{n}$ (e.g. ~$10^{20}$): OpenMP **u128** full trial (or stdlib wheel) |
+| **Huge path** | Partial trial, then **AKS** if needed (deterministic, can be slow) |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
 **Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function)
@@ -28,7 +29,7 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 |------|-------------|
 | **[Home](Home)** | This overview |
 | **[Project restrictions](Project-restrictions)** | Non-negotiable rules for humans **and agents** |
-| **[Algorithm overview](Algorithm-overview)** | Tiered wheel trial division + AKS |
+| **[Algorithm overview](Algorithm-overview)** | Tiered wheel trial (u64/u128) + AKS for huge n |
 | **[CI and automation](CI-and-automation)** | Tests, determinism, e2e performance, issue/PR agents |
 | **[Agent briefing](Agent-briefing)** | Instructions for coding / triage agents |
 | **[Contributing](Contributing)** | How to contribute safely |
@@ -51,6 +52,7 @@ bash scripts/compile_wheel_core.sh
 python -c "from is_prime import is_prime; print(is_prime(17))"
 python is_prime.py 1000000007          # fast demo
 python is_prime.py                     # default: near-2^63 prime
+python is_prime.py 100000000000000000039  # ~10^20 prime (u128_wheel_c)
 pytest -q -m "not slow"
 ```
 
@@ -65,7 +67,9 @@ is_prime(n)
     │    ├─ wheel_core.so → OpenMP C 9699690-wheel
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
-    └─ n ≥ 2⁶⁴         → small factors → AKS if still undecided
+    └─ n ≥ 2⁶⁴
+         ├─ practical √n (≤128-bit) → OpenMP u128 full trial / stdlib wheel
+         └─ larger still            → partial trial → AKS if needed
 ```
 
 ---

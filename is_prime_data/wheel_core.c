@@ -52128,3 +52128,249 @@ int is_prime_u64_core(uint64_t n, int parallel) {
     return serial_wheel(n, limit);
 }
 
+/* ---- 65..128-bit path: full deterministic wheel / seg-prime trial ---- */
+
+typedef unsigned __int128 u128;
+
+static inline u128 u128_from_halves(uint64_t lo, uint64_t hi) {
+    return ((u128)hi << 64) | (u128)lo;
+}
+
+static inline uint64_t isqrt_u128(u128 n) {
+    if (n < 2) return (uint64_t)n;
+    if (n <= (u128)UINT64_MAX) return isqrt_u64((uint64_t)n);
+    /* Binary search using division to avoid (mid*mid) overflowing u128. */
+    uint64_t lo = 1ull << 32; /* n >= 2^64 ⇒ isqrt >= 2^32 */
+    uint64_t hi = UINT64_MAX;
+    while (lo < hi) {
+        uint64_t mid = lo + ((hi - lo + 1) >> 1);
+        if (mid != 0 && n / mid >= mid) lo = mid;
+        else hi = mid - 1;
+    }
+    return lo;
+}
+
+static int precheck_u128(u128 n) {
+    if (n < 2) return 0;
+    if (n < 4) return 1;
+    if ((n & 1) == 0) return 0;
+    static const uint64_t P[] = {
+        3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
+        101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,
+        191,193,197,199
+    };
+    for (int k = 0; k < (int)(sizeof P / sizeof P[0]); k++) {
+        uint64_t p = P[k];
+        if (n == p) return 1;
+        if (n % p == 0) return 0;
+        if ((u128)p * (u128)p > n) return 1;
+    }
+    return -1;
+}
+
+__attribute__((hot))
+static int serial_wheel_u128(u128 n, uint64_t limit) {
+    uint64_t i = WHEEL_START;
+    int64_t wi = 0;
+    while (i + 128 <= limit) {
+        if (wi + 32 <= (int64_t)WHEEL_NW) {
+            for (int g = 0; g < 8; g++) {
+                const uint8_t *ws = &WSTEPS[wi];
+                uint64_t i0 = i;
+                uint64_t i1 = i0 + ws[0];
+                uint64_t i2 = i1 + ws[1];
+                uint64_t i3 = i2 + ws[2];
+                if ((n % i0) == 0 || (n % i1) == 0 || (n % i2) == 0 || (n % i3) == 0)
+                    return 0;
+                i = i3 + ws[3];
+                wi += 4;
+            }
+        } else {
+            for (int k = 0; k < 32; k++) {
+                if ((n % i) == 0) return 0;
+                i += WSTEPS[wi];
+                wi++;
+                if (wi == (int64_t)WHEEL_NW) wi = 0;
+            }
+        }
+        if (wi == (int64_t)WHEEL_NW) wi = 0;
+    }
+    while (i <= limit) {
+        if ((n % i) == 0) return 0;
+        i += WSTEPS[wi];
+        wi++;
+        if (wi == (int64_t)WHEEL_NW) wi = 0;
+    }
+    return 1;
+}
+
+__attribute__((hot))
+static int parallel_wheel_u128(u128 n, uint64_t limit) {
+    ensure_res();
+    volatile int found = 0;
+#ifdef _OPENMP
+#pragma omp parallel shared(found)
+    {
+        int tid = omp_get_thread_num();
+        int nt = omp_get_num_threads();
+        uint64_t span = limit - WHEEL_START + 1;
+        uint64_t chunk = (span + (uint64_t)nt - 1) / (uint64_t)nt;
+        uint64_t lo = WHEEL_START + (uint64_t)tid * chunk;
+        uint64_t hi = lo + chunk - 1;
+        if (hi > limit) hi = limit;
+        if (lo <= limit && !found) {
+            uint64_t i; int64_t wi;
+            wheel_start_fast(lo, &i, &wi);
+            while (i + 128 <= hi && !found) {
+                if (wi + 32 <= (int64_t)WHEEL_NW) {
+                    for (int g = 0; g < 8; g++) {
+                        const uint8_t *ws = &WSTEPS[wi];
+                        uint64_t i0 = i;
+                        uint64_t i1 = i0 + ws[0];
+                        uint64_t i2 = i1 + ws[1];
+                        uint64_t i3 = i2 + ws[2];
+                        if ((n % i0) == 0 || (n % i1) == 0 ||
+                            (n % i2) == 0 || (n % i3) == 0) {
+                            found = 1;
+                            goto done_u128;
+                        }
+                        i = i3 + ws[3];
+                        wi += 4;
+                    }
+                } else {
+                    for (int k = 0; k < 32; k++) {
+                        if ((n % i) == 0) { found = 1; goto done_u128; }
+                        i += WSTEPS[wi];
+                        wi++;
+                        if (wi == (int64_t)WHEEL_NW) wi = 0;
+                    }
+                }
+                if (wi == (int64_t)WHEEL_NW) wi = 0;
+            }
+            if (!found) {
+                while (i <= hi) {
+                    if ((n % i) == 0) { found = 1; break; }
+                    i += WSTEPS[wi]; wi++;
+                    if (wi == (int64_t)WHEEL_NW) wi = 0;
+                }
+            }
+        }
+    done_u128:;
+    }
+    return !found;
+#else
+    return serial_wheel_u128(n, limit);
+#endif
+}
+
+__attribute__((hot))
+static int parallel_seg_primes_u128(u128 n, uint64_t limit) {
+    if (limit < 3) return 1;
+
+    uint64_t bmax = isqrt_u64(limit) + 1;
+    if (bmax < 100) bmax = 100;
+    if (bmax > limit) bmax = limit;
+
+    uint8_t *sv = (uint8_t *)calloc((size_t)bmax + 1, 1);
+    if (!sv) return serial_wheel_u128(n, limit);
+    for (uint64_t p = 2; p * p <= bmax; p++) {
+        if (!sv[p]) {
+            for (uint64_t j = p * p; j <= bmax; j += p) sv[j] = 1;
+        }
+    }
+    uint32_t *primes = (uint32_t *)malloc(sizeof(uint32_t) * ((size_t)bmax / 2 + 8));
+    if (!primes) { free(sv); return serial_wheel_u128(n, limit); }
+    int np = 0;
+    for (uint64_t p = 2; p <= bmax; p++) {
+        if (!sv[p]) primes[np++] = (uint32_t)p;
+    }
+    free(sv);
+
+    for (int i = 0; i < np; i++) {
+        uint64_t p = primes[i];
+        if (p > limit) break;
+        if ((n % p) == 0) { free(primes); return n == p; }
+        if ((u128)p * (u128)p > n) { free(primes); return 1; }
+    }
+    if (bmax >= limit) { free(primes); return 1; }
+
+    volatile int found = 0;
+    uint64_t start = bmax + 1;
+    if ((start & 1ull) == 0) start++;
+    const uint64_t SEG_ODDS = 1u << 19;
+
+#ifdef _OPENMP
+#pragma omp parallel shared(found)
+#endif
+    {
+        uint8_t *seg = (uint8_t *)malloc(SEG_ODDS);
+        if (seg) {
+#ifdef _OPENMP
+            int tid = omp_get_thread_num();
+            int nt = omp_get_num_threads();
+#else
+            int tid = 0, nt = 1;
+#endif
+            uint64_t stride = SEG_ODDS * 2 * (uint64_t)nt;
+            for (uint64_t lo = start + (uint64_t)tid * SEG_ODDS * 2;
+                 lo <= limit && !found;
+                 lo += stride) {
+                uint64_t hi = lo + SEG_ODDS * 2 - 2;
+                if (hi > limit) hi = limit;
+                if ((hi & 1ull) == 0) {
+                    if (hi == 0) continue;
+                    hi--;
+                }
+                if (lo > hi) continue;
+                uint64_t n_odds = ((hi - lo) >> 1) + 1;
+                if (n_odds > SEG_ODDS) n_odds = SEG_ODDS;
+                memset(seg, 0, (size_t)n_odds);
+
+                for (int k = 1; k < np; k++) {
+                    uint64_t p = primes[k];
+                    uint64_t p2 = p * p;
+                    if (p2 > hi) break;
+                    uint64_t m;
+                    if (p2 >= lo) m = p2;
+                    else {
+                        uint64_t r = lo % p;
+                        m = r ? lo + (p - r) : lo;
+                    }
+                    if ((m & 1ull) == 0) m += p;
+                    uint64_t step = p << 1;
+                    for (; m <= hi; m += step) {
+                        uint64_t idx = (m - lo) >> 1;
+                        if (idx < n_odds) seg[idx] = 1;
+                    }
+                }
+
+                for (uint64_t idx = 0; idx < n_odds; idx++) {
+                    if (seg[idx]) continue;
+                    uint64_t p = lo + (idx << 1);
+                    if (p > limit) break;
+                    if ((n % p) == 0) {
+                        if (n != p) found = 1;
+                        break;
+                    }
+                }
+            }
+            free(seg);
+        }
+    }
+    free(primes);
+    return !found;
+}
+
+/* n = hi * 2^64 + lo  (little-endian limbs). Full trial to isqrt(n). */
+int is_prime_u128_core(uint64_t lo, uint64_t hi, int parallel) {
+    u128 n = u128_from_halves(lo, hi);
+    int pc = precheck_u128(n);
+    if (pc >= 0) return pc;
+    uint64_t limit = isqrt_u128(n);
+    if (parallel && limit >= PARALLEL_LIMIT) {
+        if (limit >= SEG_PRIME_LIMIT) return parallel_seg_primes_u128(n, limit);
+        return parallel_wheel_u128(n, limit);
+    }
+    return serial_wheel_u128(n, limit);
+}
+
