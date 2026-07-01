@@ -9,8 +9,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "is_prime_data"
 
-BODY = r'''
+BODY = r"""
 /* BEGIN_WHEEL_CORE_BODY */
+
 static uint32_t RES_TO_WI[WHEEL_MOD];
 static int RES_READY = 0;
 
@@ -50,13 +51,12 @@ static void wheel_start_fast(uint64_t s, uint64_t *i_out, int64_t *wi_out) {
     }
 }
 
-/* 4-way independent mods to overlap DIV latency on OoO CPUs. */
+/* 4-way mod ILP; no large auxiliary buffers (keeps e2e TIME low for moderate n). */
 __attribute__((hot))
 static int serial_wheel(uint64_t n, uint64_t limit) {
     uint64_t i = WHEEL_START;
     int64_t wi = 0;
     while (i + 128 <= limit) {
-        /* Fast path: 8 groups of 4 when no wheel wrap in the block. */
         if (wi + 32 <= (int64_t)WHEEL_NW) {
             for (int g = 0; g < 8; g++) {
                 const uint8_t *ws = &WSTEPS[wi];
@@ -73,7 +73,6 @@ static int serial_wheel(uint64_t n, uint64_t limit) {
                 wi += 4;
             }
         } else {
-            /* Near wheel boundary: scalar steps with wrap. */
             for (int k = 0; k < 32; k++) {
                 if (n % i == 0) return 0;
                 i += WSTEPS[wi];
@@ -154,12 +153,118 @@ static int parallel_wheel(uint64_t n, uint64_t limit) {
 #endif
 }
 
+/*
+ * Parallel segmented sieve + prime-only trial division.
+ * For large isqrt(n), sieving out composites (~3.5x fewer mod operations than
+ * the 9699690-wheel) more than pays for the sieve. Fully deterministic;
+ * implements the sieve ourselves (no primesieve / external prime engine).
+ */
+__attribute__((hot))
+static int parallel_seg_primes(uint64_t n, uint64_t limit) {
+    if (limit < 3) return 1;
+
+    uint64_t bmax = isqrt_u64(limit) + 1;
+    if (bmax < 100) bmax = 100;
+    if (bmax > limit) bmax = limit;
+
+    uint8_t *sv = (uint8_t *)calloc((size_t)bmax + 1, 1);
+    if (!sv) return serial_wheel(n, limit);
+    for (uint64_t p = 2; p * p <= bmax; p++) {
+        if (!sv[p]) {
+            for (uint64_t j = p * p; j <= bmax; j += p) sv[j] = 1;
+        }
+    }
+    uint32_t *primes = (uint32_t *)malloc(sizeof(uint32_t) * ((size_t)bmax / 2 + 8));
+    if (!primes) { free(sv); return serial_wheel(n, limit); }
+    int np = 0;
+    for (uint64_t p = 2; p <= bmax; p++) {
+        if (!sv[p]) primes[np++] = (uint32_t)p;
+    }
+    free(sv);
+
+    for (int i = 0; i < np; i++) {
+        uint64_t p = primes[i];
+        if (p > limit) break;
+        if (n % p == 0) { free(primes); return n == p; }
+        if (p * p > n) { free(primes); return 1; }
+    }
+    if (bmax >= limit) { free(primes); return 1; }
+
+    volatile int found = 0;
+    uint64_t start = bmax + 1;
+    if ((start & 1ull) == 0) start++;
+
+    const uint64_t SEG_ODDS = 1u << 19;
+
+#ifdef _OPENMP
+#pragma omp parallel shared(found)
+#endif
+    {
+        uint8_t *seg = (uint8_t *)malloc(SEG_ODDS);
+        if (seg) {
+#ifdef _OPENMP
+            int tid = omp_get_thread_num();
+            int nt = omp_get_num_threads();
+#else
+            int tid = 0, nt = 1;
+#endif
+            uint64_t stride = SEG_ODDS * 2 * (uint64_t)nt;
+            for (uint64_t lo = start + (uint64_t)tid * SEG_ODDS * 2;
+                 lo <= limit && !found;
+                 lo += stride) {
+                uint64_t hi = lo + SEG_ODDS * 2 - 2;
+                if (hi > limit) hi = limit;
+                if ((hi & 1ull) == 0) {
+                    if (hi == 0) continue;
+                    hi--;
+                }
+                if (lo > hi) continue;
+                uint64_t n_odds = ((hi - lo) >> 1) + 1;
+                if (n_odds > SEG_ODDS) n_odds = SEG_ODDS;
+                memset(seg, 0, (size_t)n_odds);
+
+                for (int k = 1; k < np; k++) {
+                    uint64_t p = primes[k];
+                    uint64_t p2 = p * p;
+                    if (p2 > hi) break;
+                    uint64_t m;
+                    if (p2 >= lo) m = p2;
+                    else {
+                        uint64_t r = lo % p;
+                        m = r ? lo + (p - r) : lo;
+                    }
+                    if ((m & 1ull) == 0) m += p;
+                    uint64_t step = p << 1;
+                    for (; m <= hi; m += step) {
+                        uint64_t idx = (m - lo) >> 1;
+                        if (idx < n_odds) seg[idx] = 1;
+                    }
+                }
+
+                for (uint64_t idx = 0; idx < n_odds; idx++) {
+                    if (seg[idx]) continue;
+                    uint64_t p = lo + (idx << 1);
+                    if (p > limit) break;
+                    if (n % p == 0) {
+                        if (n != p) found = 1;
+                        break;
+                    }
+                }
+            }
+            free(seg);
+        }
+    }
+    free(primes);
+    return !found;
+}
+
 static int precheck(uint64_t n) {
     if (n < 2) return 0;
     if (n < 4) return 1;
     if ((n & 1ull) == 0) return 0;
     static const uint64_t P[] = {
-        3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97
+        3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
+        101,103,107,109,113
     };
     for (int k = 0; k < (int)(sizeof P / sizeof P[0]); k++) {
         uint64_t p = P[k];
@@ -174,10 +279,14 @@ int is_prime_u64_core(uint64_t n, int parallel) {
     int pc = precheck(n);
     if (pc >= 0) return pc;
     uint64_t limit = isqrt_u64(n);
-    if (parallel && limit >= PARALLEL_LIMIT) return parallel_wheel(n, limit);
+    if (parallel && limit >= PARALLEL_LIMIT) {
+        if (limit >= SEG_PRIME_LIMIT) return parallel_seg_primes(n, limit);
+        return parallel_wheel(n, limit);
+    }
     return serial_wheel(n, limit);
 }
-'''
+
+"""
 
 
 def main() -> None:
@@ -185,6 +294,8 @@ def main() -> None:
     nw = int(len(w))
     lines = [
         "#include <stdint.h>",
+        "#include <stdlib.h>",
+        "#include <string.h>",
         "#ifdef _OPENMP",
         "#include <omp.h>",
         "#endif",
@@ -192,6 +303,7 @@ def main() -> None:
         "#define WHEEL_MOD 9699690u",
         "#define WHEEL_START 23ull",
         "#define PARALLEL_LIMIT 50000ull",
+        "#define SEG_PRIME_LIMIT 200000000ull",
         f"static const uint8_t WSTEPS[{nw}] = {{",
     ]
     row = []

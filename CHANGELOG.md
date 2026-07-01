@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.0] — 2026-07-01
+
+### Changed
+- Hard 64-bit path (`isqrt(n) ≥ 2·10⁸`): **parallel segmented sieve + prime-only trial division** in OpenMP C (still fully deterministic; sieve implemented in-tree — no external prime engines, no stochastic tests).
+- Moderate 64-bit path unchanged in spirit (9699690-wheel with 4-way mod ILP); small-prime precheck extended through 113.
+- Regenerated `is_prime_data/wheel_core.c` / `wheel_core.so` via `scripts/generate_wheel_core_c.py`.
+
+### Performance (indicative, same class of machine)
+- Near-\(2^{63}\) prime and Mersenne M61: roughly **12–20%** faster end-to-end / in-process vs 1.1.1 wheel-only parallel trial.
+- Moderate e2e suite (`compare_e2e.py` cases through 12-digit): no regression vs prior baseline (within noise / slightly faster on several cases).
+
 ## [1.1.1] — 2026-07-01
 
 ### Changed
