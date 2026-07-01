@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.1] — 2026-07-01
+
+### Changed
+- Faster OpenMP C `9699690`-wheel hot path: **4-way independent trial mods** so out-of-order CPUs can overlap `DIV` latency (still exact wheel trial division to \(\lfloor\sqrt{n}\rfloor\)).
+- Integer `isqrt` in `wheel_core` (no libm in the hot path); slightly extended deterministic small-prime precheck (through 97).
+- OpenMP early-abort via shared `found` for composites; compile with `-march=native` (fallback `x86-64-v2`), `-funroll-loops`, and correct `-lm` link order.
+- Regenerated `is_prime_data/wheel_core.c` / `wheel_core.so`; refreshed `benchmarks/e2e_results.json` and performance docs.
+
+### Performance (indicative e2e CLI `TIME`, same machine as prior snapshot)
+- Near-\(2^{63}\) prime: ~7% faster; 12-digit prime: ~9% faster; overall default e2e suite ~6% faster. Still fully deterministic; no MR / prime-lib engines.
+
 ## [1.1.0] — 2026-07-01
 
 ### Added

@@ -7,11 +7,13 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 |------:|----------------|---------------------------------------------|
 | 1000000007 | $10^9+7$ | ~2–3 ms |
 | 1000000009 | $10^9+9$ | ~2–3 ms |
-| 2147483647 | $2^{31}-1$ (M31) | ~3 ms |
-| 999999999989 | 12-digit prime | ~20–55 ms |
-| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.4 s |
-| 9223372036854775783 | near $2^{63}$ | ~0.7–0.8 s |
+| 2147483647 | $2^{31}-1$ (M31) | ~2–3 ms |
+| 999999999989 | 12-digit prime | ~30–45 ms |
+| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.35–0.4 s |
+| 9223372036854775783 | near $2^{63}$ | ~0.65–0.75 s |
 | 18446744073709551557 | largest prime $< 2^{64}$ | ~1 s class |
+
+C core (v1.1.1+): 4-way independent trial mods in the OpenMP wheel loop (same exact `9699690` wheel; overlaps `DIV` latency on OoO CPUs).
 
 Reproduce:
 
