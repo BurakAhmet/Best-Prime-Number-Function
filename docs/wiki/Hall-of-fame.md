@@ -32,6 +32,7 @@ Automated entries from the **Prime of the day** workflow (`path` + e2e `TIME`).
 <!-- potd-log:start -->
 | Date (UTC) | n | Prime? | Path | E2E ms | Check ms |
 |------------|--:|:------:|------|-------:|---------:|
+| 2026-08-02 | `1324591` | yes | `u64_wheel_c` | 5.091 | 0.017 |
 | 2026-07-15 | `1145077` | yes | `u64_wheel_c` | 4.878 | 0.016 |
 | 2026-07-14 | `1135103` | yes | `u64_wheel_c` | 4.808 | 0.015 |
 | 2026-07-01 | `1000000007` | yes | `u64_wheel_c` | 3.218 | 0.063 |
