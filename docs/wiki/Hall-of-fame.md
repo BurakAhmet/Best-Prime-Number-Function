@@ -8,9 +8,9 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 1000000007 | $10^9+7$ | ~2–3 ms |
 | 1000000009 | $10^9+9$ | ~2–3 ms |
 | 2147483647 | $2^{31}-1$ (M31) | ~2–3 ms |
-| 999999999989 | 12-digit prime | ~30–45 ms |
-| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.35–0.4 s |
-| 9223372036854775783 | near $2^{63}$ | ~0.65–0.75 s |
+| 999999999989 | 12-digit prime | ~5–10 ms |
+| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.27–0.35 s |
+| 9223372036854775783 | near $2^{63}$ | ~0.55–0.65 s |
 | 18446744073709551557 | largest prime $< 2^{64}$ | ~1 s class |
 
 C core (v1.3.2+): 8-way independent trial mods on the OpenMP wheel loop; mid-size / hard 64-bit paths use segmented prime sieve + prime-only trial (bit-packed sieve when $\sqrt{n}$ is moderate).
