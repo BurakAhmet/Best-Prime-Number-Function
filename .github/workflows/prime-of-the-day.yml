@@ -52,10 +52,20 @@ jobs:
           if n % 2 == 0:
               n += 1
           info = lab(n, parallel=True)
-          # Fresh-process e2e CLI TIME (matches printed TIME metric)
-          out = subprocess.check_output(
-              [sys.executable, "is_prime.py", str(n)], text=True, stderr=subprocess.STDOUT
+          # Fresh-process e2e CLI TIME (matches printed TIME metric).
+          # is_prime.py exits 0=prime, 1=composite (by design), 2=error —
+          # do not treat composite as failure (that caused daily flaky reds).
+          proc = subprocess.run(
+              [sys.executable, "is_prime.py", str(n)],
+              text=True,
+              capture_output=True,
           )
+          out = (proc.stdout or "") + (proc.stderr or "")
+          if proc.returncode not in (0, 1):
+              print(out, file=sys.stderr)
+              raise SystemExit(
+                  f"is_prime.py failed with exit {proc.returncode} for n={n}"
+              )
           e2e_ms = None
           for line in out.splitlines():
               m = re.match(r"TIME:\s+\d+\s+ns\s+\(([0-9.]+)\s+ms\)", line.strip())
