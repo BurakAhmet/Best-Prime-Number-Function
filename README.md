@@ -110,7 +110,16 @@ No argument defaults to the near-\(2^{63}\) prime `9223372036854775783`.
 TEST:    9223372036854775783 (19 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    … ns  (… ms)
+TIME:    569402248 ns  (569.402248 ms)
+```
+
+Example for the mid-size 12-digit prime (segmented-prime C path):
+
+```text
+TEST:    999999999989 (12 chars)
+THREADS: 12
+RESULT:  prime
+TIME:    4467572 ns  (4.467572 ms)
 ```
 
 ### Developer loop

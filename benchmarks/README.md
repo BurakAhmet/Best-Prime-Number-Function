@@ -56,23 +56,41 @@ Machine-dependent. Example run (**12 threads**, best of 3, Linux / Numba):
 
 ### End-to-end CLI `TIME` (`compare_e2e.py`, best of 3)
 
+Indicative sample (OpenMP `.so`, multi-core; see `e2e_results.json` for last committed numbers):
+
 | Case | `n` | E2E ms |
 |------|-----:|-------:|
-| small prime | 97 | ~3 |
-| 4-digit prime | 7919 | ~3 |
-| 10⁹+7 | 1000000007 | ~6 |
-| Mersenne M31 | 2147483647 | ~7 |
-| 12-digit prime | 999999999989 | ~5–10 (segmented primes) |
+| small prime | 97 | ~0.4 |
+| 4-digit prime | 7919 | ~0.4 |
+| 10⁹+7 | 1000000007 | ~2–3 |
+| Mersenne M31 | 2147483647 | ~2–3 |
+| 12-digit prime | 999999999989 | ~4–10 (segmented primes) |
 | near 2⁶³ prime | 9223372036854775783 | ~550–650 (OpenMP `.so`) |
 | Mersenne M61 | 2⁶¹−1 | ~270–350 |
 
-### In-process hot loop (`compare_speed.py`, warm JIT)
+Example CLI lines (same metric as `TIME:` on stdout):
+
+```text
+TEST:    999999999989 (12 chars)
+THREADS: 12
+RESULT:  prime
+TIME:    4467572 ns  (4.467572 ms)
+```
+
+```text
+TEST:    9223372036854775783 (19 chars)
+THREADS: 12
+RESULT:  prime
+TIME:    569402248 ns  (569.402248 ms)
+```
+
+### In-process hot loop (`compare_speed.py`, warm engines)
 
 | Case | `n` | Prime? | Primitive (ms) | Optimized (ms) | Speedup |
 |------|-----|:------:|---------------:|---------------:|--------:|
 | 10⁹+7 | 1000000007 | yes | ~0.7 | ~0.03 | **~23×** |
-| 12-digit prime | 999999999989 | yes | ~19 | ~0.02 | **stdlib path** |
-| near 2⁶³ prime | 9223372036854775783 | yes | *(skipped)* | ~680 | — |
+| 12-digit prime | 999999999989 | yes | ~19 | ~0.3–0.5 (C seg-primes) | **~40×+** |
+| near 2⁶³ prime | 9223372036854775783 | yes | *(skipped)* | ~550–580 | — |
 
 On **tiny** inputs, Python call overhead and Numba dispatch can make the optimized path look similar or slightly slower; the win grows as $\sqrt{n}$ grows.
 
