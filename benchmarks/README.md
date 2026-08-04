@@ -13,6 +13,23 @@ This directory measures **wall-clock time** for deterministic algorithms on the 
 
 Both are **deterministic** (no Miller–Rabin / randomness). The gap is engineering (wheel + JIT + threads), not a weaker correctness model on the 64-bit path.
 
+### Optional: vs Miller–Rabin (`compare_miller_rabin.py`)
+
+**Benchmark only** — MR is not the library engine. Compares:
+
+| Label | Meaning |
+|-------|---------|
+| **repo** | This project’s `is_prime` (full trial / OpenMP / AKS policy) |
+| **mr64** | Deterministic MR with a fixed witness set **complete for all `n < 2^64`** |
+| **mr_prob** | Fixed small bases (usual “fast MR” cost; not a universal proof) |
+
+```bash
+OMP_NUM_THREADS=$(nproc) python3 benchmarks/compare_miller_rabin.py
+OMP_NUM_THREADS=$(nproc) python3 benchmarks/compare_miller_rabin.py --include-big
+```
+
+On hard 64-bit primes, deterministic MR is typically **orders of magnitude** faster than full wheel trial (different complexity: modexps vs \(\sim\sqrt{n}\) trial work). Answers matched on the script’s labeled suite.
+
 ## Run the benchmark
 
 From the repository root:
@@ -45,9 +62,9 @@ Machine-dependent. Example run (**12 threads**, best of 3, Linux / Numba):
 | 4-digit prime | 7919 | ~3 |
 | 10⁹+7 | 1000000007 | ~6 |
 | Mersenne M31 | 2147483647 | ~7 |
-| 12-digit prime | 999999999989 | ~24 |
-| near 2⁶³ prime | 9223372036854775783 | ~720 (OpenMP `.so`) |
-| Mersenne M61 | 2⁶¹−1 | ~360 |
+| 12-digit prime | 999999999989 | ~5–10 (segmented primes) |
+| near 2⁶³ prime | 9223372036854775783 | ~550–650 (OpenMP `.so`) |
+| Mersenne M61 | 2⁶¹−1 | ~270–350 |
 
 ### In-process hot loop (`compare_speed.py`, warm JIT)
 

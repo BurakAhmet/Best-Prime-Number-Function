@@ -13,8 +13,8 @@ if ! gcc -march=native -E -x c /dev/null -o /dev/null 2>/dev/null; then
   ARCH_FLAGS=(-march=x86-64-v2)
 fi
 # Link -lm last (isqrt is integer-only, but keep -lm for portability).
-# -funroll-loops helps the 4-way independent-mod hot path.
-gcc -O3 -fPIC -shared -fopenmp \
+# -funroll-loops + LTO help the independent-mod / segmented-prime hot paths.
+gcc -O3 -flto -fPIC -shared -fopenmp \
   "${ARCH_FLAGS[@]}" \
   -funroll-loops -fomit-frame-pointer \
   -o "$DATA/wheel_core.so" "$DATA/wheel_core.c" -lm -fopenmp

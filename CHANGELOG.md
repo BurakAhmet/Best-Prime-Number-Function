@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.2] — 2026-08-04
+
+### Changed
+- OpenMP C core: **lower segmented-prime threshold** (`isqrt(n) ≥ 2·10⁵` instead of `2·10⁸`) so mid-size primes (e.g. 12-digit) use prime-only trial instead of the denser 9699690-wheel.
+- **Bit-packed** odd segmented sieve for moderate $\sqrt{n}$; **byte sieve** retained for hard 64-bit primes (best measured tradeoff).
+- Adaptive segment size; **8-way** independent-mod ILP on the wheel hot path (was 4-way).
+- Expanded deterministic small-prime precheck (through 271).
+- Build: enable **LTO** (`-flto`) in `scripts/compile_wheel_core.sh`.
+
+### Performance (indicative, same machine class)
+- **12-digit prime** e2e CLI `TIME`: ~**4×–7×** faster vs 1.3.1 (segmented primes + bit sieve).
+- Hard primes (M61 / near $2^{63}$): roughly **unchanged to slightly faster** in-process; e2e within noise.
+- Default e2e suite: large win on the 12-digit case; no regressions on smaller cases.
+
 ## [1.3.1] — 2026-07-01
 
 ### Added

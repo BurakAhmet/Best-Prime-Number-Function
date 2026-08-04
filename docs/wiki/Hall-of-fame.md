@@ -13,7 +13,7 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 9223372036854775783 | near $2^{63}$ | ~0.65–0.75 s |
 | 18446744073709551557 | largest prime $< 2^{64}$ | ~1 s class |
 
-C core (v1.1.1+): 4-way independent trial mods in the OpenMP wheel loop (same exact `9699690` wheel; overlaps `DIV` latency on OoO CPUs).
+C core (v1.3.2+): 8-way independent trial mods on the OpenMP wheel loop; mid-size / hard 64-bit paths use segmented prime sieve + prime-only trial (bit-packed sieve when $\sqrt{n}$ is moderate).
 
 Reproduce:
 

@@ -5,37 +5,37 @@
       "case": "small prime",
       "n": 97,
       "is_prime": true,
-      "e2e_ms": 0.430241
+      "e2e_ms": 0.410481
     },
     {
       "case": "4-digit prime",
       "n": 7919,
       "is_prime": true,
-      "e2e_ms": 0.456048
+      "e2e_ms": 0.386814
     },
     {
       "case": "10^9+7",
       "n": 1000000007,
       "is_prime": true,
-      "e2e_ms": 2.544797
+      "e2e_ms": 2.474125
     },
     {
       "case": "10^9+9",
       "n": 1000000009,
       "is_prime": true,
-      "e2e_ms": 2.765949
+      "e2e_ms": 2.283956
     },
     {
       "case": "Mersenne M31",
       "n": 2147483647,
       "is_prime": true,
-      "e2e_ms": 2.821782
+      "e2e_ms": 2.419298
     },
     {
       "case": "12-digit prime",
       "n": 999999999989,
       "is_prime": true,
-      "e2e_ms": 41.785946
+      "e2e_ms": 6.823489
     }
   ]
 }
