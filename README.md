@@ -245,13 +245,13 @@ CI builds this automatically on Linux. Without the `.so`, the library falls back
 
 Indicative **end-to-end CLI `TIME`** on a dev machine (`benchmarks/compare_e2e.py`, best of several runs; wall times vary by CPU and whether `wheel_core.so` is present):
 
-| Case | `n` | Typical e2e |
-|------|-----:|------------:|
+| Case | `n` | Typical e2e CLI `TIME` |
+|------|-----:|-----------------------:|
 | Small prime | 97 | ~0.4 ms |
 | $10^9+7$ | 1000000007 | ~2–3 ms |
-| 12-digit prime | 999999999989 | ~5–10 ms with OpenMP `.so` (segmented primes) |
-| Near $2^{63}$ prime | 9223372036854775783 | ~0.55–0.65 s with OpenMP `.so` |
-| Mersenne M61 | $2^{61}-1$ | ~0.27–0.35 s with OpenMP `.so` |
+| 12-digit prime | 999999999989 | ~4–10 ms (sample: `4467572 ns` / `4.467572 ms`) |
+| Near $2^{63}$ prime | 9223372036854775783 | ~0.55–0.65 s (sample: `569402248 ns` / `569.402248 ms`) |
+| Mersenne M61 | $2^{61}-1$ | ~0.27–0.35 s |
 
 In-process hot-loop comparisons (warm engines) live in [`benchmarks/compare_speed.py`](benchmarks/compare_speed.py). End-to-end CLI timing: [`benchmarks/compare_e2e.py`](benchmarks/compare_e2e.py). More context: [`benchmarks/README.md`](benchmarks/README.md), [Hall of fame](docs/wiki/Hall-of-fame.md).
 
