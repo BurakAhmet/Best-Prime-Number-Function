@@ -53,7 +53,7 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 
 **Accepted `n`:** non-negative `int`, or a decimal `str` (leading zeros / surrounding whitespace OK). Rejects negatives, non-decimal strings, and `bool` (use `int` explicitly if you must).
 
-**`parallel`:** only affects multi-threaded OpenMP / Numba engines on large enough \(\sqrt{n}\). Result never depends on it — serial and parallel must agree.
+**`parallel`:** only affects multi-threaded OpenMP / Numba engines on large enough $\sqrt{n}$. Result never depends on it — serial and parallel must agree.
 
 ```python
 from best_prime import is_prime, lab
@@ -78,7 +78,7 @@ Runnable sample: [`examples/basic_usage.py`](examples/basic_usage.py).
 |---------------------------------|----------------------------|--------|
 | Tiny / moderate | Python loop or stdlib wheel | Sub-ms to tens of ms |
 | Hard 64-bit primes | OpenMP `u64_wheel_c` | Sub-second multi-core on a laptop |
-| Up to ~\(10^{20}\) with practical \(\sqrt{n}\) | OpenMP `u128_wheel_c` | Seconds, not AKS |
+| Up to about $10^{20}$ with practical $\sqrt{n}$ | OpenMP `u128_wheel_c` | Seconds, not AKS |
 | Huge primes, no small factors | Partial trial → **AKS** | Correct but can be very slow |
 
 Without `wheel_core.so`, the library still works via stdlib wheels and/or Numba; only the slowest 64-bit / multi-limb cases suffer most.
@@ -96,7 +96,7 @@ best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 ```
 
-No argument defaults to the near-\(2^{63}\) prime `9223372036854775783`.
+No argument defaults to the near $2^{63}$ prime `9223372036854775783`.
 
 | Exit code | Meaning |
 |-----------|---------|
@@ -221,9 +221,9 @@ Let $N = n$ when discussing bit size, and write $L = \lfloor\sqrt{n}\rfloor$. Ar
 | Path | Worst-case (prime / no small factor) | Notes |
 |------|--------------------------------------|--------|
 | Tiny loop / odd trial | $\Theta(L) = \Theta(\sqrt{n})$ | Constant-factor 6-wheel style steps |
-| Primorial **wheel** trial (stdlib, Numba, OpenMP C) | $\Theta\!\left(\dfrac{\varphi(W)}{W}\,L\right) = \Theta(\sqrt{n})$ | $W \in \{30030,\,9699690\}$; density $\varphi(W)/W < 1$ cuts the constant, **not** the asymptotic class |
+| Primorial **wheel** trial (stdlib, Numba, OpenMP C) | $\Theta((\varphi(W)/W)\cdot L)=\Theta(\sqrt{n})$ | $W \in \{30030,\,9699690\}$; density $\varphi(W)/W \lt 1$ cuts the constant, **not** the asymptotic class |
 | OpenMP wheel / seg-primes ($t$ threads) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* | Same work, split across cores; prime case has little early exit |
-| Segmented sieve + prime-only trial (large $L$) | $\tilde{O}(\sqrt{n})$ | Fewer mods ($\sim \pi(L)$) plus sieving; still $\Theta(\sqrt{n}/\log n)$ mods in the prime case |
+| Segmented sieve + prime-only trial (large $L$) | $\widetilde{O}(\sqrt{n})$ | Fewer mods ($\sim \pi(L)$) plus sieving; still $\Theta(\sqrt{n}/\log n)$ mods in the prime case |
 | Partial trial then **AKS** (huge $n$) | Poly in $\log n$ for AKS *in theory* | Practical AKS here is far costlier than trial on moderate sizes; used only when full trial is abandoned |
 
 **Composite early exit:** if the least prime factor is $p$, work is roughly $\Theta(p)$ (or $\Theta(\varphi(W)/W \cdot p)$ on a wheel), so smooth composites are much cheaper than the prime worst case.

@@ -1,10 +1,10 @@
 # Algorithm overview
 
-## Fast path — $n < 2^{64}$
+## Fast path — $n \lt 2^{64}$
 
 CLI **`TIME` is end-to-end** (import → answer). Engines are tiered to minimize that total:
 
-1. $n < 10^4$: tiny pure-Python loop (no NumPy/Numba).
+1. $n \lt 10^4$: tiny pure-Python loop (no NumPy/Numba).
 2. If `is_prime_data/wheel_core.so` is present: **OpenMP C** (preferred on Linux CI), with:
    - small-prime precheck (through a few hundred),
    - **8-way independent-mod** `9699690`-wheel when $\lfloor\sqrt{n}\rfloor$ is moderate (exact trial division; hides `DIV` latency on OoO CPUs),

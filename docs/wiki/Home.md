@@ -12,8 +12,8 @@
 | | |
 |--|--|
 | **Library** | `is_prime(n)` in Python (`int` or decimal `str`) |
-| **Fast path** | $n < 2^{64}$: tiered **30030** / **9699690** wheel (OpenMP C when `wheel_core.so` is built; else stdlib / Numba) |
-| **Mid-large path** | $n \ge 2^{64}$ with practical $\sqrt{n}$ (e.g. ~$10^{20}$): OpenMP **u128** full trial (or stdlib wheel) |
+| **Fast path** | $n \lt 2^{64}$: tiered **30030** / **9699690** wheel (OpenMP C when `wheel_core.so` is built; else stdlib / Numba) |
+| **Mid-large path** | $n \ge 2^{64}$ with practical $\sqrt{n}$ (e.g. about $10^{20}$): OpenMP **u128** full trial (or stdlib wheel) |
 | **Huge path** | Partial trial, then **AKS** if needed (deterministic, can be slow) |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 

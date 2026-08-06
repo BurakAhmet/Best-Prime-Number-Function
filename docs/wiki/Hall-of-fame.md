@@ -11,7 +11,7 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 999999999989 | 12-digit prime | ~5–10 ms |
 | 2305843009213693951 | $2^{61}-1$ (M61) | ~0.27–0.35 s |
 | 9223372036854775783 | near $2^{63}$ | ~0.55–0.65 s |
-| 18446744073709551557 | largest prime $< 2^{64}$ | ~1 s class |
+| 18446744073709551557 | largest prime $\lt 2^{64}$ | ~1 s class |
 
 C core (v1.3.2+): 8-way independent trial mods on the OpenMP wheel loop; mid-size / hard 64-bit paths use segmented prime sieve + prime-only trial (bit-packed sieve when $\sqrt{n}$ is moderate).
 

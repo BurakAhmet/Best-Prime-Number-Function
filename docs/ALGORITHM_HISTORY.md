@@ -2,6 +2,8 @@
 
 **Purpose.** Keep a durable record of every primality *engine* this project has used, why it was chosen, what it cost, and what went wrong — so future contributors (humans and agents) improve without replaying past mistakes.
 
+**Math on GitHub.** Use `$...$` (inline) or `$$...$$` (display) only — not `\(...\)` / `\[...\]`. Prefer `\lt` / `\gt` instead of raw `<` / `>` inside math so the HTML parser does not break expressions.
+
 | | |
 |--|--|
 | **Current package version** | **1.3.2** (`pyproject.toml`) |
@@ -73,14 +75,14 @@ Key commits (algorithm/perf only):
 
 ### Primitive odd trial division
 
-**Design.** Reject even \(n > 2\); trial-divide by every odd \(i\) with \(3 \le i \le \lfloor\sqrt{n}\rfloor\).
+**Design.** Reject even $n \gt 2$; trial-divide by every odd $i$ with $3 \le i \le \lfloor\sqrt{n}\rfloor$.
 
 | | |
 |--|--|
 | **Where** | `benchmarks/compare_speed.py` “Primitive” column |
-| **Complexity** | \(\Theta(\sqrt{n})\) divisions in pure Python |
+| **Complexity** | $\Theta(\sqrt{n})$ divisions in pure Python |
 | **Advantages** | Trivially correct; good lower-bound baseline; no tables or compilers |
-| **Disadvantages** | Unusable for hard 64-bit primes (\(\sim 10^9\) Python iterations → minutes+) |
+| **Disadvantages** | Unusable for hard 64-bit primes ($\sim 10^9$ Python iterations → minutes+) |
 | **Keep?** | Yes, as a **benchmark reference only** |
 
 ---
@@ -89,18 +91,18 @@ Key commits (algorithm/perf only):
 
 **Design.**
 
-- **\(n < 2^{64}\):** Hardcoded **30030-wheel** (candidates coprime to \(2\cdot3\cdot5\cdot7\cdot11\cdot13\)), Numba JIT, optional multi-threaded `prange` for large \(\sqrt{n}\). Hardware `sqrt` + integer correction for `isqrt`.
-- **\(n \ge 2^{64}\):** Small-factor trial, then **AKS** if not finished to \(\sqrt{n}\).
+- **$n \lt 2^{64}$**: Hardcoded **30030-wheel** (candidates coprime to $2\cdot3\cdot5\cdot7\cdot11\cdot13$), Numba JIT, optional multi-threaded `prange` for large $\sqrt{n}$. Hardware `sqrt` + integer correction for `isqrt`.
+- **$n \ge 2^{64}$**: Small-factor trial, then **AKS** if not finished to $\sqrt{n}$.
 
 **Performance (order of magnitude, warm Numba).**
 
-- vs primitive on \(10^9+7\): tens of× faster (see early `benchmarks/README` samples).
+- vs primitive on $10^9+7$: tens of× faster (see early `benchmarks/README` samples).
 - Hard 64-bit primes: feasible with threads, but **import + JIT** cost was large for one-shot CLI.
 
 | | |
 |--|--|
 | **Advantages** | Fully deterministic; simple mental model; one fast path for all 64-bit; pure Python install (Numba wheels) |
-| **Disadvantages** | E2E CLI dominated by NumPy/Numba import/JIT; wheel denser than prime-only trial for huge \(\sqrt{n}\); AKS after tiny factor scan for any multi-limb \(n\) (too eager); 30030 denser than larger primorial wheels |
+| **Disadvantages** | E2E CLI dominated by NumPy/Numba import/JIT; wheel denser than prime-only trial for huge $\sqrt{n}$; AKS after tiny factor scan for any multi-limb $n$ (too eager); 30030 denser than larger primorial wheels |
 | **Failures / lessons** | Measuring only warm loops misled “is it fast?” for CLI users → drove v1.1.0 E2E focus |
 
 ---
@@ -111,8 +113,8 @@ Key commits (algorithm/perf only):
 
 | Band | Engine | Rationale |
 |------|--------|-----------|
-| \(n < 10^4\) | Pure-Python small loop | Avoid tables/JIT entirely |
-| \(n \le 4\cdot10^{12}\) without C core | **Embedded zlib 30030-wheel** (stdlib) | ~µs decompress; no NumPy |
+| $n \lt 10^4$ | Pure-Python small loop | Avoid tables/JIT entirely |
+| $n \le 4\cdot10^{12}$ without C core | **Embedded zlib 30030-wheel** (stdlib) | ~µs decompress; no NumPy |
 | Hard 64-bit with `.so` | **OpenMP C** `9699690`-wheel | Skip Numba JIT for CLI |
 | Hard 64-bit without `.so` | Lazy **Numba 9699690-wheel** | Fallback when no compiler |
 | Big int | Partial trial → **AKS** | Still the huge path |
@@ -126,7 +128,7 @@ Also: precomputed assets under `is_prime_data/`, `compare_e2e.py`, CI e2e regres
 
 | | |
 |--|--|
-| **Advantages** | E2E-aware; works without Numba for many moderate \(n\); OpenMP path is stable and parallel; CI enforces no silent E2E regressions |
+| **Advantages** | E2E-aware; works without Numba for many moderate $n$; OpenMP path is stable and parallel; CI enforces no silent E2E regressions |
 | **Disadvantages** | More code paths ⇒ more testing surface; needs `gcc`+OpenMP for best hard 64-bit; large wheel tables on disk |
 | **Failures / lessons** | **C wheel index wrap** in unrolled loops → false prime on large **semiprimes** (fixed in 1.1.0). Always test composites that survive small-prime precheck. Unrolled wheel code must wrap the step index correctly. |
 
@@ -142,36 +144,36 @@ Also: precomputed assets under `is_prime_data/`, `compare_e2e.py`, CI e2e regres
 
 **Performance (same machine class as prior snapshot).**
 
-- Near-\(2^{63}\) prime E2E: ~**7%** faster  
+- Near $2^{63}$ prime E2E: ~**7%** faster  
 - 12-digit prime: ~**9%** faster  
 - Default e2e suite: ~**6%** faster  
 
 | | |
 |--|--|
 | **Advantages** | Pure engineering win; same correctness model; composites abort earlier |
-| **Disadvantages** | More fragile C; still \(\Theta(\sqrt{n}/w)\) wheel work — asymptotic limit unchanged |
+| **Disadvantages** | More fragile C; still $\Theta(\sqrt{n}/w)$ wheel work — asymptotic limit unchanged |
 | **Failures / lessons** | Micro-opts help but do not replace better **candidate density** (primes vs wheel) for hard primes |
 
 ---
 
 ## Era 4 — v1.2.0 (2026-07-01): Segmented primes for hard 64-bit
 
-**Design.** When \(\lfloor\sqrt{n}\rfloor \ge 2\cdot10^8\) (hard 64-bit class):
+**Design.** When $\lfloor\sqrt{n}\rfloor \ge 2\cdot10^8$ (hard 64-bit class):
 
-1. Parallel **segmented sieve** of odds up to \(\sqrt{n}\) (in-tree; not primesieve).
-2. **Prime-only** trial division of \(n\) by those primes.
+1. Parallel **segmented sieve** of odds up to $\sqrt{n}$ (in-tree; not primesieve).
+2. **Prime-only** trial division of $n$ by those primes.
 
 Moderate path kept the 9699690-wheel (4-way ILP). Precheck extended through 113.
 
 **Performance.**
 
-- Near-\(2^{63}\) and M61: roughly **12–20%** faster E2E / in-process vs 1.1.1 wheel-only parallel trial.
+- Near $2^{63}$ and M61: roughly **12–20%** faster E2E / in-process vs 1.1.1 wheel-only parallel trial.
 - Moderate suite (through 12-digit): no regression (within noise).
 
 | | |
 |--|--|
-| **Advantages** | Fewer mods than a dense wheel when \(\sqrt{n}\) is huge; still fully deterministic; sieve is ours (restriction-safe) |
-| **Disadvantages** | Sieve memory/time overhead; threshold \(2\cdot10^8\) left mid-size primes (e.g. 12-digit) on denser wheel longer than necessary (addressed in 1.3.2) |
+| **Advantages** | Fewer mods than a dense wheel when $\sqrt{n}$ is huge; still fully deterministic; sieve is ours (restriction-safe) |
+| **Disadvantages** | Sieve memory/time overhead; threshold $2\cdot10^8$ left mid-size primes (e.g. 12-digit) on denser wheel longer than necessary (addressed in 1.3.2) |
 | **Failures / lessons** | Hybrid thresholds must be **measured** across the suite, not only at the hardest primes |
 
 ---
@@ -180,7 +182,7 @@ Moderate path kept the 9699690-wheel (4-way ILP). Precheck extended through 113.
 
 **Design.**
 
-- New OpenMP entry **`is_prime_u128_core(lo, hi)`** for \(2^{64} \le n < 2^{128}\) with \(\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}\) (e.g. primes near \(10^{20}\)): same wheel / segmented engines as u64, **no AKS**.
+- New OpenMP entry **`is_prime_u128_core(lo, hi)`** for $2^{64} \le n \lt 2^{128}$ with $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (e.g. primes near $10^{20}$): same wheel / segmented engines as u64, **no AKS**.
 - Stdlib **`bigint_wheel`** fallback without `.so`.
 - AKS only when full trial is no longer practical.
 
@@ -188,7 +190,7 @@ Moderate path kept the 9699690-wheel (4-way ILP). Precheck extended through 113.
 |--|--|
 | **Advantages** | Huge correctness + UX win: multi-limb primes no longer fall into slow AKS after a token factor scan; reuses proven 64-bit engines |
 | **Disadvantages** | Limb arithmetic complexity; still trial-division asymptotics (not poly-time like AKS in theory, but AKS constants are worse in practice here) |
-| **Failures / lessons** | **Too-early AKS** for moderate big ints was a design failure of the 1.0 large path — never jump to AKS while \(\sqrt{n}\) is still in “seconds, not hours” trial range |
+| **Failures / lessons** | **Too-early AKS** for moderate big ints was a design failure of the 1.0 large path — never jump to AKS while $\sqrt{n}$ is still in “seconds, not hours” trial range |
 
 ---
 
@@ -234,17 +236,17 @@ is_prime(n)
 | Case | Order of E2E CLI `TIME` (OpenMP `.so`, multi-core) |
 |------|------------------------------------------------------|
 | Tiny primes (97, 7919) | ~0.4 ms |
-| \(10^9+7\), M31 | ~2–3 ms |
+| $10^9+7$, M31 | ~2–3 ms |
 | 12-digit prime `999999999989` | ~4–10 ms (**~4×–7×** faster than 1.3.1) |
 | M61 | ~0.27–0.35 s |
-| near \(2^{63}\) prime | ~0.55–0.65 s |
+| near $2^{63}$ prime | ~0.55–0.65 s |
 
 Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~**4.43 ms** on the machine that last refreshed the file.
 
 | | |
 |--|--|
-| **Advantages** | Mid-size primes finally use prime-only trial; bit sieve wins measured tradeoff for moderate \(\sqrt{n}\); 8-way ILP extracts more wheel ILP; LTO free win at link |
-| **Disadvantages** | Thresholds and sieve layout are empirical — new CPUs may want retuning; more branches in C; hard primes still \(\sim\sqrt{n}\) work (not MR-fast) |
+| **Advantages** | Mid-size primes finally use prime-only trial; bit sieve wins measured tradeoff for moderate $\sqrt{n}$; 8-way ILP extracts more wheel ILP; LTO free win at link |
+| **Disadvantages** | Thresholds and sieve layout are empirical — new CPUs may want retuning; more branches in C; hard primes still $\sim\sqrt{n}$ work (not MR-fast) |
 | **Still true** | Deterministic fixed-base MR would crush hard 64-bit **latency** but is only proven on bounded ranges — out of product policy unless an explicit range-limited mode is added |
 
 ---
@@ -257,10 +259,10 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 | **1.0** | Numba 30030-wheel | Tiny trial → AKS | AKS | Weak | One Numba path | JIT/import; eager AKS |
 | **1.1.0** | OpenMP 9699690 + tiers | (same large path) | AKS | **Yes** | E2E tiers + C | Path complexity; wheel-wrap bug class |
 | **1.1.1** | + 4-way ILP | | | Yes | ~6–9% E2E | Micro only |
-| **1.2.0** | + seg-primes if \(\sqrt{n}\ge 2\cdot10^8\) | | | Yes | 12–20% hard primes | Threshold too high for mid-size |
-| **1.3.0** | same | **u128 full trial** | AKS | Yes | Avoid AKS for \(\sim10^{20}\) | Limb code |
+| **1.2.0** | + seg-primes if $\sqrt{n}\ge 2\cdot10^8$ | | | Yes | 12–20% hard primes | Threshold too high for mid-size |
+| **1.3.0** | same | **u128 full trial** | AKS | Yes | Avoid AKS for $\sim10^{20}$ | Limb code |
 | **1.3.1** | same (build at install) | same | AKS | Yes | Portable packaging | No compiler ⇒ slower |
-| **1.3.2 (now)** | seg-primes if \(\sqrt{n}\ge 2\cdot10^5\); 8-way; bit sieve | same | AKS | Yes | Mid-size 4–7× | Empirical knobs |
+| **1.3.2 (now)** | seg-primes if $\sqrt{n}\ge 2\cdot10^5$; 8-way; bit sieve | same | AKS | Yes | Mid-size 4–7× | Empirical knobs |
 
 ---
 
@@ -272,10 +274,10 @@ Recorded so agents and humans do not “rediscover” them:
 |----|---------------|-------------|---------------------|
 | **F1** | Optimize **warm Numba** only | CLI felt slow (import/JIT) | Optimize and gate on **E2E `TIME`** (`compare_e2e.py`) |
 | **F2** | **Wheel index wrap** bug in unrolled C loops | **False primes** on large semiprimes | Matrix of semiprimes in `tests/test_c_core.py`; treat unrolled wheel code as high risk |
-| **F3** | **AKS too early** for multi-limb with practical \(\sqrt{n}\) | Correct but unusable latency | Full trial up to `_MAX_FULL_TRIAL_ISQRT`; AKS only beyond |
+| **F3** | **AKS too early** for multi-limb with practical $\sqrt{n}$ | Correct but unusable latency | Full trial up to `_MAX_FULL_TRIAL_ISQRT`; AKS only beyond |
 | **F4** | Prebuilt **Linux `.so` in pure wheel** | Broken/ misleading installs on other platforms | Build at install or ship **platform wheels** |
-| **F5** | Segmented-prime **threshold only tuned on hardest primes** | 12-digit path left on dense wheel | Retune with full e2e suite (1.3.2: \(2\cdot10^5\)) |
-| **F6** | Flip default CLI demo to a “fast” \(n\) without updating all docs/agents | Confusion about what CI/demo measures | Prefer documenting both fast demos **and** hard primes; default restored near \(2^{63}\) (`77242d6`) |
+| **F5** | Segmented-prime **threshold only tuned on hardest primes** | 12-digit path left on dense wheel | Retune with full e2e suite (1.3.2: $2\cdot10^5$) |
+| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Prefer documenting both fast demos **and** hard primes; default restored near $2^{63}$ (`77242d6`) |
 | **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled |
 | **F8** | Skipping **serial vs parallel** determinism checks | Racey OpenMP bugs | `benchmarks/check_determinism.py` + Determinism workflow |
 | **F9** | Changing wheel/sieve without regenerating **committed C / tables** | Drift between generators and shipped artifacts | `generate_wheel_core_c.py` / `generate_wheel_data.py` + compile script |
@@ -284,7 +286,7 @@ Recorded so agents and humans do not “rediscover” them:
 
 ## Decision guide (when changing algorithms)
 
-1. **Does it stay deterministic for all \(n\)?** If only for a range, document the range and keep the full path available.
+1. **Does it stay deterministic for all $n$?** If only for a range, document the range and keep the full path available.
 2. **Does E2E improve** for the size class you care about without regressing the default suite? Run:
    ```bash
    bash scripts/compile_wheel_core.sh
@@ -315,4 +317,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.3.2** (segmented threshold \(2\cdot10^5\), 8-way ILP, bit sieve, u128 full trial, AKS for huge ints). Extend forward; do not delete past eras.*
+*Last updated for package **1.3.2** (segmented threshold $2\cdot10^5$, 8-way ILP, bit sieve, u128 full trial, AKS for huge ints). Extend forward; do not delete past eras.*

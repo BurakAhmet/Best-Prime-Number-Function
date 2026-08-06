@@ -28,7 +28,7 @@ OMP_NUM_THREADS=$(nproc) python3 benchmarks/compare_miller_rabin.py
 OMP_NUM_THREADS=$(nproc) python3 benchmarks/compare_miller_rabin.py --include-big
 ```
 
-On hard 64-bit primes, deterministic MR is typically **orders of magnitude** faster than full wheel trial (different complexity: modexps vs \(\sim\sqrt{n}\) trial work). Answers matched on the script’s labeled suite.
+On hard 64-bit primes, deterministic MR is typically **orders of magnitude** faster than full wheel trial (different complexity: modexps vs $\sim\sqrt{n}$ trial work). Answers matched on the script’s labeled suite.
 
 ## Run the benchmark
 
