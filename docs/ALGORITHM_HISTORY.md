@@ -2,8 +2,6 @@
 
 **Purpose.** Keep a durable record of every primality *engine* this project has used, why it was chosen, what it cost, and what went wrong — so future contributors (humans and agents) improve without replaying past mistakes.
 
-**Math on GitHub.** Use `$...$` (inline) or `$$...$$` (display) only — not `\(...\)` / `\[...\]`. Prefer `\lt` / `\gt` instead of raw `<` / `>` inside math so the HTML parser does not break expressions.
-
 | | |
 |--|--|
 | **Current package version** | **1.3.2** (`pyproject.toml`) |
