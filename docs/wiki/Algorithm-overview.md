@@ -24,6 +24,7 @@ Legacy `W30030` / `RES_TO_WI` load lazily for tests. Build the C core with `bash
 
 ## Related
 
+- [**Algorithm history**](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md) — every engine era, benchmarks, advantages/disadvantages, **failures not to repeat**
 - [Benchmarks](Benchmarks) — in-process vs end-to-end CLI `TIME`
 - [Project restrictions](Project-restrictions)
 - Source: [`is_prime.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/is_prime.py)

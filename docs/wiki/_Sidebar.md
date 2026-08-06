@@ -5,6 +5,7 @@
 * [Home](Home)
 * [Project restrictions](Project-restrictions)
 * [Algorithm overview](Algorithm-overview)
+* [**Algorithm history**](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)
 * [CI and automation](CI-and-automation)
 * [Agent briefing](Agent-briefing)
 * [Contributing](Contributing)

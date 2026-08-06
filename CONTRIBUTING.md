@@ -13,6 +13,9 @@ Please read the [README](README.md), especially **Design restrictions** and **Su
 
 PRs that violate those rules will not be merged, even if they look faster on paper.
 
+If you change engines, thresholds, or the dispatch ladder, read and update
+[`docs/ALGORITHM_HISTORY.md`](docs/ALGORITHM_HISTORY.md) (past eras, tradeoffs, and failures not to repeat).
+
 > This repository was **created and designed by an AI agent**. Human review of contributions (and of the existing code) is encouraged.
 
 ## Developer loop (matches CI)
