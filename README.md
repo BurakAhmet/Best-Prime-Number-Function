@@ -3,7 +3,7 @@
 > [!WARNING]
 > **This repository was created and designed by an AI agent**, including code, tests, docs, benchmarks, and automation. Treat it as **AI-generated work**: review, test, and validate before production or research-critical use.
 
-**Exact `is_prime(n)` for every natural number** — audited wheel trial, then **AKS** only when \(\sqrt{n}\) is no longer practical. No stochastic Miller–Rabin.
+**Exact `is_prime(n)` for every natural number** — audited wheel trial, then **AKS** only when √n is no longer practical. No stochastic Miller–Rabin.
 
 [Open the exhibit →](https://burakahmet.github.io/Best-Prime-Number-Function/) daily CI specimen, 30-wheel orrery, downloadable trial certificate. This repo is the Python / OpenMP engine behind it.
 
@@ -158,11 +158,33 @@ The committed `.so` is a Linux convenience artifact; **source of truth** is `is_
 
 ---
 
-## Why this exists
+## Objective
 
-Many fast prime checks use **Miller–Rabin** with random witnesses. That is fine when a tiny error probability is acceptable. It is **not** a uniform deterministic predicate for **every** natural number unless you restrict to proven finite witness sets (for example 64-bit only).
+Deliver one auditable predicate: `is_prime(n)` is true **if and only if** `n` is prime. The boolean must not depend on a random number generator, a witness drawn at runtime, a thread schedule, or a “probably prime” threshold. Same `n`, any machine, serial or parallel → same answer.
 
-This project optimizes under harder rules:
+The engineering task is to keep that promise *usable*: full trial division through √n for the sizes people actually hit (everyday integers, hard 64-bit primes, values around 10²⁰), and **AKS** only when walking up to √n is no longer realistic. Speed is a first-class metric (end-to-end CLI `TIME`). Luck is not an allowed ingredient.
+
+## Mission
+
+Most “is this prime?” code in the wild is **stochastic Miller–Rabin** or something adjacent: pick random bases, run a handful of modular exponentiations, and declare the number prime if none of them prove it composite. That is a superb *filter*. It is not a *proof*, and it is not a uniform function of `n` alone.
+
+This repository exists to refuse that bargain — to build and keep a public, deterministic primality engine that you can read, test, time, and reproduce, without outsourcing the answer to primesieve, `sympy.isprime`, or a dice roll.
+
+### What stochastic algorithms give up
+
+1. **They can be wrong.** A composite that slips every chosen witness is reported prime. The error probability can be made tiny; it is not zero, and “almost never” is not “never.”
+2. **Probably-prime is not a type.** Callers that mint a key, accept a certificate, or record a notable prime cannot tell *proved prime* from *survived a random quiz*. The API looks boolean; the contract is probabilistic.
+3. **Runs are not replayable.** Random bases mean two calls can take different internal paths. CI cannot freeze a transcript of *why* the answer was yes. Even when the boolean matches, the justification does not.
+4. **“Deterministic MR” quietly shrinks the domain.** Fixed witness sets are deterministic only on **proven finite ranges** (for example a known base list for 64-bit integers). There is no small, uniform witness list that settles every natural number. Using that engine as if it covered “all `n`” changes the specification without saying so.
+5. **Failures masquerade as rarity.** A bug in a probabilistic checker looks like a one-in-a-billion miss, not a broken proof. Deterministic trial either finds a factor ≤ √n or it does not — the miss is a bug you can catch.
+
+### Why this project is important
+
+Primality is treated as a fact in cryptography, computer algebra, teaching, and research tooling. A stack that is “almost always right” trains people to stop asking for a proof, and it makes the 64-bit special case look like a solved general problem.
+
+We optimize under a stricter question: *after you give up luck, what speed can you still engineer?* The library may lose to Miller–Rabin on wall-clock for a hard 64-bit prime; it may not shrug, guess, or silently restrict the domain. Tests, determinism CI, the restriction linter, the Pages exhibit, and downloadable trial certificates exist so that contract stays visible.
+
+Harder rules we actually enforce:
 
 | Rule | Meaning |
 |------|---------|
