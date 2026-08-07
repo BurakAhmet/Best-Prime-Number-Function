@@ -27,7 +27,7 @@ Artifacts from CI **Certificate of correctness** and **benchmark-json** are auth
 
 ## Prime-of-the-day log
 
-Automated entries from the **Prime of the day** workflow (`path` + e2e `TIME`).
+Automated entries from the **Prime of the day** workflow (`path` + e2e `TIME`). The Pages home exhibits the latest row as *Acta Primorum*.
 
 <!-- potd-log:start -->
 | Date (UTC) | n | Prime? | Path | E2E ms | Check ms |

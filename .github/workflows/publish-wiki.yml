@@ -49,6 +49,11 @@ jobs:
           assert 'id="prime-lab-root"' in index
           assert (site / "assets" / "checker.js").is_file()
           assert (site / "assets" / "checker-worker.js").is_file()
+          assert (site / "assets" / "og.png").is_file()
+          assert (site / "assets" / "potd.json").is_file()
+          assert 'class="acta"' in index
+          assert 'og:image' in index
+          assert "lab-orrery" in (site / "assets" / "checker.js").read_text(encoding="utf-8")
           print("wiki HTML compile checks OK")
           PY
 

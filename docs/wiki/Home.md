@@ -7,7 +7,9 @@
 
 ## Interactive lab
 
-Exact 30-wheel trial in the browser (Web Worker; not the OpenMP C core). 64-bit $n$ such as $9223372036854775783$ is in range — hard primes can take minutes here; the Python library is much faster. Type $n$ and check.
+Today’s CI specimen sits above the bench. Type any $n$ for an exact 30-wheel trial in this tab (not the OpenMP C core). Long runs show the wheel-30 orrery; the result is a downloadable trial certificate. 64-bit $n$ such as $9223372036854775783$ is in range — hard primes can take minutes; the Python library is much faster.
+
+<!-- acta-specimen -->
 
 <div id="prime-lab-root"></div>
 

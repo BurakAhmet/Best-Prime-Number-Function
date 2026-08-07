@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import json
 import re
 import shutil
 import sys
@@ -25,6 +26,27 @@ except ImportError:  # pragma: no cover
 
 ROOT = Path(__file__).resolve().parents[2]
 WIKI = Path(__file__).resolve().parent
+PAGES_ORIGIN = "https://burakahmet.github.io/Best-Prime-Number-Function"
+OG_DESC = (
+    "Deterministic primality testing — exact wheel trial, AKS only when needed, "
+    "no stochastic Miller–Rabin. Interactive lab, daily specimen, trial certificates."
+)
+POTD_ROW = re.compile(
+    r"^\|\s*(?P<date>\d{4}-\d{2}-\d{2})\s*\|\s*`?(?P<n>\d+)`?\s*\|\s*"
+    r"(?P<prime>yes|no)\s*\|\s*`?(?P<path>[^`|]+?)`?\s*\|\s*"
+    r"(?P<e2e>[0-9.]+)\s*\|\s*(?P<check>[0-9.]+)\s*\|",
+    re.I | re.M,
+)
+CANONICAL_SPECIMEN = {
+    "date": "canonical",
+    "n": "9223372036854775783",
+    "is_prime": True,
+    "path": "u64_wheel_c",
+    "e2e_ms": "~0.32",
+    "elapsed_ms": "",
+    "source": "hall-of-fame",
+    "note": "near 2^63",
+}
 MD_EXT = [
     "extra",
     "sane_lists",
@@ -62,6 +84,59 @@ NAV_FALLBACK = [
     ("Benchmarks", "Benchmarks.html"),
     ("Hall of fame", "Hall-of-fame.html"),
 ]
+
+
+def parse_latest_potd(text: str) -> dict | None:
+    start = text.find("<!-- potd-log:start -->")
+    end = text.find("<!-- potd-log:end -->")
+    block = text[start:end] if start != -1 and end != -1 else text
+    m = POTD_ROW.search(block)
+    if not m:
+        return None
+    return {
+        "date": m.group("date"),
+        "n": m.group("n"),
+        "is_prime": m.group("prime").lower() == "yes",
+        "path": m.group("path").strip(),
+        "e2e_ms": m.group("e2e"),
+        "elapsed_ms": m.group("check"),
+        "source": "prime-of-the-day",
+        "note": "",
+    }
+
+
+def load_specimen() -> dict:
+    hof = WIKI / "Hall-of-fame.md"
+    if hof.is_file():
+        found = parse_latest_potd(hof.read_text(encoding="utf-8"))
+        if found:
+            return found
+    return dict(CANONICAL_SPECIMEN)
+
+
+def specimen_html(spec: dict) -> str:
+    n = str(spec["n"])
+    n_fmt = f"{int(n):,}"
+    verdict = "Prime" if spec["is_prime"] else "Composite"
+    vclass = "yes" if spec["is_prime"] else "no"
+    date = spec.get("date") or "canonical"
+    path = html.escape(str(spec["path"]))
+    e2e = html.escape(str(spec["e2e_ms"]))
+    if spec.get("source") == "hall-of-fame":
+        note = "Canonical hard prime from the hall of fame."
+    else:
+        note = "Recorded by the prime-of-the-day workflow."
+    return (
+        f'<aside class="acta" aria-label="Today\'s specimen">\n'
+        f'  <p class="acta-kicker">Acta Primorum · {html.escape(str(date))}</p>\n'
+        f'  <p class="acta-label">Today’s specimen</p>\n'
+        f'  <p class="acta-n"><button type="button" class="acta-use" data-n="{html.escape(n)}" '
+        f'title="Load into the lab">{html.escape(n_fmt)}</button></p>\n'
+        f'  <p class="acta-meta"><span class="acta-verdict {vclass}">{verdict}</span>'
+        f' · <code>{path}</code> · {e2e} ms e2e</p>\n'
+        f'  <p class="acta-note">{note} <a href="Hall-of-fame.html">Hall of fame</a></p>\n'
+        f"</aside>\n"
+    )
 
 
 def package_version() -> str:
@@ -391,6 +466,7 @@ def page_html(
     footer_html: str,
     extra_head: str = "",
     extra_scripts: str = "",
+    page_path: str = "index.html",
 ) -> str:
     nav_items = []
     for i, (label, href) in enumerate(nav, 1):
@@ -401,13 +477,28 @@ def page_html(
         )
     nav_s = "\n".join(nav_items)
     body_cls = ' class="is-home"' if current == "index.html" else ""
+    page_url = f"{PAGES_ORIGIN}/{page_path}" if page_path != "index.html" else f"{PAGES_ORIGIN}/"
+    og_title = "Best Prime" if current == "index.html" else f"{title} · Best Prime"
+    og_img = f"{PAGES_ORIGIN}/assets/og.png"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{html.escape(title)} · Best Prime</title>
-  <meta name="description" content="Deterministic primality testing wiki — no stochastic Miller–Rabin."/>
+  <meta name="description" content="{html.escape(OG_DESC)}"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="Best Prime"/>
+  <meta property="og:title" content="{html.escape(og_title)}"/>
+  <meta property="og:description" content="{html.escape(OG_DESC)}"/>
+  <meta property="og:url" content="{html.escape(page_url)}"/>
+  <meta property="og:image" content="{html.escape(og_img)}"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="{html.escape(og_title)}"/>
+  <meta name="twitter:description" content="{html.escape(OG_DESC)}"/>
+  <meta name="twitter:image" content="{html.escape(og_img)}"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet"/>
@@ -482,6 +573,12 @@ def main() -> int:
         shutil.copytree(assets, dest / "assets")
 
     version = package_version()
+    specimen = load_specimen()
+    assets_dir = dest / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    (assets_dir / "potd.json").write_text(
+        json.dumps(specimen, indent=2) + "\n", encoding="utf-8"
+    )
     sources = collect_sources()
     stems = {s for s, _, _ in sources} | {"Home", "index"}
     nav = parse_nav(WIKI / "_Sidebar.md", stems)
@@ -492,8 +589,13 @@ def main() -> int:
     )
 
     built = 0
+    acta = specimen_html(specimen)
     for stem, path, title in sources:
         body = rewrite_html_hrefs(render_md(path.read_text(encoding="utf-8")), stems)
+        if "<!-- acta-specimen -->" in body:
+            body = body.replace("<!-- acta-specimen -->", acta)
+        elif stem == "Home":
+            body = body.replace('<div id="prime-lab-root"></div>', acta + '\n<div id="prime-lab-root"></div>', 1)
         current = "index.html" if stem == "Home" else f"{stem}.html"
         page_title = "Home" if stem == "Home" else title
         is_home = stem == "Home"
@@ -514,6 +616,7 @@ def main() -> int:
             current=current,
             version=version,
             footer_html=footer_html,
+            page_path="index.html" if is_home else current,
             extra_head=(
                 f'  <link rel="stylesheet" href="assets/checker.css{asset_q}"/>\n'
                 if is_home

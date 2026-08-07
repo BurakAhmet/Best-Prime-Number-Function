@@ -59,6 +59,110 @@
   line-height: 1.45;
 }
 .prime-lab .lab-hint em { font-style: italic; }
+.acta {
+  margin: 0 0 1.15rem;
+  padding: 0.85rem 0 0.2rem;
+  border-bottom: 1px solid var(--line, #e4d9c4);
+}
+.acta-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+.acta-label {
+  margin: 0.2rem 0 0.15rem;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--muted);
+}
+.acta-n { margin: 0.15rem 0 0.35rem; }
+.acta-use {
+  font-family: var(--mono);
+  font-size: 1.45rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  letter-spacing: -0.02em;
+}
+.acta-use:hover { color: var(--accent); }
+.acta-meta {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.acta-verdict.yes { color: var(--forest); font-weight: 600; }
+.acta-verdict.no { color: var(--accent); font-weight: 600; }
+.acta-note {
+  margin: 0.35rem 0 0.7rem;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+.lab-orrery {
+  display: none;
+  margin: 0.9rem 0 0.2rem;
+  text-align: center;
+}
+.lab-orrery.show, .lab-orrery:not([hidden]) { display: block; }
+.lab-orrery[hidden] { display: none !important; }
+.lab-orrery svg { width: 148px; height: 148px; }
+.lab-orrery .orrery-ring {
+  fill: none;
+  stroke: rgba(27, 36, 55, 0.18);
+  stroke-width: 1.2;
+}
+.lab-orrery .spoke-arm {
+  stroke: rgba(27, 36, 55, 0.14);
+  stroke-width: 1;
+}
+.lab-orrery .spoke-dot { fill: rgba(27, 36, 55, 0.28); }
+.lab-orrery .spoke text {
+  font-family: var(--mono);
+  font-size: 8px;
+  fill: var(--muted);
+  text-anchor: middle;
+}
+.lab-orrery .spoke.active .spoke-arm { stroke: var(--accent); stroke-width: 1.8; }
+.lab-orrery .spoke.active .spoke-dot { fill: var(--accent); }
+.lab-orrery .spoke.active text { fill: var(--accent); font-weight: 700; }
+.lab-orrery .orrery-hub {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 11px;
+  fill: var(--ink);
+  text-anchor: middle;
+}
+.lab-orrery figcaption {
+  margin: 0.15rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.cert-card { margin: 0; }
+.cert-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+.cert-doctrine {
+  margin: 0.75rem 0 0.55rem;
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--forest);
+}
+.cert-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
 .lab-out {
   margin-top: 0.85rem;
   padding-top: 0.75rem;

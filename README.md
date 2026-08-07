@@ -3,7 +3,15 @@
 > [!WARNING]
 > **This repository was created and designed by an AI agent**, including code, tests, docs, benchmarks, and automation. Treat it as **AI-generated work**: review, test, and validate before production or research-critical use.
 
-**Fully deterministic** primality testing as an installable **Python library** (and optional CLI) — for every natural number, under strict no-randomness rules.
+**Exact `is_prime(n)` for every natural number** — audited wheel trial, then **AKS** only when \(\sqrt{n}\) is no longer practical. No stochastic Miller–Rabin.
+
+[Open the exhibit →](https://burakahmet.github.io/Best-Prime-Number-Function/) daily CI specimen, 30-wheel orrery, downloadable trial certificate. This repo is the Python / OpenMP engine behind it.
+
+<p align="center">
+  <a href="https://burakahmet.github.io/Best-Prime-Number-Function/">
+    <img src="docs/wiki/assets/og.png" alt="Best Prime — deterministic primality; 9223372036854775783 near 2^63" width="640"/>
+  </a>
+</p>
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -420,7 +428,7 @@ Details: [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md).
 |----------|------|
 | [docs/wiki/](docs/wiki/) | Source in git |
 | [GitHub Wiki](https://github.com/BurakAhmet/Best-Prime-Number-Function/wiki) | Browsable copy |
-| [GitHub Pages](https://burakahmet.github.io/Best-Prime-Number-Function/) | HTML wiki + in-browser 30-wheel checker (64-bit $n$ ok) |
+| [GitHub Pages](https://burakahmet.github.io/Best-Prime-Number-Function/) | Exhibit: daily specimen, 30-wheel orrery, trial certificate (64-bit $n$ ok) |
 
 Start here: [Project restrictions](docs/wiki/Project-restrictions.md) · [Algorithm overview](docs/wiki/Algorithm-overview.md) · [**Algorithm history**](docs/ALGORITHM_HISTORY.md) · [CI and automation](docs/wiki/CI-and-automation.md) · [Hall of fame](docs/wiki/Hall-of-fame.md) · [Agent briefing](docs/wiki/Agent-briefing.md).
 
