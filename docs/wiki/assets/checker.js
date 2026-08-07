@@ -3,14 +3,6 @@
   const WR = [1, 7, 11, 13, 17, 19, 23, 29];
   const STEPS = [4n, 2n, 4n, 2n, 4n, 6n, 2n, 6n];
   const SMALL = [3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n, 41n, 43n, 47n, 53n];
-  const DEMOS = [
-    ["17", "tiny prime"],
-    ["97", "small prime"],
-    ["100", "even composite"],
-    ["561", "Carmichael"],
-    ["1000000007", "10⁹+7"],
-    ["999999999989", "12-digit prime"],
-  ];
   const HARD_ISQRT = 2_000_000n;
   const REFUSE_ISQRT = 8_000_000n;
 
@@ -83,18 +75,15 @@
   function mount(root) {
     root.innerHTML = `
       <section class="prime-lab" aria-label="Interactive primality lab">
-        <h3>Interactive lab</h3>
-        <p class="lab-lead">Deterministic <strong>30-wheel trial</strong> in this tab — same correctness idea as the library,
-        not Miller–Rabin, no server. Hard 64-bit primes belong in Python/OpenMP.</p>
+        <label class="lab-label" for="lab-n">n</label>
         <div class="row">
           <input id="lab-n" type="text" inputmode="numeric" autocomplete="off"
-            placeholder="Natural number, e.g. 1000000007" aria-label="n"/>
+            placeholder="Enter a natural number" aria-label="n"/>
           <button type="button" class="primary" id="lab-go">Check</button>
           <button type="button" id="lab-stop" disabled>Stop</button>
         </div>
-        <div class="chips" id="lab-chips"></div>
         <div class="wheel" id="lab-wheel" aria-hidden="true"></div>
-        <p class="wheel-cap">Wheel 30: gold residues are coprime to 2·3·5 (the candidates we trial).</p>
+        <p class="wheel-cap">Residues coprime to 30 — the trial candidates.</p>
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
       </section>`;
@@ -106,7 +95,6 @@
     const bar = $("#lab-bar", root);
     const barFill = $("i", bar);
     const wheel = $("#lab-wheel", root);
-    const chips = $("#lab-chips", root);
 
     for (let r = 0; r < 30; r++) {
       const s = document.createElement("span");
@@ -115,17 +103,6 @@
       s.dataset.r = String(r);
       wheel.appendChild(s);
     }
-
-    DEMOS.forEach(([n, label]) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = `${n} · ${label}`;
-      b.addEventListener("click", () => {
-        input.value = n;
-        run();
-      });
-      chips.appendChild(b);
-    });
 
     let ac = null;
 

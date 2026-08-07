@@ -7,7 +7,7 @@
 
 ## Interactive lab
 
-Try a natural number **right here**. The widget runs a deterministic **30-wheel trial** in your browser (BigInt; no server, no Miller–Rabin). It is a demo — hard 64-bit primes still belong in the Python / OpenMP library.
+Type a natural number. Exact 30-wheel trial in the browser — no server.
 
 <div id="prime-lab-root"></div>
 
