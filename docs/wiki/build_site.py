@@ -6,6 +6,7 @@ dumping raw source into <pre>. Nav comes from _Sidebar.md.
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import re
 import shutil
@@ -496,6 +497,13 @@ def main() -> int:
         current = "index.html" if stem == "Home" else f"{stem}.html"
         page_title = "Home" if stem == "Home" else title
         is_home = stem == "Home"
+        asset_q = ""
+        if is_home and (dest / "assets" / "checker.js").is_file():
+            h = hashlib.sha256(
+                (dest / "assets" / "checker.js").read_bytes()
+                + (dest / "assets" / "checker.css").read_bytes()
+            ).hexdigest()[:10]
+            asset_q = f"?v={h}"
         html_out = page_html(
             title=page_title,
             body=body,
@@ -503,8 +511,16 @@ def main() -> int:
             current=current,
             version=version,
             footer_html=footer_html,
-            extra_head='  <link rel="stylesheet" href="assets/checker.css"/>\n' if is_home else "",
-            extra_scripts='  <script src="assets/checker.js" defer></script>\n' if is_home else "",
+            extra_head=(
+                f'  <link rel="stylesheet" href="assets/checker.css{asset_q}"/>\n'
+                if is_home
+                else ""
+            ),
+            extra_scripts=(
+                f'  <script src="assets/checker.js{asset_q}" defer></script>\n'
+                if is_home
+                else ""
+            ),
         )
         out_name = "index.html" if stem == "Home" else f"{stem}.html"
         (dest / out_name).write_text(html_out, encoding="utf-8")
