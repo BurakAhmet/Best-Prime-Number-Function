@@ -173,6 +173,24 @@ This repository exists to refuse that bargain — to build and keep a public, de
 ### What stochastic algorithms give up
 
 1. **They can be wrong.** A composite that slips every chosen witness is reported prime. The error probability can be made tiny; it is not zero, and “almost never” is not “never.”
+
+   Concrete liar (Jiang–Deng; strong pseudoprime to the first eleven primes):
+
+   **n = 3,825,123,056,546,413,051 = 149,491 × 747,451 × 34,233,211**
+
+   SymPy’s Miller–Rabin helper — the check people mean by “run MR a few times” — calls this **prime**. Exact trial finds the factor **149491** in about a millisecond:
+
+   ```python
+   from sympy.ntheory.primetest import mr
+   from best_prime import is_prime
+
+   n = 3825123056546413051          # 149491 × 747451 × 34233211
+   mr(n, [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31])  # True  ← “probably prime”
+   is_prime(n)                                        # False ← composite
+   n % 149491                                         # 0
+   ```
+
+   That is eleven successful MR rounds, not a one-base toy. (`sympy.isprime` itself is *not* a known false-prime oracle: below 2⁶⁴ it uses proven witness sets / BPSW, so it returns `False` here. The point is the stochastic *method* — `mr` with a plausible base list — not a gotcha against one wrapper.)
 2. **Probably-prime is not a type.** Callers that mint a key, accept a certificate, or record a notable prime cannot tell *proved prime* from *survived a random quiz*. The API looks boolean; the contract is probabilistic.
 3. **Runs are not replayable.** Random bases mean two calls can take different internal paths. CI cannot freeze a transcript of *why* the answer was yes. Even when the boolean matches, the justification does not.
 4. **“Deterministic MR” quietly shrinks the domain.** Fixed witness sets are deterministic only on **proven finite ranges** (for example a known base list for 64-bit integers). There is no small, uniform witness list that settles every natural number. Using that engine as if it covered “all `n`” changes the specification without saying so.

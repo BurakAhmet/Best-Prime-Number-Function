@@ -75,6 +75,10 @@ LARGE_PRIMES_SLOW = [
 
 LARGE_PRIMES = LARGE_PRIMES_FAST + LARGE_PRIMES_SLOW
 
+# Strong pseudoprime to MR bases 2..31 (Jiang–Deng). SymPy mr() says prime; we must not.
+MR_LIAR = 3_825_123_056_546_413_051
+MR_LIAR_FACTORS = (149_491, 747_451, 34_233_211)
+
 LARGE_COMPOSITES = [
     MERSENNE_COMPOSITE,
     (1 << 32) - 1,
@@ -82,6 +86,7 @@ LARGE_COMPOSITES = [
     9_223_372_036_854_775_782,
     18_446_744_073_709_551_556,
     1_000_000_007 * 1_000_000_009,
+    MR_LIAR,
 ]
 
 
@@ -310,6 +315,11 @@ class TestLarge64Bit:
 
     def test_two_pow_63_minus_one_composite(self):
         assert is_prime(MERSENNE_COMPOSITE) is False
+
+    def test_readme_mr_liar_is_composite_with_known_factor(self):
+        assert MR_LIAR == MR_LIAR_FACTORS[0] * MR_LIAR_FACTORS[1] * MR_LIAR_FACTORS[2]
+        assert MR_LIAR % 149_491 == 0
+        assert is_prime(MR_LIAR) is False
 
     def test_squares_not_prime(self):
         for k in (10**6, 10**7, 10**8):
