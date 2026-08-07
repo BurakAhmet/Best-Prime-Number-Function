@@ -7,7 +7,7 @@
 
 ## Interactive lab
 
-Exact 30-wheel trial in the browser. Type $n$ and check.
+Exact 30-wheel trial in the browser (Web Worker; not the OpenMP C core). 64-bit $n$ such as $9223372036854775783$ is in range — hard primes can take minutes here; the Python library is much faster. Type $n$ and check.
 
 <div id="prime-lab-root"></div>
 

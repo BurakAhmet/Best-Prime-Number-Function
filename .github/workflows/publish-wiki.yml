@@ -48,6 +48,7 @@ jobs:
           assert hist.is_file() and "<h1" in hist.read_text(encoding="utf-8")
           assert 'id="prime-lab-root"' in index
           assert (site / "assets" / "checker.js").is_file()
+          assert (site / "assets" / "checker-worker.js").is_file()
           print("wiki HTML compile checks OK")
           PY
 

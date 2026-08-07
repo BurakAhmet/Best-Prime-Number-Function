@@ -50,6 +50,15 @@
 }
 .prime-lab button:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .prime-lab button:disabled { opacity: 0.4; cursor: not-allowed; }
+.prime-lab .lab-hint {
+  margin: 0.55rem 0 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.prime-lab .lab-hint em { font-style: italic; }
 .lab-out {
   margin-top: 0.85rem;
   padding-top: 0.75rem;

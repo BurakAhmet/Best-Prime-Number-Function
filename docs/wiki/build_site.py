@@ -499,10 +499,13 @@ def main() -> int:
         is_home = stem == "Home"
         asset_q = ""
         if is_home and (dest / "assets" / "checker.js").is_file():
-            h = hashlib.sha256(
-                (dest / "assets" / "checker.js").read_bytes()
-                + (dest / "assets" / "checker.css").read_bytes()
-            ).hexdigest()[:10]
+            blob = (dest / "assets" / "checker.js").read_bytes() + (
+                dest / "assets" / "checker.css"
+            ).read_bytes()
+            worker = dest / "assets" / "checker-worker.js"
+            if worker.is_file():
+                blob += worker.read_bytes()
+            h = hashlib.sha256(blob).hexdigest()[:10]
             asset_q = f"?v={h}"
         html_out = page_html(
             title=page_title,
