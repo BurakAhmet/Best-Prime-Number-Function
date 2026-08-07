@@ -1,0 +1,69 @@
+name: Bug report
+description: Wrong result, crash, or broken CLI / install path.
+title: "[Bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for a report. This library must stay **fully deterministic**
+        (no stochastic Miller–Rabin, no external prime engines).
+
+        Security-sensitive issues → [SECURITY.md](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/SECURITY.md), not this form.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Expected vs actual behavior.
+      placeholder: is_prime(n) returned True but n is composite…
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Exact commands and `n` (int or decimal string).
+      render: bash
+      placeholder: |
+        bash scripts/compile_wheel_core.sh
+        python is_prime.py --lab 1000000007
+    validations:
+      required: true
+  - type: input
+    id: n_value
+    attributes:
+      label: Input n (if applicable)
+      placeholder: "999999999989"
+  - type: dropdown
+    id: path
+    attributes:
+      label: Engine path (from lab(n)["path"] if you have it)
+      options:
+        - unknown / not run
+        - python_small
+        - python_wheel
+        - u64_wheel_c
+        - u64_wheel_numba
+        - u128_wheel_c
+        - bigint_wheel
+        - bigint_trial_or_aks
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: "OS, Python version, gcc/OpenMP present?, OMP_NUM_THREADS"
+      placeholder: "Linux x86_64, Python 3.12, gcc+OpenMP, OMP_NUM_THREADS=2"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues
+          required: true
+        - label: This is not a request to add Miller–Rabin or sympy/primesieve as the engine
+          required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Extra context
+      description: Logs, `lab(n)` JSON, CI link, related commit.

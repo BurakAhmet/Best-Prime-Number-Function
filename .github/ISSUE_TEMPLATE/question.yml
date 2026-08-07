@@ -1,0 +1,34 @@
+name: Question
+description: Ask about the API, engines, restrictions, or docs.
+title: "[Question] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For “why not Miller–Rabin?” see
+        [Project restrictions](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/wiki/Project-restrictions.md)
+        and the existing discussion on that topic.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+  - type: dropdown
+    id: context
+    attributes:
+      label: Context
+      options:
+        - Using is_prime / best_prime as a library
+        - CLI
+        - Performance / e2e TIME
+        - Determinism / correctness model
+        - Building wheel_core.so
+        - CI / agents / prime-of-the-day
+        - Other
+  - type: textarea
+    id: extra
+    attributes:
+      label: Environment or extra detail
+      placeholder: Python version, whether .so is built, sample n…

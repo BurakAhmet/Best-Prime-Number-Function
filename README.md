@@ -295,7 +295,7 @@ Think of four layers. Only the first is the product.
 | Understand the math/engines | [How the checker chooses a path](#how-the-checker-chooses-a-path) · [restrictions](#design-restrictions) |
 | Run tests / benchmarks | [Testing & quality gates](#testing--quality-gates) · [`benchmarks/`](benchmarks/README.md) |
 | See automation | [Automation map](#automation-map) |
-| Contribute | [Contributing](#contributing) · [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Contribute | [Contributing](#contributing) · [CONTRIBUTING.md](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) |
 | Install a release / container | [Releases & packages](#releases--packages) |
 | Board / labels | [Project board & labels](#project-board--labels) · [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) |
 
@@ -444,7 +444,7 @@ docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.0.0 17
 
 ## Contributing
 
-Contributions are welcome when they respect the [design restrictions](#design-restrictions). See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions are welcome when they respect the [design restrictions](#design-restrictions). See [CONTRIBUTING.md](CONTRIBUTING.md), the [Code of Conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md) for private vulnerability reports.
 
 ```bash
 pip install -r requirements.txt

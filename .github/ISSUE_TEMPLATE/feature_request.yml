@@ -1,0 +1,58 @@
+name: Feature request
+description: An idea that can stay deterministic and restriction-safe.
+title: "[Feature] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Features that need **stochastic Miller–Rabin**, random bases, or an
+        external prime library (`primesieve`, `sympy.isprime`, …) as the
+        **engine** will be declined. See
+        [Project restrictions](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/wiki/Project-restrictions.md).
+
+        Read [`docs/ALGORITHM_HISTORY.md`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md) before proposing engine or threshold changes.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should a user be able to do that they cannot do today?
+    validations:
+      required: true
+  - type: textarea
+    id: restrictions
+    attributes:
+      label: Restrictions check
+      description: Why this stays deterministic for all n, with no MR / prime-lib engine.
+      placeholder: Exact trial / AKS; same output serial vs parallel; …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core algorithm (C / Python / Numba)
+        - API / packaging
+        - CLI
+        - Tests
+        - Benchmarks / e2e
+        - Docs / wiki
+        - CI / automation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance ideas
+      description: How we would know it is done (tests, e2e cases, docs).
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I read CONTRIBUTING.md and the design restrictions
+          required: true
+        - label: This is not a probable-prime / random-base Miller–Rabin engine proposal
+          required: true

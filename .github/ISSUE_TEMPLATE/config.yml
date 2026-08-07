@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Project restrictions
+    url: https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/wiki/Project-restrictions.md
+    about: Deterministic only — no stochastic Miller–Rabin or prime-library engines.
+  - name: Algorithm history
+    url: https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md
+    about: Past engines, e2e metrics, and failures not to repeat.
+  - name: Security report
+    url: https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/SECURITY.md
+    about: Report vulnerabilities privately — do not file a public issue.

@@ -59,10 +59,14 @@ pytest -q   # includes @pytest.mark.slow hard 64-bit primes
 5. **Build path** — use `scripts/compile_wheel_core.sh` / `generate_wheel_data.py` / `generate_wheel_core_c.py` only (no ad-hoc AOT scripts).
 6. **Scope** — prefer small, reviewable PRs.
 
-## Code of conduct (short)
+## Code of conduct
 
 Be respectful and constructive. Assume good faith. Focus on technical merits and the project’s constraints.
 
+Full policy: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Reports: **ahmetburakbicer@gmail.com**.
+
+Security reports (wrong primality that could be abused, RCE, leaked secrets): [SECURITY.md](SECURITY.md) — not a public issue.
+
 ## Questions?
 
-Open an issue describing your idea or bug. If you are unsure whether an approach fits the restrictions, ask before investing in a large PR.
+Open an issue with the [issue templates](.github/ISSUE_TEMPLATE/) (bug, feature, or question). Pull requests should use [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md). If you are unsure whether an approach fits the restrictions, ask before investing in a large PR.

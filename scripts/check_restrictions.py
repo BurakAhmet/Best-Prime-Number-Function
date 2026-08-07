@@ -37,6 +37,10 @@ ALLOW_PATH_SUBSTRINGS = (
     "test_properties.py",
     "benchmarks/",
     ".github/workflows/",  # policy text in agents / potd / auto-merge
+    "ISSUE_TEMPLATE",
+    "PULL_REQUEST_TEMPLATE",
+    "CODE_OF_CONDUCT",
+    "SECURITY.md",
 )
 
 
