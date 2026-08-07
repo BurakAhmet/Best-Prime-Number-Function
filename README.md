@@ -174,24 +174,26 @@ This repository exists to refuse that bargain — to build and keep a public, de
 
 1. **They can be wrong.** A composite that slips every chosen witness is reported prime. The error probability can be made tiny; it is not zero, and “almost never” is not “never.”
 
-   We looked for a disagreement in code — products of primes that *this* library listed, compared to SymPy 1.14 on this machine (`benchmarks/find_sympy_discrepancy.py`). `sympy.isprime` matched exact trial on every `n` we generated (0…20 000, every product of two primes &lt; 12 000, Korselt Carmichael triples). The stochastic helper did not.
+   We looked for a disagreement in code on this machine (SymPy 1.14): products of our own primes, then Chernick Carmichael numbers `U(m) = (6m+1)(12m+1)(18m+1)` with all three factors prime — including values just below and just above `9223372036854775783`. Scripts: `benchmarks/find_sympy_discrepancy.py`, `benchmarks/find_large_sympy_liars.py`.
 
-   Strongest semiprime liar that sweep found:
+   `sympy.isprime` still matched exact trial on every `n` in those sweeps (it is not a random-base quiz below 2⁶⁴). The stochastic helper `sympy.ntheory.primetest.mr` did not.
 
-   **n = 25,326,001 = 2,251 × 11,251**
+   Best hit **below** `9223372036854775783` that failed three ordinary MR bases:
+
+   **n = 3,943,673,813,084,040,361 = 869,461 × 1,738,921 × 2,608,381**
 
    ```python
    from sympy.ntheory.primetest import mr, isprime
    from best_prime import is_prime
 
-   n = 25326001                       # 2251 × 11251
+   n = 3943673813084040361            # 869461 × 1738921 × 2608381
    mr(n, [2, 3, 5])                   # True   ← SymPy MR: “prime”
    isprime(n)                         # False  ← SymPy’s full predicate
    is_prime(n)                        # False  ← exact trial
-   n % 2251                           # 0      ← factor
+   n % 869461                         # 0      ← factor
    ```
 
-   Three Miller–Rabin bases are a completely ordinary “probably prime” setting. Exact trial returns the factor **2251**. Same search also turned up smaller base-2 liars (`2047 = 23 × 89`) and base-2+3 liars (`1 373 653 = 829 × 1 657`).
+   Same Chernick sweep also produced `2525792614252920361 = 749461 × 1498921 × 2248381` (also `mr([2,3,5])` true, still below the near-2⁶³ prime) and, **above** it, `16492968133060009321 = 1400821 × 2801641 × 4202461`. Exact trial’s factor in the headline case is **869461**.
 2. **Probably-prime is not a type.** Callers that mint a key, accept a certificate, or record a notable prime cannot tell *proved prime* from *survived a random quiz*. The API looks boolean; the contract is probabilistic.
 3. **Runs are not replayable.** Random bases mean two calls can take different internal paths. CI cannot freeze a transcript of *why* the answer was yes. Even when the boolean matches, the justification does not.
 4. **“Deterministic MR” quietly shrinks the domain.** Fixed witness sets are deterministic only on **proven finite ranges** (for example a known base list for 64-bit integers). There is no small, uniform witness list that settles every natural number. Using that engine as if it covered “all `n`” changes the specification without saying so.
