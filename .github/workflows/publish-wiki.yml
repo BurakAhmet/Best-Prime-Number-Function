@@ -23,8 +23,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Markdown renderer
+        run: pip install markdown
+
       - name: Build static wiki site
         run: python3 docs/wiki/build_site.py _site
+
+      - name: Assert pages compiled (not raw Markdown dumps)
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          site = Path("_site")
+          index = (site / "index.html").read_text(encoding="utf-8")
+          assert "<table" in index, "Home page should contain rendered tables"
+          assert "<pre>" not in index or "<code>" in index
+          assert "callout" in index or "Warning" in index
+          assert not (site / "Home.md").exists(), "do not publish raw .md as primary pages"
+          hist = site / "Algorithm-history.html"
+          assert hist.is_file() and "<h1" in hist.read_text(encoding="utf-8")
+          print("wiki HTML compile checks OK")
+          PY
 
       - uses: actions/upload-pages-artifact@v3
         with:

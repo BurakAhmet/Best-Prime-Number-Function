@@ -9,7 +9,7 @@
 | **Issue agent** | issue opened | Keyword answers + restrictions briefing + labels |
 | **PR agent** | PR open/sync | Briefing, Copilot review request (best-effort), **auto-approve same-repo PRs** |
 | **Project autonomy** | issues / PRs | Label kanban without a human-only lane |
-| **Publish wiki** | push to `docs/wiki/**` | Deploy wiki site to GitHub Pages |
+| **Publish wiki** | push to `docs/wiki/**` | Compile Markdown → HTML (KaTeX, tables, sidebar) and deploy GitHub Pages |
 | **Publish package** | release / manual | GHCR container (Packages section) |
 
 ## Local commands

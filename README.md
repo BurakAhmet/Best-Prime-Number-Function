@@ -436,8 +436,8 @@ Start here: [Project restrictions](docs/wiki/Project-restrictions.md) · [Algori
 
 ```bash
 echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
-docker pull ghcr.io/burakahmet/best-prime-number-function:1.0.0
-docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.0.0 17
+docker pull ghcr.io/burakahmet/best-prime-number-function:1.4.1
+docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.4.1 17
 ```
 
 ---
