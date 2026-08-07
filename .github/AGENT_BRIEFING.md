@@ -2,7 +2,7 @@
 
 Copy or attach this context when triaging **Best-Prime-Number-Function**.
 
-**Repo:** deterministic `is_prime` (tiered wheels; OpenMP C u64 + u128 when built; Numba fallback; full trial for practical multi-limb sizes; AKS only for huge ints).  
+**Repo:** deterministic `is_prime` (OpenMP C precomputed-prime + segmented sieve; stdlib/Numba wheels as fallback; full trial for practical multi-limb sizes; AKS only for huge ints).  
 **Forbidden:** stochastic Miller–Rabin, prime sieving libraries as engine, non-deterministic results.  
 **Required:** respect CONTRIBUTING.md and README “Design restrictions” / “Supported platforms”.  
 **CI gates:** build `wheel_core.so`, restriction linter, wiki sync, pytest not slow, Linux `lab(n)["path"]=="u64_wheel_c"` for 64-bit, **e2e** perf vs base, Determinism.  

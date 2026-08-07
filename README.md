@@ -110,16 +110,16 @@ No argument defaults to the near $2^{63}$ prime `9223372036854775783`.
 TEST:    9223372036854775783 (19 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    569402248 ns  (569.402248 ms)
+TIME:    319103789 ns  (319.103789 ms)
 ```
 
-Example for the mid-size 12-digit prime (segmented-prime C path):
+Example for the mid-size 12-digit prime (precomputed-prime C path):
 
 ```text
 TEST:    999999999989 (12 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    4467572 ns  (4.467572 ms)
+TIME:    2422000 ns  (2.422000 ms)
 ```
 
 ### Developer loop
@@ -172,7 +172,7 @@ This project optimizes under harder rules:
 is_prime(n)
   n < 10⁴              →  tiny pure-Python loop
   10⁴ ≤ n < 2⁶⁴
-       ├─ wheel_core.so present  →  OpenMP C (9699690-wheel)
+       ├─ wheel_core.so present  →  OpenMP C (precomputed primes / seg-primes)
        ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel (stdlib only)
        └─ else                   →  lazy NumPy/Numba 9699690-wheel
   n ≥ 2⁶⁴
@@ -193,7 +193,7 @@ flowchart TD
   C -->|yes| P1[Pure-Python small loop]
   C -->|no| D{n < 2⁶⁴}
   D -->|yes| E{wheel_core.so?}
-  E -->|yes| P2[OpenMP C 9699690-wheel]
+  E -->|yes| P2[OpenMP C precomputed primes / seg-primes]
   E -->|no| F{n ≤ 4·10¹²}
   F -->|yes| P3[Embedded 30030-wheel stdlib]
   F -->|no| P4[Numba 9699690-wheel]
@@ -221,8 +221,9 @@ Let $N = n$ when discussing bit size, and write $L = \lfloor\sqrt{n}\rfloor$. Ar
 | Path | Worst-case (prime / no small factor) | Notes |
 |------|--------------------------------------|--------|
 | Tiny loop / odd trial | $\Theta(L) = \Theta(\sqrt{n})$ | Constant-factor 6-wheel style steps |
-| Primorial **wheel** trial (stdlib, Numba, OpenMP C) | $\Theta((\varphi(W)/W)\cdot L)=\Theta(\sqrt{n})$ | $W \in \{30030,\,9699690\}$; density $\varphi(W)/W \lt 1$ cuts the constant, **not** the asymptotic class |
-| OpenMP wheel / seg-primes ($t$ threads) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* | Same work, split across cores; prime case has little early exit |
+| Primorial **wheel** trial (stdlib, Numba fallback) | $\Theta((\varphi(W)/W)\cdot L)=\Theta(\sqrt{n})$ | $W \in \{30030,\,9699690\}$; density $\varphi(W)/W \lt 1$ cuts the constant, **not** the asymptotic class |
+| OpenMP precomputed-prime trial ($L \le 2^{20}$) | $\Theta(\pi(L))=\Theta(\sqrt{n}/\log n)$ | Exact wrap-mul divisibility; serial (OpenMP not worth it) |
+| OpenMP seg-primes ($t$ threads, large $L$) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* | Same work, split across cores; prime case has little early exit |
 | Segmented sieve + prime-only trial (large $L$) | $\widetilde{O}(\sqrt{n})$ | Fewer mods ($\sim \pi(L)$) plus sieving; still $\Theta(\sqrt{n}/\log n)$ mods in the prime case |
 | Partial trial then **AKS** (huge $n$) | Poly in $\log n$ for AKS *in theory* | Practical AKS here is far costlier than trial on moderate sizes; used only when full trial is abandoned |
 
@@ -249,9 +250,9 @@ Indicative **end-to-end CLI `TIME`** on a dev machine (`benchmarks/compare_e2e.p
 |------|-----:|-----------------------:|
 | Small prime | 97 | ~0.4 ms |
 | $10^9+7$ | 1000000007 | ~2–3 ms |
-| 12-digit prime | 999999999989 | ~4–10 ms (sample: `4467572 ns` / `4.467572 ms`) |
-| Near $2^{63}$ prime | 9223372036854775783 | ~0.55–0.65 s (sample: `569402248 ns` / `569.402248 ms`) |
-| Mersenne M61 | $2^{61}-1$ | ~0.27–0.35 s |
+| 12-digit prime | 999999999989 | ~2–4 ms (sample: `2421823 ns` / `2.421823 ms`) |
+| Near $2^{63}$ prime | 9223372036854775783 | ~0.30–0.35 s (sample: `319103789 ns` / `319.103789 ms`) |
+| Mersenne M61 | $2^{61}-1$ | ~0.15–0.20 s |
 
 In-process hot-loop comparisons (warm engines) live in [`benchmarks/compare_speed.py`](benchmarks/compare_speed.py). End-to-end CLI timing: [`benchmarks/compare_e2e.py`](benchmarks/compare_e2e.py). More context: [`benchmarks/README.md`](benchmarks/README.md), [Hall of fame](docs/wiki/Hall-of-fame.md).
 

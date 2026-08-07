@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.3.2** (`pyproject.toml`) |
+| **Current package version** | **1.4.1** (`pyproject.toml`) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -52,7 +52,9 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-07-01  v1.2.0   Segmented sieve + prime-only trial for hard 64-bit (√n ≥ 2·10⁸)
 2026-07-01  v1.3.0   OpenMP u128 full trial for practical multi-limb (≤ ~10²⁰); AKS only for huge
 2026-07-01  v1.3.1   Installable library; compile .so at install (no prebuilt Linux .so in pure wheel)
-2026-08-04  v1.3.2   Earlier segmented path (√n ≥ 2·10⁵), bit sieve, 8-way ILP, LTO  ← current
+2026-08-04  v1.3.2   Earlier segmented path (√n ≥ 2·10⁵), bit sieve, 8-way ILP, LTO
+2026-08-07  v1.4.0   Precomputed primes ≤ 2²⁰ + 2-adic mul trial; drop C wheel table
+2026-08-07  v1.4.1   Wheel-30 segmented sieve for hard √n (skip 2/3/5 marking)  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -66,6 +68,8 @@ Key commits (algorithm/perf only):
 | 1.3.0 | `d1c700b` OpenMP u128 full trial |
 | 1.3.1 | `57d855e` Installable `best_prime` package |
 | 1.3.2 | `22ba10d` Earlier segmented path + bit sieve + 8-way ILP |
+| 1.4.0 | this tree — precomputed-prime 2-adic trial + deferred OpenMP |
+| 1.4.1 | this tree — wheel-30 segmented sieve on the hard path |
 
 ---
 
@@ -207,7 +211,7 @@ Not a new math engine, but it changed what users actually run:
 
 ---
 
-## Era 7 — v1.3.2 (2026-08-04): **Current** — earlier segmented path + denser ILP
+## Era 7 — v1.3.2 (2026-08-04): earlier segmented path + denser ILP
 
 **Design (current production stack).**
 
@@ -249,6 +253,76 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 
 ---
 
+## Era 8 — v1.4.0 (2026-08-07): precomputed primes + 2-adic trial
+
+**Design (current production stack).**
+
+```text
+is_prime(n)
+  n < 10⁴              → pure-Python small loop
+  10⁴ ≤ n < 2⁶⁴
+       ├─ wheel_core.so → OpenMP C:
+       │     small-prime precheck (through 271)
+       │     if isqrt(n) ≤ 2²⁰ → precomputed odd primes + 2-adic wrap-mul trial
+       │     else → trial that table, then segmented primes from 2²⁰
+       │        (odds sieve in 1.4.0; **wheel-30** from 1.4.1)
+       │        OpenMP only if isqrt(n) ≥ 10⁷
+       ├─ else n ≤ 4·10¹² → embedded 30030-wheel (stdlib)
+       └─ else → Numba 9699690-wheel
+  n ≥ 2⁶⁴
+       ├─ isqrt(n) ≤ 2.5·10¹⁰ and ≤128-bit → u128 OpenMP full trial / stdlib wheel
+       └─ larger → partial trial → AKS if needed
+```
+
+The C 9699690-wheel **table is gone** (it lost to prime-only trial once a modest prime list exists, and it bloated `dlopen`). Fallback engines still use on-disk **30030** / **9699690** wheels.
+
+**Performance (indicative, same machine class as 1.3.2).**
+
+| Case | Order of E2E CLI `TIME` (OpenMP `.so`) |
+|------|------------------------------------------|
+| Tiny primes (97, 7919) | ~0.4 ms |
+| $10^9+7$, M31 | ~2–3 ms |
+| 12-digit prime `999999999989` | ~2.4 ms (**~45%** faster e2e vs 1.3.2 snapshot; in-process ~10×) |
+| M61 / near $2^{63}$ | 1.4.0: same class as 1.3.2 (~0.27–0.65 s); **1.4.1 wheel-30 ~0.15 / ~0.30 s** |
+
+Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~**2.42 ms**.
+
+| | |
+|--|--|
+| **Advantages** | Exact cheaper test than `DIV` on the common mid-size band; no OpenMP tax on 12-digit; smaller conceptual C engine (no unrolled wheel wrap class); still fully deterministic |
+| **Disadvantages** | ~1.6 MB of prime/`inv`/`thresh` rodata; hard 64-bit still $\Theta(\sqrt{n}/\log n)$ trial; thresholds remain empirical |
+| **Still true** | Stochastic / range-limited MR is out of product policy as the engine |
+
+---
+
+## Era 9 — v1.4.1 (2026-08-07): **Current** — wheel-30 hard sieve
+
+**Design change (hard path only).** Mid-size $\sqrt{n}\le 2^{20}$ is unchanged (precomputed 2-adic trial). For larger $\sqrt{n}$:
+
+- Sieve **numbers coprime to 30** packed as **1 byte / 30 integers** (bit $i$ = residue $1,7,11,13,17,19,23,29$).
+- Marking prime $p\ge 7$: eight arithmetic progressions with byte-stride $p$ (step $30p$ in value space). $2,3,5$ never mark.
+- Scan unset bits → 8-way `DIV` trial. Same exact prime-only model.
+- Segment 64–256 KiB; 256 KiB when $\sqrt{n}\ge 5\cdot10^8$ (L2-sized on the measured laptop).
+- Wheel-210 (48 residues) was prototyped and **lost** (marking 48 streams cost more than the extra density saved).
+
+**Performance vs 1.4.0 (same machine, 12 OpenMP threads, in-process unless noted).**
+
+| Case | 1.4.0 | 1.4.1 | Δ |
+|------|------:|------:|--:|
+| 18-digit prime | ~0.18 s | ~0.10 s | ~40% |
+| M61 | ~0.27 s | ~0.15 s (e2e ~0.17 s) | ~44% |
+| near $2^{63}$ | ~0.56 s | ~0.30 s (e2e ~0.32 s) | ~45% |
+| largest prime $<2^{64}$ | ~1 s class | ~0.50 s | ~2× |
+| Default e2e suite | — | unchanged | — |
+
+| | |
+|--|--|
+| **Advantages** | Same correctness; big constant-factor cut on the sieve that dominated hard primes; no extra `.so` size |
+| **Disadvantages** | More delicate marking math (must keep $m\equiv r\pmod{30}$ and $p\mid m$); unrolled marking is a footgun (F11) |
+| **Tried and rejected** | Wheel-210 drop-in; Fermat filter (hurts primes); raising PRE_MAX (e2e `.so` bloat) |
+
+---
+
 ## Summary comparison
 
 | Era | 64-bit engine (best case) | Big-int practical | Big-int huge | E2E focus | Main win | Main cost / risk |
@@ -260,7 +334,9 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 | **1.2.0** | + seg-primes if $\sqrt{n}\ge 2\cdot10^8$ | | | Yes | 12–20% hard primes | Threshold too high for mid-size |
 | **1.3.0** | same | **u128 full trial** | AKS | Yes | Avoid AKS for $\sim10^{20}$ | Limb code |
 | **1.3.1** | same (build at install) | same | AKS | Yes | Portable packaging | No compiler ⇒ slower |
-| **1.3.2 (now)** | seg-primes if $\sqrt{n}\ge 2\cdot10^5$; 8-way; bit sieve | same | AKS | Yes | Mid-size 4–7× | Empirical knobs |
+| **1.3.2** | seg-primes if $\sqrt{n}\ge 2\cdot10^5$; 8-way; bit sieve | same | AKS | Yes | Mid-size 4–7× | Empirical knobs |
+| **1.4.0** | precomputed primes $\le 2^{20}$ (2-adic mul); seg-primes after | same | AKS | Yes | 12-digit e2e ~45%; no many-core mid-size tax | Extra rodata; still $\sim\sqrt{n}$ hard primes |
+| **1.4.1 (now)** | + **wheel-30** sieve (byte/30) on hard path | same | AKS | Yes | Hard primes ~40–45% (M61 / $2^{63}$) | Wheel-210 marking overhead lost |
 
 ---
 
@@ -279,6 +355,9 @@ Recorded so agents and humans do not “rediscover” them:
 | **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled |
 | **F8** | Skipping **serial vs parallel** determinism checks | Racey OpenMP bugs | `benchmarks/check_determinism.py` + Determinism workflow |
 | **F9** | Changing wheel/sieve without regenerating **committed C / tables** | Drift between generators and shipped artifacts | `generate_wheel_core_c.py` / `generate_wheel_data.py` + compile script |
+| **F10** | Parallel OpenMP segmented sieve on **mid-size** $\sqrt{n}$ (e.g. 12-digit) | More threads *slower* (fork + tiny segments); e2e 12-digit ~2–3× worse at 12 vs 2 threads | Serial precomputed trial for $\sqrt{n}\le 2^{20}$; OpenMP only if $\sqrt{n}\ge 10^7$ |
+| **F11** | Unrolled sieve marking with `s += 4*step` and `(size_t)(e-s) > 3*step` | When `s` passes `e`, `e-s` wraps; **heap overflow / SEGV** | Index form `for (bi = …; bi < nbytes; bi += st)` or require `e-s >= 4*st` **and** `s < e` |
+| **F12** | Wheel-210 (48 residues) as a drop-in denser sieve | 48 mark streams overtook the ~14% fewer candidates; slower than wheel-30 here | Prefer wheel-30 (8 bits / 30) unless marking is heavily optimized |
 
 ---
 
@@ -315,4 +394,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.3.2** (segmented threshold $2\cdot10^5$, 8-way ILP, bit sieve, u128 full trial, AKS for huge ints). Extend forward; do not delete past eras.*
+*Last updated for package **1.4.1** (wheel-30 hard sieve + 1.4.0 precomputed-prime mid-size path). Extend forward; do not delete past eras.*

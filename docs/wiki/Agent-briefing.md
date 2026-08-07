@@ -10,6 +10,6 @@ When you (a coding or triage agent) work on this repository:
    - `pytest -q -m "not slow"`
    - `python benchmarks/check_determinism.py`
 6. **Remind** users the project is largely AI-generated and needs human review for critical use.
-7. **Performance** claims: use `benchmarks/compare_speed.py` (primitive vs optimized).
+7. **Performance** claims: primary metric is e2e CLI `TIME` (`compare_e2e.py`); `compare_speed.py` is the warm hot-loop secondary.
 
 Issue/PR automation posts a subset of this briefing automatically via **Issue agent** / **PR agent** workflows.

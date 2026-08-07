@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.1] — 2026-08-07
+
+### Changed
+- Hard 64-bit / u128 OpenMP path: **wheel-30 segmented sieve** (1 byte per 30 numbers; residues $1,7,11,13,17,19,23,29$) instead of an odds-only byte/bit sieve. Marks only numbers coprime to $2\cdot3\cdot5$; 8-way prime trial unchanged. 4-way stride unroll on small-prime marking is bounds-checked.
+- Adaptive wheel-30 segment: 64–256 KiB (256 KiB when $\lfloor\sqrt{n}\rfloor \ge 5\cdot10^8$).
+
+### Performance (indicative, same machine as 1.4.0)
+- **M61** in-process ~**0.27 s → ~0.15 s**; e2e 12-thread ~**0.17 s**.
+- **Near $2^{63}$ prime** in-process ~**0.56 s → ~0.30 s**; e2e 12-thread ~**0.32 s** (~**45%** faster).
+- 2-thread e2e: M61 ~1.0 s → ~0.60 s; near $2^{63}$ ~1.9 s → ~1.16 s.
+- Default mid-size e2e suite: unchanged (still precomputed-prime path).
+
+## [1.4.0] — 2026-08-07
+
+### Changed
+- OpenMP C core: **precomputed odd primes ≤ 2²⁰** with exact **2-adic inverse / threshold** trial (wrap-mul, no `DIV`) for `isqrt(n) ≤ 1 048 576`. Mid-size primes no longer sieve or walk the dense 9699690-wheel.
+- Drop the 1.6 MB 9699690-wheel table from `wheel_core.c` (stdlib / Numba fallbacks still use on-disk wheel assets).
+- Harder 64-bit / u128 path: trial the precomputed table first, then **segmented prime sieve** from 2²⁰ with **8-way DIV** ILP. Parallel OpenMP only when `isqrt(n) ≥ 10⁷` (avoids thread overhead that previously *slowed* 12-digit checks on many cores).
+- Restriction linter: allow `docs/ALGORITHM_HISTORY.md` to mention banned engines in prose.
+
+### Performance (indicative, same machine class as 1.3.2)
+- **12-digit prime** e2e CLI `TIME`: ~**45%** faster vs committed 1.3.2 snapshot (~4.4 ms → ~2.4 ms); in-process check ~**10×** faster.
+- Default e2e suite (`10⁹+7`, `10⁹+9`, M31): slightly faster (import-bound; no regression).
+- 12-digit e2e no longer blows up with `OMP_NUM_THREADS=12` (was ~2–3× slower than 2 threads).
+- Hard primes (M61 / near 2⁶³): same performance class.
+
 ## [1.3.2] — 2026-08-04
 
 ### Changed

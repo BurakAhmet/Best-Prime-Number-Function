@@ -5,8 +5,9 @@ End-to-end CLI ``TIME`` starts at import (``t0``) and stops after the answer,
 so import, table load, JIT, and the check all count. Heavy dependencies
 (NumPy/Numba) and large tables load lazily only on hard paths that need them.
 
-Tiered engines: tiny Python loop; 64-bit OpenMP/stdlib/Numba wheels; practical
-multi-limb (≤128-bit) OpenMP u128 or stdlib full trial; AKS only for huge n.
+Tiered engines: tiny Python loop; 64-bit OpenMP C (precomputed-prime trial +
+segmented sieve) with stdlib/Numba wheel fallbacks; practical multi-limb
+(≤128-bit) OpenMP u128 or stdlib full trial; AKS only for huge n.
 
 Restrictions: deterministic; no stochastic Miller–Rabin; no prime libraries.
 """
@@ -813,7 +814,7 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
     notes = {
         "python_small": "Pure-Python trial division for tiny n (no NumPy/Numba).",
         "python_wheel": "Embedded 30030-wheel trial division (stdlib, best e2e TIME).",
-        "u64_wheel_c": "OpenMP C: 9699690-wheel and/or segmented prime trial (no Numba JIT).",
+        "u64_wheel_c": "OpenMP C: precomputed-prime trial and/or wheel-30 segmented prime trial (no Numba JIT).",
         "u64_wheel_numba": "Numba 9699690-wheel trial division up to isqrt(n).",
         "u128_wheel_c": "OpenMP C full trial for 65–128-bit n (wheel / seg-primes; no AKS).",
         "bigint_wheel": "Stdlib 9699690-wheel full trial for moderate big ints (no AKS).",

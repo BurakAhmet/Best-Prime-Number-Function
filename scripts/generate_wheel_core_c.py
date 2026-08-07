@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
-"""Regenerate is_prime_data/wheel_core.c from w9699690_u8.npy (deterministic)."""
+"""Regenerate is_prime_data/wheel_core.c (deterministic; no external prime libs).
+
+Emits a compact OpenMP C engine:
+  * precomputed odd primes up to PRE_MAX plus 2-adic inverses / thresholds
+    (exact wrap-mul divisibility, no DIV on the mid-size path)
+  * wheel-30 segmented sieve + 8-way prime-only trial for larger isqrt(n)
+  * same model for u128 full trial
+
+The 9699690-wheel table is intentionally *not* embedded: it bloated the .so
+and lost to prime-only trial once a modest prime table is available. Numba /
+stdlib fallbacks in is_prime.py still use the on-disk wheel assets.
+"""
 from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
-
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "is_prime_data"
 
+# Covers default e2e mid-size primes (12-digit isqrt = 999_999) with headroom.
+PRE_MAX = 1_048_576  # 2^20
+
 BODY = r"""
 /* BEGIN_WHEEL_CORE_BODY */
-
-static uint32_t RES_TO_WI[WHEEL_MOD];
-static int RES_READY = 0;
-
-static void ensure_res(void) {
-    if (RES_READY) return;
-    for (uint32_t i = 0; i < WHEEL_MOD; i++) RES_TO_WI[i] = 0xFFFFFFFFu;
-    uint64_t x = WHEEL_START;
-    for (int64_t wi = 0; wi < (int64_t)WHEEL_NW; wi++) {
-        RES_TO_WI[(uint32_t)(x % WHEEL_MOD)] = (uint32_t)wi;
-        x += WSTEPS[wi];
-    }
-    RES_READY = 1;
-}
 
 static inline uint64_t isqrt_u64(uint64_t n) {
     if (n < 2) return n;
@@ -39,294 +37,42 @@ static inline uint64_t isqrt_u64(uint64_t n) {
     }
 }
 
-static void wheel_start_fast(uint64_t s, uint64_t *i_out, int64_t *wi_out) {
-    ensure_res();
-    if (s <= WHEEL_START) { *i_out = WHEEL_START; *wi_out = 0; return; }
-    uint64_t block = (s / WHEEL_MOD) * WHEEL_MOD;
-    uint32_t r = (uint32_t)(s % WHEEL_MOD);
-    for (;;) {
-        uint32_t wi = RES_TO_WI[r];
-        if (wi != 0xFFFFFFFFu) { *i_out = block + r; *wi_out = (int64_t)wi; return; }
-        r++; if (r == WHEEL_MOD) { r = 0; block += WHEEL_MOD; }
+/* Largest index i with PRE_P[i] <= limit (exclusive end). */
+static int pre_end_for_limit(uint64_t limit) {
+    int lo = 0, hi = PRE_NP;
+    while (lo < hi) {
+        int mid = lo + ((hi - lo) >> 1);
+        if ((uint64_t)PRE_P[mid] <= limit) lo = mid + 1;
+        else hi = mid;
     }
+    return lo;
 }
 
-/* 8-way independent mod ILP (hides DIV latency on OoO CPUs). */
+/*
+ * Exact 2-adic divisibility: for odd p, n % p == 0 iff
+ * (n * inv64(p)) <= floor((2^64-1)/p)  (uint64 wrap).
+ * 8-way independent muls hide latency on OoO CPUs.
+ */
 __attribute__((hot))
-static int serial_wheel(uint64_t n, uint64_t limit) {
-    uint64_t i = WHEEL_START;
-    int64_t wi = 0;
-    while (i + 256 <= limit) {
-        if (wi + 64 <= (int64_t)WHEEL_NW) {
-            for (int g = 0; g < 8; g++) {
-                const uint8_t *ws = &WSTEPS[wi];
-                uint64_t i0 = i;
-                uint64_t i1 = i0 + ws[0];
-                uint64_t i2 = i1 + ws[1];
-                uint64_t i3 = i2 + ws[2];
-                uint64_t i4 = i3 + ws[3];
-                uint64_t i5 = i4 + ws[4];
-                uint64_t i6 = i5 + ws[5];
-                uint64_t i7 = i6 + ws[6];
-                uint64_t r0 = n % i0, r1 = n % i1, r2 = n % i2, r3 = n % i3;
-                uint64_t r4 = n % i4, r5 = n % i5, r6 = n % i6, r7 = n % i7;
-                if (r0 == 0 || r1 == 0 || r2 == 0 || r3 == 0 ||
-                    r4 == 0 || r5 == 0 || r6 == 0 || r7 == 0) return 0;
-                i = i7 + ws[7];
-                wi += 8;
-            }
-        } else {
-            for (int k = 0; k < 32; k++) {
-                if (n % i == 0) return 0;
-                i += WSTEPS[wi];
-                wi++;
-                if (wi == (int64_t)WHEEL_NW) wi = 0;
-            }
-        }
-        if (wi == (int64_t)WHEEL_NW) wi = 0;
+static int trial_pre_u64(uint64_t n, uint64_t limit) {
+    int end = pre_end_for_limit(limit);
+    int i = 0;
+    for (; i + 8 <= end; i += 8) {
+        if (n * PRE_INV[i] <= PRE_TH[i] || n * PRE_INV[i + 1] <= PRE_TH[i + 1] ||
+            n * PRE_INV[i + 2] <= PRE_TH[i + 2] || n * PRE_INV[i + 3] <= PRE_TH[i + 3] ||
+            n * PRE_INV[i + 4] <= PRE_TH[i + 4] || n * PRE_INV[i + 5] <= PRE_TH[i + 5] ||
+            n * PRE_INV[i + 6] <= PRE_TH[i + 6] || n * PRE_INV[i + 7] <= PRE_TH[i + 7])
+            return 0;
     }
-    while (i <= limit) {
-        if (n % i == 0) return 0;
-        i += WSTEPS[wi];
-        wi++;
-        if (wi == (int64_t)WHEEL_NW) wi = 0;
+    for (; i < end; i++) {
+        if (n * PRE_INV[i] <= PRE_TH[i]) return 0;
     }
     return 1;
 }
 
-__attribute__((hot))
-static int parallel_wheel(uint64_t n, uint64_t limit) {
-    ensure_res();
-    volatile int found = 0;
-#ifdef _OPENMP
-#pragma omp parallel shared(found)
-    {
-        int tid = omp_get_thread_num();
-        int nt = omp_get_num_threads();
-        uint64_t span = limit - WHEEL_START + 1;
-        uint64_t chunk = (span + (uint64_t)nt - 1) / (uint64_t)nt;
-        uint64_t lo = WHEEL_START + (uint64_t)tid * chunk;
-        uint64_t hi = lo + chunk - 1;
-        if (hi > limit) hi = limit;
-        if (lo <= limit && !found) {
-            uint64_t i; int64_t wi;
-            wheel_start_fast(lo, &i, &wi);
-            while (i + 256 <= hi && !found) {
-                if (wi + 64 <= (int64_t)WHEEL_NW) {
-                    for (int g = 0; g < 8; g++) {
-                        const uint8_t *ws = &WSTEPS[wi];
-                        uint64_t i0 = i;
-                        uint64_t i1 = i0 + ws[0];
-                        uint64_t i2 = i1 + ws[1];
-                        uint64_t i3 = i2 + ws[2];
-                        uint64_t i4 = i3 + ws[3];
-                        uint64_t i5 = i4 + ws[4];
-                        uint64_t i6 = i5 + ws[5];
-                        uint64_t i7 = i6 + ws[6];
-                        uint64_t r0 = n % i0, r1 = n % i1, r2 = n % i2, r3 = n % i3;
-                        uint64_t r4 = n % i4, r5 = n % i5, r6 = n % i6, r7 = n % i7;
-                        if (r0 == 0 || r1 == 0 || r2 == 0 || r3 == 0 ||
-                            r4 == 0 || r5 == 0 || r6 == 0 || r7 == 0) {
-                            found = 1;
-                            goto done_thread;
-                        }
-                        i = i7 + ws[7];
-                        wi += 8;
-                    }
-                } else {
-                    for (int k = 0; k < 32; k++) {
-                        if (n % i == 0) { found = 1; goto done_thread; }
-                        i += WSTEPS[wi];
-                        wi++;
-                        if (wi == (int64_t)WHEEL_NW) wi = 0;
-                    }
-                }
-                if (wi == (int64_t)WHEEL_NW) wi = 0;
-            }
-            if (!found) {
-                while (i <= hi) {
-                    if (n % i == 0) { found = 1; break; }
-                    i += WSTEPS[wi]; wi++;
-                    if (wi == (int64_t)WHEEL_NW) wi = 0;
-                }
-            }
-        }
-    done_thread:;
-    }
-    return !found;
-#else
-    return serial_wheel(n, limit);
-#endif
-}
-
-/*
- * Parallel segmented sieve + prime-only trial division.
- * Adaptive segment size + bit-packed sieve for moderate isqrt (better cache /
- * fewer branchy composite skips). Byte sieve for hard 64-bit primes.
- * Fully deterministic; sieve is ours (no primesieve / external prime engine).
- */
-__attribute__((hot))
-static int parallel_seg_primes(uint64_t n, uint64_t limit) {
-    if (limit < 3) return 1;
-
-    uint64_t bmax = isqrt_u64(limit) + 1;
-    if (bmax < 100) bmax = 100;
-    if (bmax > limit) bmax = limit;
-
-    uint8_t *sv = (uint8_t *)calloc((size_t)bmax + 1, 1);
-    if (!sv) return serial_wheel(n, limit);
-    for (uint64_t p = 2; p * p <= bmax; p++) {
-        if (!sv[p]) {
-            for (uint64_t j = p * p; j <= bmax; j += p) sv[j] = 1;
-        }
-    }
-    uint32_t *primes = (uint32_t *)malloc(sizeof(uint32_t) * ((size_t)bmax / 2 + 8));
-    if (!primes) { free(sv); return serial_wheel(n, limit); }
-    int np = 0;
-    for (uint64_t p = 2; p <= bmax; p++) {
-        if (!sv[p]) primes[np++] = (uint32_t)p;
-    }
-    free(sv);
-
-    for (int i = 0; i < np; i++) {
-        uint64_t p = primes[i];
-        if (p > limit) break;
-        if (n % p == 0) { free(primes); return n == p; }
-        if (p * p > n) { free(primes); return 1; }
-    }
-    if (bmax >= limit) { free(primes); return 1; }
-
-    volatile int found = 0;
-    uint64_t start = bmax + 1;
-    if ((start & 1ull) == 0) start++;
-
-    /* Adaptive segment: smaller for moderate √n (cache + overhead), mid for hard. */
-    int seg_bits;
-    if (limit < 5000000ull) seg_bits = 17;
-    else if (limit < 500000000ull) seg_bits = 18;
-    else seg_bits = 18;
-    const uint64_t SEG_ODDS = 1ull << seg_bits;
-    const int use_bits = (limit < 20000000ull);
-
-#ifdef _OPENMP
-#pragma omp parallel shared(found)
-#endif
-    {
-#ifdef _OPENMP
-        int tid = omp_get_thread_num();
-        int nt = omp_get_num_threads();
-#else
-        int tid = 0, nt = 1;
-#endif
-        uint64_t stride = SEG_ODDS * 2 * (uint64_t)nt;
-
-        if (use_bits) {
-            const uint64_t SEG_WORDS = (SEG_ODDS + 63) / 64;
-            uint64_t *bits = (uint64_t *)malloc(sizeof(uint64_t) * (size_t)SEG_WORDS);
-            if (bits) {
-                for (uint64_t lo = start + (uint64_t)tid * SEG_ODDS * 2;
-                     lo <= limit && !found;
-                     lo += stride) {
-                    uint64_t hi = lo + SEG_ODDS * 2 - 2;
-                    if (hi > limit) hi = limit;
-                    if ((hi & 1ull) == 0) {
-                        if (hi == 0) continue;
-                        hi--;
-                    }
-                    if (lo > hi) continue;
-                    uint64_t n_odds = ((hi - lo) >> 1) + 1;
-                    if (n_odds > SEG_ODDS) n_odds = SEG_ODDS;
-                    uint64_t n_words = (n_odds + 63) / 64;
-                    memset(bits, 0, (size_t)n_words * sizeof(uint64_t));
-
-                    for (int k = 1; k < np; k++) {
-                        uint64_t p = primes[k];
-                        uint64_t p2 = p * p;
-                        if (p2 > hi) break;
-                        uint64_t m;
-                        if (p2 >= lo) m = p2;
-                        else {
-                            uint64_t r = lo % p;
-                            m = r ? lo + (p - r) : lo;
-                        }
-                        if ((m & 1ull) == 0) m += p;
-                        uint64_t step = p << 1;
-                        for (; m <= hi; m += step) {
-                            uint64_t idx = (m - lo) >> 1;
-                            if (idx < n_odds) bits[idx >> 6] |= 1ull << (idx & 63);
-                        }
-                    }
-
-                    for (uint64_t w = 0; w < n_words && !found; w++) {
-                        uint64_t inv = ~bits[w];
-                        uint64_t base = w << 6;
-                        while (inv) {
-                            int b = __builtin_ctzll(inv);
-                            inv &= inv - 1;
-                            uint64_t idx = base + (uint64_t)b;
-                            if (idx >= n_odds) break;
-                            uint64_t p = lo + (idx << 1);
-                            if (p > limit) break;
-                            if (n % p == 0) {
-                                if (n != p) found = 1;
-                                break;
-                            }
-                        }
-                    }
-                }
-                free(bits);
-            }
-        } else {
-            uint8_t *seg = (uint8_t *)malloc(SEG_ODDS);
-            if (seg) {
-                for (uint64_t lo = start + (uint64_t)tid * SEG_ODDS * 2;
-                     lo <= limit && !found;
-                     lo += stride) {
-                    uint64_t hi = lo + SEG_ODDS * 2 - 2;
-                    if (hi > limit) hi = limit;
-                    if ((hi & 1ull) == 0) {
-                        if (hi == 0) continue;
-                        hi--;
-                    }
-                    if (lo > hi) continue;
-                    uint64_t n_odds = ((hi - lo) >> 1) + 1;
-                    if (n_odds > SEG_ODDS) n_odds = SEG_ODDS;
-                    memset(seg, 0, (size_t)n_odds);
-
-                    for (int k = 1; k < np; k++) {
-                        uint64_t p = primes[k];
-                        uint64_t p2 = p * p;
-                        if (p2 > hi) break;
-                        uint64_t m;
-                        if (p2 >= lo) m = p2;
-                        else {
-                            uint64_t r = lo % p;
-                            m = r ? lo + (p - r) : lo;
-                        }
-                        if ((m & 1ull) == 0) m += p;
-                        uint64_t step = p << 1;
-                        for (; m <= hi; m += step) {
-                            uint64_t idx = (m - lo) >> 1;
-                            if (idx < n_odds) seg[idx] = 1;
-                        }
-                    }
-
-                    for (uint64_t idx = 0; idx < n_odds; idx++) {
-                        if (seg[idx]) continue;
-                        uint64_t p = lo + (idx << 1);
-                        if (p > limit) break;
-                        if (n % p == 0) {
-                            if (n != p) found = 1;
-                            break;
-                        }
-                    }
-                }
-                free(seg);
-            }
-        }
-    }
-    free(primes);
-    return !found;
+static inline int any_div8_u64(uint64_t n, const uint64_t *b) {
+    return n % b[0] == 0 || n % b[1] == 0 || n % b[2] == 0 || n % b[3] == 0 ||
+           n % b[4] == 0 || n % b[5] == 0 || n % b[6] == 0 || n % b[7] == 0;
 }
 
 static int precheck(uint64_t n) {
@@ -347,18 +93,174 @@ static int precheck(uint64_t n) {
     return -1;
 }
 
+/*
+ * Wheel-30 segmented sieve (1 byte / 30 numbers, bits = residues
+ * 1,7,11,13,17,19,23,29) then 8-way prime-only trial.
+ * Bakes out 2/3/5 so those hottest marking streams disappear.
+ * Fully deterministic; sieve is ours (no primesieve / external prime engine).
+ */
+static const uint8_t WR30[8] = {1, 7, 11, 13, 17, 19, 23, 29};
+
+static uint32_t inv_mod_prime(uint32_t a, uint32_t p) {
+    int64_t t = 0, nt = 1;
+    int64_t r = (int64_t)p, nr = (int64_t)(a % p);
+    while (nr) {
+        int64_t q = r / nr, tmp = nt;
+        nt = t - q * nt;
+        t = tmp;
+        tmp = nr;
+        nr = r - q * nr;
+        r = tmp;
+    }
+    if (t < 0) t += (int64_t)p;
+    return (uint32_t)t;
+}
+
+static inline void w30_mark_prime(uint8_t *seg, uint64_t nbytes, uint64_t base,
+                                  uint64_t hi, uint64_t p, uint32_t inv30,
+                                  uint64_t p2) {
+    uint64_t span30 = 30ull * p;
+    uint64_t st = p;
+    for (int ri = 0; ri < 8; ri++) {
+        uint64_t r = WR30[ri];
+        uint64_t k30 = ((p - (r % p)) * (uint64_t)inv30) % p;
+        uint64_t m = 30ull * k30 + r;
+        if (m < p2) {
+            uint64_t q = (p2 - m + span30 - 1) / span30;
+            m += q * span30;
+        }
+        if (m < base) {
+            uint64_t q = (base - m + span30 - 1) / span30;
+            m += q * span30;
+        }
+        if (m > hi) continue;
+        uint64_t bi = (m - base) / 30ull;
+        uint8_t bit = (uint8_t)(1u << ri);
+        uint64_t st4 = st << 2;
+        for (; bi + st4 < nbytes; bi += st4) {
+            seg[bi] |= bit;
+            seg[bi + st] |= bit;
+            seg[bi + 2 * st] |= bit;
+            seg[bi + 3 * st] |= bit;
+        }
+        for (; bi < nbytes; bi += st) seg[bi] |= bit;
+    }
+}
+
+static int w30_nbytes_bits(uint64_t limit) {
+    if (limit >= 500000000ull) return 18; /* 256 KiB — L2-friendly hard path */
+    if (limit >= 20000000ull) return 17;
+    return 16;
+}
+
+__attribute__((hot))
+static int seg_primes_u64(uint64_t n, uint64_t limit, int parallel) {
+    if (!trial_pre_u64(n, PRE_MAX)) return 0;
+    if (limit <= PRE_MAX) return 1;
+
+    uint64_t bmax = isqrt_u64(limit) + 1;
+    if (bmax < 3) bmax = 3;
+    int np = 0;
+    while (np < PRE_NP && (uint64_t)PRE_P[np] <= bmax) np++;
+    if (np < 1) return 1;
+
+    int k0 = 0;
+    while (k0 < np && PRE_P[k0] < 7) k0++;
+    uint32_t *inv30 = (uint32_t *)malloc(sizeof(uint32_t) * (size_t)np);
+    if (!inv30) return 0;
+    for (int k = k0; k < np; k++)
+        inv30[k] = inv_mod_prime(30u % PRE_P[k], PRE_P[k]);
+
+    volatile int found = 0;
+    uint64_t start0 = (uint64_t)PRE_MAX + 1;
+    if (start0 < 7) start0 = 7;
+    const uint64_t NBYTES = 1ull << w30_nbytes_bits(limit);
+    int use_parallel = 0;
+#ifdef _OPENMP
+    use_parallel = parallel && (limit >= PARALLEL_SEG_MIN);
+#endif
+
+#ifdef _OPENMP
+#pragma omp parallel shared(found) if(use_parallel)
+#endif
+    {
+#ifdef _OPENMP
+        int tid = omp_get_thread_num();
+        int nt = omp_get_num_threads();
+#else
+        int tid = 0, nt = 1;
+        (void)use_parallel;
+#endif
+        uint8_t *seg = (uint8_t *)malloc((size_t)NBYTES);
+        uint64_t buf[8];
+        uint64_t span = NBYTES * 30ull;
+        uint64_t stride = span * (uint64_t)nt;
+        uint64_t origin = (start0 / 30ull) * 30ull + (uint64_t)tid * span;
+        if (seg) {
+            for (uint64_t base = origin; base <= limit && !found; base += stride) {
+                uint64_t hi = base + span - 1;
+                if (hi > limit) hi = limit;
+                if (base > hi) continue;
+                uint64_t nbytes = (hi - base) / 30ull + 1;
+                if (nbytes > NBYTES) nbytes = NBYTES;
+                memset(seg, 0, (size_t)nbytes);
+
+                for (int k = k0; k < np; k++) {
+                    uint64_t p = PRE_P[k];
+                    uint64_t p2 = p * p;
+                    if (p2 > hi) break;
+                    w30_mark_prime(seg, nbytes, base, hi, p, inv30[k], p2);
+                }
+
+                int nb = 0;
+                for (uint64_t bi = 0; bi < nbytes && !found; bi++) {
+                    uint8_t bits = (uint8_t)~seg[bi];
+                    uint64_t blk = base + bi * 30ull;
+                    while (bits) {
+                        int ri = __builtin_ctz((unsigned)bits);
+                        bits = (uint8_t)(bits & (bits - 1));
+                        uint64_t p = blk + (uint64_t)WR30[ri];
+                        if (p < start0) continue;
+                        if (p > limit) {
+                            bits = 0;
+                            break;
+                        }
+                        buf[nb++] = p;
+                        if (nb == 8) {
+                            if (any_div8_u64(n, buf)) {
+                                found = 1;
+                                goto done_u64;
+                            }
+                            nb = 0;
+                        }
+                    }
+                }
+                if (!found) {
+                    for (int t = 0; t < nb; t++) {
+                        if (n % buf[t] == 0) {
+                            found = 1;
+                            break;
+                        }
+                    }
+                }
+            done_u64:;
+            }
+            free(seg);
+        }
+    }
+    free(inv30);
+    return !found;
+}
+
 int is_prime_u64_core(uint64_t n, int parallel) {
     int pc = precheck(n);
     if (pc >= 0) return pc;
     uint64_t limit = isqrt_u64(n);
-    if (parallel && limit >= PARALLEL_LIMIT) {
-        if (limit >= SEG_PRIME_LIMIT) return parallel_seg_primes(n, limit);
-        return parallel_wheel(n, limit);
-    }
-    return serial_wheel(n, limit);
+    if (limit <= PRE_MAX) return trial_pre_u64(n, limit);
+    return seg_primes_u64(n, limit, parallel);
 }
 
-/* ---- 65..128-bit path: full deterministic wheel / seg-prime trial ---- */
+/* ---- 65..128-bit path: full deterministic prime trial ---- */
 
 typedef unsigned __int128 u128;
 
@@ -398,207 +300,123 @@ static int precheck_u128(u128 n) {
 }
 
 __attribute__((hot))
-static int serial_wheel_u128(u128 n, uint64_t limit) {
-    uint64_t i = WHEEL_START;
-    int64_t wi = 0;
-    while (i + 256 <= limit) {
-        if (wi + 64 <= (int64_t)WHEEL_NW) {
-            for (int g = 0; g < 8; g++) {
-                const uint8_t *ws = &WSTEPS[wi];
-                uint64_t i0 = i;
-                uint64_t i1 = i0 + ws[0];
-                uint64_t i2 = i1 + ws[1];
-                uint64_t i3 = i2 + ws[2];
-                uint64_t i4 = i3 + ws[3];
-                uint64_t i5 = i4 + ws[4];
-                uint64_t i6 = i5 + ws[5];
-                uint64_t i7 = i6 + ws[6];
-                if ((n % i0) == 0 || (n % i1) == 0 || (n % i2) == 0 || (n % i3) == 0 ||
-                    (n % i4) == 0 || (n % i5) == 0 || (n % i6) == 0 || (n % i7) == 0)
-                    return 0;
-                i = i7 + ws[7];
-                wi += 8;
-            }
-        } else {
-            for (int k = 0; k < 32; k++) {
-                if ((n % i) == 0) return 0;
-                i += WSTEPS[wi];
-                wi++;
-                if (wi == (int64_t)WHEEL_NW) wi = 0;
-            }
-        }
-        if (wi == (int64_t)WHEEL_NW) wi = 0;
+static int trial_pre_u128(u128 n, uint64_t limit) {
+    int end = pre_end_for_limit(limit);
+    int i = 0;
+    for (; i + 8 <= end; i += 8) {
+        uint64_t p0 = PRE_P[i], p1 = PRE_P[i + 1], p2 = PRE_P[i + 2], p3 = PRE_P[i + 3];
+        uint64_t p4 = PRE_P[i + 4], p5 = PRE_P[i + 5], p6 = PRE_P[i + 6], p7 = PRE_P[i + 7];
+        if ((n % p0) == 0 || (n % p1) == 0 || (n % p2) == 0 || (n % p3) == 0 ||
+            (n % p4) == 0 || (n % p5) == 0 || (n % p6) == 0 || (n % p7) == 0)
+            return 0;
     }
-    while (i <= limit) {
-        if ((n % i) == 0) return 0;
-        i += WSTEPS[wi];
-        wi++;
-        if (wi == (int64_t)WHEEL_NW) wi = 0;
+    for (; i < end; i++) {
+        if ((n % PRE_P[i]) == 0) return 0;
     }
     return 1;
 }
 
-__attribute__((hot))
-static int parallel_wheel_u128(u128 n, uint64_t limit) {
-    ensure_res();
-    volatile int found = 0;
-#ifdef _OPENMP
-#pragma omp parallel shared(found)
-    {
-        int tid = omp_get_thread_num();
-        int nt = omp_get_num_threads();
-        uint64_t span = limit - WHEEL_START + 1;
-        uint64_t chunk = (span + (uint64_t)nt - 1) / (uint64_t)nt;
-        uint64_t lo = WHEEL_START + (uint64_t)tid * chunk;
-        uint64_t hi = lo + chunk - 1;
-        if (hi > limit) hi = limit;
-        if (lo <= limit && !found) {
-            uint64_t i; int64_t wi;
-            wheel_start_fast(lo, &i, &wi);
-            while (i + 256 <= hi && !found) {
-                if (wi + 64 <= (int64_t)WHEEL_NW) {
-                    for (int g = 0; g < 8; g++) {
-                        const uint8_t *ws = &WSTEPS[wi];
-                        uint64_t i0 = i;
-                        uint64_t i1 = i0 + ws[0];
-                        uint64_t i2 = i1 + ws[1];
-                        uint64_t i3 = i2 + ws[2];
-                        uint64_t i4 = i3 + ws[3];
-                        uint64_t i5 = i4 + ws[4];
-                        uint64_t i6 = i5 + ws[5];
-                        uint64_t i7 = i6 + ws[6];
-                        if ((n % i0) == 0 || (n % i1) == 0 || (n % i2) == 0 || (n % i3) == 0 ||
-                            (n % i4) == 0 || (n % i5) == 0 || (n % i6) == 0 || (n % i7) == 0) {
-                            found = 1;
-                            goto done_u128;
-                        }
-                        i = i7 + ws[7];
-                        wi += 8;
-                    }
-                } else {
-                    for (int k = 0; k < 32; k++) {
-                        if ((n % i) == 0) { found = 1; goto done_u128; }
-                        i += WSTEPS[wi];
-                        wi++;
-                        if (wi == (int64_t)WHEEL_NW) wi = 0;
-                    }
-                }
-                if (wi == (int64_t)WHEEL_NW) wi = 0;
-            }
-            if (!found) {
-                while (i <= hi) {
-                    if ((n % i) == 0) { found = 1; break; }
-                    i += WSTEPS[wi]; wi++;
-                    if (wi == (int64_t)WHEEL_NW) wi = 0;
-                }
-            }
-        }
-    done_u128:;
-    }
-    return !found;
-#else
-    return serial_wheel_u128(n, limit);
-#endif
+static inline int any_div8_u128(u128 n, const uint64_t *b) {
+    return (n % b[0]) == 0 || (n % b[1]) == 0 || (n % b[2]) == 0 || (n % b[3]) == 0 ||
+           (n % b[4]) == 0 || (n % b[5]) == 0 || (n % b[6]) == 0 || (n % b[7]) == 0;
 }
 
 __attribute__((hot))
-static int parallel_seg_primes_u128(u128 n, uint64_t limit) {
-    /* Reuse u64 segmented engine logic with u128 mods. */
-    if (limit < 3) return 1;
+static int seg_primes_u128(u128 n, uint64_t limit, int parallel) {
+    if (!trial_pre_u128(n, PRE_MAX)) return 0;
+    if (limit <= PRE_MAX) return 1;
 
     uint64_t bmax = isqrt_u64(limit) + 1;
-    if (bmax < 100) bmax = 100;
-    if (bmax > limit) bmax = limit;
-
-    uint8_t *sv = (uint8_t *)calloc((size_t)bmax + 1, 1);
-    if (!sv) return serial_wheel_u128(n, limit);
-    for (uint64_t p = 2; p * p <= bmax; p++) {
-        if (!sv[p]) {
-            for (uint64_t j = p * p; j <= bmax; j += p) sv[j] = 1;
-        }
-    }
-    uint32_t *primes = (uint32_t *)malloc(sizeof(uint32_t) * ((size_t)bmax / 2 + 8));
-    if (!primes) { free(sv); return serial_wheel_u128(n, limit); }
+    if (bmax < 3) bmax = 3;
     int np = 0;
-    for (uint64_t p = 2; p <= bmax; p++) {
-        if (!sv[p]) primes[np++] = (uint32_t)p;
-    }
-    free(sv);
+    while (np < PRE_NP && (uint64_t)PRE_P[np] <= bmax) np++;
+    if (np < 1) return 1;
 
-    for (int i = 0; i < np; i++) {
-        uint64_t p = primes[i];
-        if (p > limit) break;
-        if ((n % p) == 0) { free(primes); return n == p; }
-        if ((u128)p * (u128)p > n) { free(primes); return 1; }
-    }
-    if (bmax >= limit) { free(primes); return 1; }
+    int k0 = 0;
+    while (k0 < np && PRE_P[k0] < 7) k0++;
+    uint32_t *inv30 = (uint32_t *)malloc(sizeof(uint32_t) * (size_t)np);
+    if (!inv30) return 0;
+    for (int k = k0; k < np; k++)
+        inv30[k] = inv_mod_prime(30u % PRE_P[k], PRE_P[k]);
 
     volatile int found = 0;
-    uint64_t start = bmax + 1;
-    if ((start & 1ull) == 0) start++;
-
-    int seg_bits = (limit < 5000000ull) ? 17 : 18;
-    const uint64_t SEG_ODDS = 1ull << seg_bits;
+    uint64_t start0 = (uint64_t)PRE_MAX + 1;
+    if (start0 < 7) start0 = 7;
+    const uint64_t NBYTES = 1ull << w30_nbytes_bits(limit);
+    int use_parallel = 0;
+#ifdef _OPENMP
+    use_parallel = parallel && (limit >= PARALLEL_SEG_MIN);
+#endif
 
 #ifdef _OPENMP
-#pragma omp parallel shared(found)
+#pragma omp parallel shared(found) if(use_parallel)
 #endif
     {
-        uint8_t *seg = (uint8_t *)malloc(SEG_ODDS);
-        if (seg) {
 #ifdef _OPENMP
-            int tid = omp_get_thread_num();
-            int nt = omp_get_num_threads();
+        int tid = omp_get_thread_num();
+        int nt = omp_get_num_threads();
 #else
-            int tid = 0, nt = 1;
+        int tid = 0, nt = 1;
+        (void)use_parallel;
 #endif
-            uint64_t stride = SEG_ODDS * 2 * (uint64_t)nt;
-            for (uint64_t lo = start + (uint64_t)tid * SEG_ODDS * 2;
-                 lo <= limit && !found;
-                 lo += stride) {
-                uint64_t hi = lo + SEG_ODDS * 2 - 2;
+        uint8_t *seg = (uint8_t *)malloc((size_t)NBYTES);
+        uint64_t buf[8];
+        uint64_t span = NBYTES * 30ull;
+        uint64_t stride = span * (uint64_t)nt;
+        uint64_t origin = (start0 / 30ull) * 30ull + (uint64_t)tid * span;
+        if (seg) {
+            for (uint64_t base = origin; base <= limit && !found; base += stride) {
+                uint64_t hi = base + span - 1;
                 if (hi > limit) hi = limit;
-                if ((hi & 1ull) == 0) {
-                    if (hi == 0) continue;
-                    hi--;
-                }
-                if (lo > hi) continue;
-                uint64_t n_odds = ((hi - lo) >> 1) + 1;
-                if (n_odds > SEG_ODDS) n_odds = SEG_ODDS;
-                memset(seg, 0, (size_t)n_odds);
+                if (base > hi) continue;
+                uint64_t nbytes = (hi - base) / 30ull + 1;
+                if (nbytes > NBYTES) nbytes = NBYTES;
+                memset(seg, 0, (size_t)nbytes);
 
-                for (int k = 1; k < np; k++) {
-                    uint64_t p = primes[k];
+                for (int k = k0; k < np; k++) {
+                    uint64_t p = PRE_P[k];
                     uint64_t p2 = p * p;
                     if (p2 > hi) break;
-                    uint64_t m;
-                    if (p2 >= lo) m = p2;
-                    else {
-                        uint64_t r = lo % p;
-                        m = r ? lo + (p - r) : lo;
-                    }
-                    if ((m & 1ull) == 0) m += p;
-                    uint64_t step = p << 1;
-                    for (; m <= hi; m += step) {
-                        uint64_t idx = (m - lo) >> 1;
-                        if (idx < n_odds) seg[idx] = 1;
-                    }
+                    w30_mark_prime(seg, nbytes, base, hi, p, inv30[k], p2);
                 }
 
-                for (uint64_t idx = 0; idx < n_odds; idx++) {
-                    if (seg[idx]) continue;
-                    uint64_t p = lo + (idx << 1);
-                    if (p > limit) break;
-                    if ((n % p) == 0) {
-                        if (n != p) found = 1;
-                        break;
+                int nb = 0;
+                for (uint64_t bi = 0; bi < nbytes && !found; bi++) {
+                    uint8_t bits = (uint8_t)~seg[bi];
+                    uint64_t blk = base + bi * 30ull;
+                    while (bits) {
+                        int ri = __builtin_ctz((unsigned)bits);
+                        bits = (uint8_t)(bits & (bits - 1));
+                        uint64_t p = blk + (uint64_t)WR30[ri];
+                        if (p < start0) continue;
+                        if (p > limit) {
+                            bits = 0;
+                            break;
+                        }
+                        buf[nb++] = p;
+                        if (nb == 8) {
+                            if (any_div8_u128(n, buf)) {
+                                found = 1;
+                                goto done_u128;
+                            }
+                            nb = 0;
+                        }
                     }
                 }
+                if (!found) {
+                    for (int t = 0; t < nb; t++) {
+                        if ((n % buf[t]) == 0) {
+                            found = 1;
+                            break;
+                        }
+                    }
+                }
+            done_u128:;
             }
             free(seg);
         }
     }
-    free(primes);
+    free(inv30);
     return !found;
 }
 
@@ -608,19 +426,62 @@ int is_prime_u128_core(uint64_t lo, uint64_t hi, int parallel) {
     int pc = precheck_u128(n);
     if (pc >= 0) return pc;
     uint64_t limit = isqrt_u128(n);
-    if (parallel && limit >= PARALLEL_LIMIT) {
-        if (limit >= SEG_PRIME_LIMIT) return parallel_seg_primes_u128(n, limit);
-        return parallel_wheel_u128(n, limit);
-    }
-    return serial_wheel_u128(n, limit);
+    if (limit <= PRE_MAX) return trial_pre_u128(n, limit);
+    return seg_primes_u128(n, limit, parallel);
 }
 
 """
 
 
+def _odd_primes_to(limit: int) -> list[int]:
+    sv = bytearray(limit + 1)
+    sv[0] = sv[1] = 1
+    for p in range(2, int(limit**0.5) + 1):
+        if sv[p]:
+            continue
+        step = p
+        start = p * p
+        sv[start : limit + 1 : step] = b"\x01" * (((limit - start) // step) + 1)
+    return [p for p in range(3, limit + 1) if not sv[p]]
+
+
+def _emit_u32(name: str, vals: list[int]) -> list[str]:
+    lines = [f"static const uint32_t {name}[{len(vals)}] = {{"]
+    row: list[str] = []
+    for v in vals:
+        row.append(str(int(v)))
+        if len(row) == 16:
+            lines.append(",".join(row) + ",")
+            row = []
+    if row:
+        lines.append(",".join(row))
+    lines.append("};")
+    return lines
+
+
+def _emit_u64_hex(name: str, vals: list[int]) -> list[str]:
+    lines = [f"static const uint64_t {name}[{len(vals)}] = {{"]
+    row: list[str] = []
+    for v in vals:
+        row.append(f"0x{v:x}ull")
+        if len(row) == 8:
+            lines.append(",".join(row) + ",")
+            row = []
+    if row:
+        lines.append(",".join(row))
+    lines.append("};")
+    return lines
+
+
 def main() -> None:
-    w = np.load(DATA / "w9699690_u8.npy")
-    nw = int(len(w))
+    primes = _odd_primes_to(PRE_MAX)
+    mod = 1 << 64
+    invs = [pow(p, -1, mod) for p in primes]
+    thresh = [(mod - 1) // p for p in primes]
+    for p, inv in zip(primes, invs):
+        if (p * inv) % mod != 1:
+            raise SystemExit(f"bad 2-adic inverse for p={p}")
+
     lines = [
         "#include <stdint.h>",
         "#include <stdlib.h>",
@@ -628,25 +489,21 @@ def main() -> None:
         "#ifdef _OPENMP",
         "#include <omp.h>",
         "#endif",
-        f"#define WHEEL_NW {nw}",
-        "#define WHEEL_MOD 9699690u",
-        "#define WHEEL_START 23ull",
-        "#define PARALLEL_LIMIT 50000ull",
-        "#define SEG_PRIME_LIMIT 200000ull",
-        f"static const uint8_t WSTEPS[{nw}] = {{",
+        f"#define PRE_MAX {PRE_MAX}u",
+        f"#define PRE_NP {len(primes)}",
+        "/* Parallel segmented sieve only when isqrt(n) is large enough that",
+        "   OpenMP overhead is repaid (mid-size uses serial precomputed trial). */",
+        "#define PARALLEL_SEG_MIN 10000000ull",
     ]
-    row = []
-    for x in w:
-        row.append(str(int(x)))
-        if len(row) == 32:
-            lines.append(",".join(row) + ",")
-            row = []
-    if row:
-        lines.append(",".join(row))
-    lines.append("};")
+    lines.extend(_emit_u32("PRE_P", primes))
+    lines.extend(_emit_u64_hex("PRE_INV", invs))
+    lines.extend(_emit_u64_hex("PRE_TH", thresh))
     out = "\n".join(lines) + "\n" + BODY
-    (DATA / "wheel_core.c").write_text(out)
-    print(f"Wrote {DATA / 'wheel_core.c'} ({len(out)} bytes)")
+    dest = DATA / "wheel_core.c"
+    dest.write_text(out)
+    print(
+        f"Wrote {dest} ({len(out)} bytes, {len(primes)} odd primes ≤ {PRE_MAX})"
+    )
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ CLI **`TIME` is end-to-end** (import → answer). Engines are tiered to minimize
 1. $n \lt 10^4$: tiny pure-Python loop (no NumPy/Numba).
 2. If `is_prime_data/wheel_core.so` is present: **OpenMP C** (preferred on Linux CI), with:
    - small-prime precheck (through a few hundred),
-   - **8-way independent-mod** `9699690`-wheel when $\lfloor\sqrt{n}\rfloor$ is moderate (exact trial division; hides `DIV` latency on OoO CPUs),
-   - **segmented prime sieve + prime-only trial** when $\lfloor\sqrt{n}\rfloor \ge 2\cdot10^5$ (fewer mods than the wheel; bit-packed sieve for moderate $\sqrt{n}$, byte sieve for hard 64-bit primes),
+   - **precomputed odd primes** $\le 2^{20}$ and exact **2-adic inverse** trial when $\lfloor\sqrt{n}\rfloor \le 1\,048\,576$ (wrap-mul divisibility; no wheel `DIV`),
+   - **wheel-30 segmented sieve + 8-way prime-only trial** when $\lfloor\sqrt{n}\rfloor$ is larger (1 byte / 30 numbers; OpenMP only when $\lfloor\sqrt{n}\rfloor \ge 10^7$),
    - integer `isqrt` and early abort when a factor is found.
 3. Else if $n \le 4\cdot10^{12}$: **embedded 30030-wheel** (stdlib only, zlib-compressed steps in `is_prime.py`).
 4. Else: lazy **Numba** `9699690`-wheel with optional `prange` when $\lfloor\sqrt{n}\rfloor \ge 50\,000$.

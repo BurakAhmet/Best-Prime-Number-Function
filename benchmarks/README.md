@@ -9,7 +9,7 @@ This directory measures **wall-clock time** for deterministic algorithms on the 
 | Method | What it does |
 |--------|----------------|
 | **Primitive** | Pure Python: reject evens, then trial-divide by every odd `i` with `3 ≤ i ≤ isqrt(n)` |
-| **Optimized** | This repo’s `is_prime`: 9699690-wheel + Numba JIT + multi-threaded `prange` for large 64-bit `n` |
+| **Optimized** | This repo’s `is_prime`: OpenMP precomputed-prime / segmented trial, or 9699690-wheel + Numba JIT fallback |
 
 Both are **deterministic** (no Miller–Rabin / randomness). The gap is engineering (wheel + JIT + threads), not a weaker correctness model on the 64-bit path.
 
@@ -64,9 +64,9 @@ Indicative sample (OpenMP `.so`, multi-core; see `e2e_results.json` for last com
 | 4-digit prime | 7919 | ~0.4 |
 | 10⁹+7 | 1000000007 | ~2–3 |
 | Mersenne M31 | 2147483647 | ~2–3 |
-| 12-digit prime | 999999999989 | ~4–10 (segmented primes) |
-| near 2⁶³ prime | 9223372036854775783 | ~550–650 (OpenMP `.so`) |
-| Mersenne M61 | 2⁶¹−1 | ~270–350 |
+| 12-digit prime | 999999999989 | ~2–4 (precomputed primes) |
+| near 2⁶³ prime | 9223372036854775783 | ~300–350 (OpenMP `.so`, wheel-30) |
+| Mersenne M61 | 2⁶¹−1 | ~150–200 |
 
 Example CLI lines (same metric as `TIME:` on stdout):
 

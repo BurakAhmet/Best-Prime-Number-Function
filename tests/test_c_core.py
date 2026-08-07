@@ -46,6 +46,42 @@ class TestCPathEngine:
         assert info["is_prime"] is True
 
 
+class TestPrecomputedPrimeBound:
+    """Exercise the embedded prime-table path (isqrt ≤ 2^20) and just above it."""
+
+    # Largest prime ≤ 2^20, plus the next primes just above the table bound.
+    P_LE_2_20 = 1_048_573
+    P_GT_2_20 = 1_048_583
+    P_GT_2_20_B = 1_048_601
+    P_NEAR = 999_983
+    P_NEAR2 = 999_979
+
+    def test_table_edge_primes(self):
+        assert is_prime(self.P_LE_2_20) is True
+        assert is_prime(self.P_GT_2_20) is True
+        assert is_prime(self.P_NEAR) is True
+        assert is_prime(self.P_NEAR2) is True
+
+    def test_square_inside_table_is_composite(self):
+        n = self.P_NEAR * self.P_NEAR
+        assert n < (1 << 64)
+        assert is_prime(n) is False
+        assert is_prime(n, parallel=False) is False
+
+    def test_semiprime_near_table_bound(self):
+        n = self.P_NEAR * self.P_NEAR2
+        assert is_prime(n, parallel=True) is False
+        assert is_prime(n, parallel=False) is False
+
+    def test_just_above_table_uses_c_path(self):
+        # isqrt > 2^20 → segmented primes after the precomputed table.
+        n = self.P_GT_2_20 * self.P_GT_2_20_B
+        info = lab(n)
+        assert info["path"] == "u64_wheel_c"
+        assert info["is_prime"] is False
+        assert info["isqrt"] > 1_048_576
+
+
 class TestCSerialParallelAgree:
     @pytest.mark.parametrize(
         "n",

@@ -29,6 +29,7 @@ ALLOW_PATH_SUBSTRINGS = (
     "README",
     "CONTRIBUTING",
     "PROJECT_BOARD",
+    "ALGORITHM_HISTORY",
     "docs/wiki",
     "copilot-instructions",
     "AGENT_BRIEFING",
