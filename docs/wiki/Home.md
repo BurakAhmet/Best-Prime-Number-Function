@@ -7,7 +7,7 @@
 
 ## Interactive lab
 
-Type a natural number. Exact 30-wheel trial in the browser — no server.
+Exact 30-wheel trial in the browser. Type $n$ and check.
 
 <div id="prime-lab-root"></div>
 

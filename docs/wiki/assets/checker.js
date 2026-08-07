@@ -1,6 +1,5 @@
 /* Deterministic 30-wheel trial in the browser (demo; not the OpenMP C core). */
 (function () {
-  const WR = [1, 7, 11, 13, 17, 19, 23, 29];
   const STEPS = [4n, 2n, 4n, 2n, 4n, 6n, 2n, 6n];
   const SMALL = [3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n, 41n, 43n, 47n, 53n];
   const HARD_ISQRT = 2_000_000n;
@@ -82,8 +81,6 @@
           <button type="button" class="primary" id="lab-go">Check</button>
           <button type="button" id="lab-stop" disabled>Stop</button>
         </div>
-        <div class="wheel" id="lab-wheel" aria-hidden="true"></div>
-        <p class="wheel-cap">Residues coprime to 30 — the trial candidates.</p>
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
       </section>`;
@@ -94,24 +91,8 @@
     const out = $("#lab-out", root);
     const bar = $("#lab-bar", root);
     const barFill = $("i", bar);
-    const wheel = $("#lab-wheel", root);
-
-    for (let r = 0; r < 30; r++) {
-      const s = document.createElement("span");
-      s.textContent = String(r);
-      if (WR.includes(r)) s.classList.add("coprime");
-      s.dataset.r = String(r);
-      wheel.appendChild(s);
-    }
 
     let ac = null;
-
-    function setActiveResidue(i) {
-      wheel.querySelectorAll("span.active").forEach((el) => el.classList.remove("active"));
-      if (i == null) return;
-      const el = wheel.querySelector(`span[data-r="${Number(i % 30n)}"]`);
-      if (el) el.classList.add("active");
-    }
 
     function render(state) {
       out.classList.add("show");
@@ -175,13 +156,11 @@
           (i, lim) => {
             const pct = lim === 0n ? 100 : Number((i * 1000n) / lim) / 10;
             barFill.style.width = Math.min(100, pct) + "%";
-            setActiveResidue(i);
             render({ busy: true, n: n.toString(), isqrt: fmt(lim), i: fmt(i) });
           },
           ac.signal
         );
         barFill.style.width = "100%";
-        setActiveResidue(res.factor != null ? res.factor : null);
         render({
           busy: false,
           prime: res.prime,
