@@ -5,6 +5,12 @@
 > [!WARNING]
 > **This entire project (code, tests, docs, and wiki) was created and designed by an AI agent**. Treat it as AI-generated work: review code and results before production or research-critical use. Human oversight is recommended.
 
+## Interactive lab
+
+Try a natural number **right here**. The widget runs a deterministic **30-wheel trial** in your browser (BigInt; no server, no Miller–Rabin). It is a demo — hard 64-bit primes still belong in the Python / OpenMP library.
+
+<div id="prime-lab-root"></div>
+
 ---
 
 ## What this project is

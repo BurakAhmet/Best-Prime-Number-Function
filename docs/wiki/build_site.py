@@ -375,6 +375,8 @@ def page_html(
     current: str,
     version: str,
     footer_html: str,
+    extra_head: str = "",
+    extra_scripts: str = "",
 ) -> str:
     nav_items = []
     for label, href in nav:
@@ -392,6 +394,7 @@ def page_html(
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"/>
+  {extra_head}
   <style>{CSS}</style>
 </head>
 <body>
@@ -430,6 +433,7 @@ def page_html(
       ],
       throwOnError: false
     }});"></script>
+  {extra_scripts}
 </body>
 </html>
 """
@@ -455,6 +459,9 @@ def main() -> int:
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
+    assets = WIKI / "assets"
+    if assets.is_dir():
+        shutil.copytree(assets, dest / "assets")
 
     version = package_version()
     sources = collect_sources()
@@ -471,6 +478,7 @@ def main() -> int:
         body = rewrite_html_hrefs(render_md(path.read_text(encoding="utf-8")), stems)
         current = "index.html" if stem == "Home" else f"{stem}.html"
         page_title = "Home" if stem == "Home" else title
+        is_home = stem == "Home"
         html_out = page_html(
             title=page_title,
             body=body,
@@ -478,6 +486,8 @@ def main() -> int:
             current=current,
             version=version,
             footer_html=footer_html,
+            extra_head='  <link rel="stylesheet" href="assets/checker.css"/>\n' if is_home else "",
+            extra_scripts='  <script src="assets/checker.js" defer></script>\n' if is_home else "",
         )
         out_name = "index.html" if stem == "Home" else f"{stem}.html"
         (dest / out_name).write_text(html_out, encoding="utf-8")
