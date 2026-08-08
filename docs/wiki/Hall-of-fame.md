@@ -9,11 +9,11 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 1000000009 | $10^9+9$ | ~2–3 ms |
 | 2147483647 | $2^{31}-1$ (M31) | ~2–3 ms |
 | 999999999989 | 12-digit prime | ~2–4 ms |
-| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.14–0.17 s |
-| 9223372036854775783 | near $2^{63}$ | ~0.28–0.32 s |
-| 18446744073709551557 | largest prime $\lt 2^{64}$ (CLI default) | ~0.40–0.45 s |
+| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.10–0.12 s |
+| 9223372036854775783 | near $2^{63}$ | ~0.19–0.22 s |
+| 18446744073709551557 | largest prime $\lt 2^{64}$ (CLI default) | ~0.28–0.32 s |
 
-C core (v1.4.3+): precomputed primes $\le 2^{20}$ with 2-adic inverse trial for mid-size $n$; harder 64-bit paths use a **wheel-30** segmented sieve, **memcpy presieve** of $7\cdot11\cdot13\cdot17$, and **8-way 2-adic** prime-only trial. Stdlib / Numba still keep the **30030** / **9699690** wheels.
+C core (v1.4.4+): precomputed primes $\le 2^{20}$ with 2-adic inverse trial for mid-size $n$; harder 64-bit paths use a **wheel-30** segmented sieve, **memcpy presieve** of $7\cdot11\cdot13\cdot17$, **uint64 `ctzll` extract**, and **8-way 2-adic** prime-only trial. Stdlib / Numba still keep the **30030** / **9699690** wheels.
 
 Reproduce:
 

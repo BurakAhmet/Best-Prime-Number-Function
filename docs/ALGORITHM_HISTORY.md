@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.4.3** (`pyproject.toml`) |
+| **Current package version** | **1.4.4** (`pyproject.toml`) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -56,7 +56,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-07  v1.4.0   Precomputed primes ≤ 2²⁰ + 2-adic mul trial; drop C wheel table
 2026-08-07  v1.4.1   Wheel-30 segmented sieve for hard √n (skip 2/3/5 marking)
 2026-08-08  v1.4.2   8-way 2-adic wrap-mul trial of sieved primes (no DIV)
-2026-08-08  v1.4.3   memcpy presieve 7·11·13·17 + 32-bit mark starts; CLI default = max 64-bit prime  ← current
+2026-08-08  v1.4.3   memcpy presieve 7·11·13·17 + 32-bit mark starts; CLI default = max 64-bit prime
+2026-08-08  v1.4.4   uint64 ctzll extract of wheel-30 bits  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -355,7 +356,7 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 
 ---
 
-## Era 11 — v1.4.3 (2026-08-08): **Current** — memcpy presieve + 32-bit mark starts
+## Era 11 — v1.4.3 (2026-08-08): memcpy presieve + 32-bit mark starts
 
 **Design.** After inv64 trial, sieve marking was the remaining hard-path cost (especially the new CLI default, $\lfloor\sqrt{n}\rfloor=2^{32}-1$).
 
@@ -383,6 +384,28 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 
 ---
 
+## Era 12 — v1.4.4 (2026-08-08): **Current** — uint64 bit extract
+
+**Design.** After inv64 trial + presieve, the remaining cost on $\lfloor\sqrt{n}\rfloor=2^{32}-1$ was **walking the sieve**: one Python-style byte loop × $\sim n/30$ bytes. Unset wheel-30 bits are packed 8-to-a-byte; loading `uint64_t`, inverting, skipping zeros, and `__builtin_ctzll` pulls the next prime in one bit-scan.
+
+Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes per tile thrashed small-$p$ streams, **+8–55%**); `found` check removal (noise); presieve through 19 (323 KiB pattern lost on the default $n$); 8-way mark unroll (noise / slight loss).
+
+**Performance vs 1.4.3 (12 threads).**
+
+| Case | 1.4.3 | 1.4.4 | Δ |
+|------|------:|------:|--:|
+| largest $<2^{64}$ | ~380 ms | ~281–303 ms | **~20–26%** |
+| near $2^{63}$ | ~265 ms | ~193–213 ms | ~20% |
+| M61 | ~134 ms | ~100–106 ms | ~21% |
+| $10^9+7\times10^9+9$ | ~80 ms | ~57–60 ms | ~25–29% |
+
+| | |
+|--|--|
+| **Advantages** | Same primes, far fewer loop trips; no extra `.so` data |
+| **Disadvantages** | Must keep last $<8$ bytes as a scalar tail; `memcpy` of `uint64_t` for aliasing safety |
+
+---
+
 ## Summary comparison
 
 | Era | 64-bit engine (best case) | Big-int practical | Big-int huge | E2E focus | Main win | Main cost / risk |
@@ -398,7 +421,8 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 | **1.4.0** | precomputed primes $\le 2^{20}$ (2-adic mul); seg-primes after | same | AKS | Yes | 12-digit e2e ~45%; no many-core mid-size tax | Extra rodata; still $\sim\sqrt{n}$ hard primes |
 | **1.4.1** | + **wheel-30** sieve (byte/30) on hard path | same | AKS | Yes | Hard primes ~40–45% (M61 / $2^{63}$) | Wheel-210 marking overhead lost |
 | **1.4.2** | + **2-adic wrap-mul** trial of sieved primes | same | AKS | Yes | Hard 64-bit ~15–17% more (M61 / $2^{63}$) | Newton cost if inverse not reused |
-| **1.4.3 (now)** | + **memcpy presieve** $7{..}17$ + 32-bit mark starts | same | AKS | Yes | Hard 64-bit ~5–9% more (max $<2^{64}$ ~7%) | Pattern wrap must stay exact |
+| **1.4.3** | + **memcpy presieve** $7{..}17$ + 32-bit mark starts | same | AKS | Yes | Hard 64-bit ~5–9% more (max $<2^{64}$ ~7%) | Pattern wrap must stay exact |
+| **1.4.4 (now)** | + **uint64 ctzll** sieve extract | same | AKS | Yes | Hard 64-bit ~20–26% more (default $n$ ~280 ms) | Word tail + aliasing |
 
 ---
 
@@ -456,4 +480,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.4.3** (memcpy presieve + 32-bit mark starts; CLI default = largest prime $<2^{64}$). Extend forward; do not delete past eras.*
+*Last updated for package **1.4.4** (uint64 ctzll extract). Extend forward; do not delete past eras.*

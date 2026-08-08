@@ -25925,7 +25925,35 @@ static int seg_primes_u64(uint64_t n, uint64_t limit, int parallel) {
                 }
 
                 int nb = 0;
-                for (uint64_t bi = 0; bi < nbytes && !found; bi++) {
+                uint64_t bi = 0;
+                uint64_t n8 = nbytes & ~(uint64_t)7;
+                for (; bi < n8; bi += 8) {
+                    uint64_t w;
+                    memcpy(&w, seg + bi, 8);
+                    w = ~w;
+                    if (!w) continue;
+                    do {
+                        int tz = __builtin_ctzll(w);
+                        w &= w - 1;
+                        int b = tz >> 3;
+                        int ri = tz & 7;
+                        uint64_t p = base + (bi + (uint64_t)b) * 30ull + (uint64_t)WR30[ri];
+                        if (p < start0) continue;
+                        if (p > limit) {
+                            w = 0;
+                            break;
+                        }
+                        buf[nb++] = p;
+                        if (nb == 8) {
+                            if (any_div8_u64(n, buf)) {
+                                found = 1;
+                                goto done_u64;
+                            }
+                            nb = 0;
+                        }
+                    } while (w);
+                }
+                for (; bi < nbytes; bi++) {
                     uint8_t bits = (uint8_t)~seg[bi];
                     uint64_t blk = base + bi * 30ull;
                     while (bits) {
@@ -25933,10 +25961,7 @@ static int seg_primes_u64(uint64_t n, uint64_t limit, int parallel) {
                         bits = (uint8_t)(bits & (bits - 1));
                         uint64_t p = blk + (uint64_t)WR30[ri];
                         if (p < start0) continue;
-                        if (p > limit) {
-                            bits = 0;
-                            break;
-                        }
+                        if (p > limit) break;
                         buf[nb++] = p;
                         if (nb == 8) {
                             if (any_div8_u64(n, buf)) {
@@ -26096,7 +26121,35 @@ static int seg_primes_u128(u128 n, uint64_t limit, int parallel) {
                 }
 
                 int nb = 0;
-                for (uint64_t bi = 0; bi < nbytes && !found; bi++) {
+                uint64_t bi = 0;
+                uint64_t n8 = nbytes & ~(uint64_t)7;
+                for (; bi < n8; bi += 8) {
+                    uint64_t w;
+                    memcpy(&w, seg + bi, 8);
+                    w = ~w;
+                    if (!w) continue;
+                    do {
+                        int tz = __builtin_ctzll(w);
+                        w &= w - 1;
+                        int b = tz >> 3;
+                        int ri = tz & 7;
+                        uint64_t p = base + (bi + (uint64_t)b) * 30ull + (uint64_t)WR30[ri];
+                        if (p < start0) continue;
+                        if (p > limit) {
+                            w = 0;
+                            break;
+                        }
+                        buf[nb++] = p;
+                        if (nb == 8) {
+                            if (any_div8_u128(n, buf)) {
+                                found = 1;
+                                goto done_u128;
+                            }
+                            nb = 0;
+                        }
+                    } while (w);
+                }
+                for (; bi < nbytes; bi++) {
                     uint8_t bits = (uint8_t)~seg[bi];
                     uint64_t blk = base + bi * 30ull;
                     while (bits) {
@@ -26104,10 +26157,7 @@ static int seg_primes_u128(u128 n, uint64_t limit, int parallel) {
                         bits = (uint8_t)(bits & (bits - 1));
                         uint64_t p = blk + (uint64_t)WR30[ri];
                         if (p < start0) continue;
-                        if (p > limit) {
-                            bits = 0;
-                            break;
-                        }
+                        if (p > limit) break;
                         buf[nb++] = p;
                         if (nb == 8) {
                             if (any_div8_u128(n, buf)) {
