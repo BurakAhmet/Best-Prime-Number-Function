@@ -118,7 +118,7 @@ No argument defaults to the near $2^{63}$ prime `9223372036854775783`.
 TEST:    9223372036854775783 (19 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    319103789 ns  (319.103789 ms)
+TIME:    292380000 ns  (292.380000 ms)
 ```
 
 Example for the mid-size 12-digit prime (precomputed-prime C path):
@@ -223,7 +223,7 @@ Harder rules we actually enforce:
 is_prime(n)
   n < 10⁴              →  tiny pure-Python loop
   10⁴ ≤ n < 2⁶⁴
-       ├─ wheel_core.so present  →  OpenMP C (precomputed primes / seg-primes)
+       ├─ wheel_core.so present  →  OpenMP C (precomputed primes / seg-primes + 2-adic trial)
        ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel (stdlib only)
        └─ else                   →  lazy NumPy/Numba 9699690-wheel
   n ≥ 2⁶⁴
@@ -274,8 +274,8 @@ Let $N = n$ when discussing bit size, and write $L = \lfloor\sqrt{n}\rfloor$. Ar
 | Tiny loop / odd trial | $\Theta(L) = \Theta(\sqrt{n})$ | Constant-factor 6-wheel style steps |
 | Primorial **wheel** trial (stdlib, Numba fallback) | $\Theta((\varphi(W)/W)\cdot L)=\Theta(\sqrt{n})$ | $W \in \{30030,\,9699690\}$; density $\varphi(W)/W \lt 1$ cuts the constant, **not** the asymptotic class |
 | OpenMP precomputed-prime trial ($L \le 2^{20}$) | $\Theta(\pi(L))=\Theta(\sqrt{n}/\log n)$ | Exact wrap-mul divisibility; serial (OpenMP not worth it) |
-| OpenMP seg-primes ($t$ threads, large $L$) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* | Same work, split across cores; prime case has little early exit |
-| Segmented sieve + prime-only trial (large $L$) | $\widetilde{O}(\sqrt{n})$ | Fewer mods ($\sim \pi(L)$) plus sieving; still $\Theta(\sqrt{n}/\log n)$ mods in the prime case |
+| OpenMP seg-primes ($t$ threads, large $L$) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* | Same work, split across cores; 2-adic wrap-mul trial (no `DIV`) on 64-bit $n$ |
+| Segmented sieve + prime-only trial (large $L$) | $\widetilde{O}(\sqrt{n})$ | Fewer candidates ($\sim \pi(L)$) plus sieving; 64-bit path uses wrap-mul, still $\Theta(\sqrt{n}/\log n)$ tests |
 | Partial trial then **AKS** (huge $n$) | Poly in $\log n$ for AKS *in theory* | Practical AKS here is far costlier than trial on moderate sizes; used only when full trial is abandoned |
 
 **Composite early exit:** if the least prime factor is $p$, work is roughly $\Theta(p)$ (or $\Theta(\varphi(W)/W \cdot p)$ on a wheel), so smooth composites are much cheaper than the prime worst case.
@@ -302,8 +302,8 @@ Indicative **end-to-end CLI `TIME`** on a dev machine (`benchmarks/compare_e2e.p
 | Small prime | 97 | ~0.4 ms |
 | $10^9+7$ | 1000000007 | ~2–3 ms |
 | 12-digit prime | 999999999989 | ~2–4 ms (sample: `2421823 ns` / `2.421823 ms`) |
-| Near $2^{63}$ prime | 9223372036854775783 | ~0.30–0.35 s (sample: `319103789 ns` / `319.103789 ms`) |
-| Mersenne M61 | $2^{61}-1$ | ~0.15–0.20 s |
+| Near $2^{63}$ prime | 9223372036854775783 | ~0.28–0.32 s (sample: `292380000 ns` / `292.380 ms`) |
+| Mersenne M61 | $2^{61}-1$ | ~0.15–0.17 s |
 
 In-process hot-loop comparisons (warm engines) live in [`benchmarks/compare_speed.py`](benchmarks/compare_speed.py). End-to-end CLI timing: [`benchmarks/compare_e2e.py`](benchmarks/compare_e2e.py). More context: [`benchmarks/README.md`](benchmarks/README.md), [Hall of fame](docs/wiki/Hall-of-fame.md).
 

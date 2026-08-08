@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "best-prime-number-function"
-version = "1.4.1"
+version = "1.4.2"
 description = "Fully deterministic primality testing (precomputed-prime OpenMP C, segmented sieve, Numba/stdlib wheel fallbacks; AKS only for huge ints)"
 readme = "README.md"
 requires-python = ">=3.9"

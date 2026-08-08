@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.4.1** (`pyproject.toml`) |
+| **Current package version** | **1.4.2** (`pyproject.toml`) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -54,7 +54,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-07-01  v1.3.1   Installable library; compile .so at install (no prebuilt Linux .so in pure wheel)
 2026-08-04  v1.3.2   Earlier segmented path (√n ≥ 2·10⁵), bit sieve, 8-way ILP, LTO
 2026-08-07  v1.4.0   Precomputed primes ≤ 2²⁰ + 2-adic mul trial; drop C wheel table
-2026-08-07  v1.4.1   Wheel-30 segmented sieve for hard √n (skip 2/3/5 marking)  ← current
+2026-08-07  v1.4.1   Wheel-30 segmented sieve for hard √n (skip 2/3/5 marking)
+2026-08-08  v1.4.2   8-way 2-adic wrap-mul trial of sieved primes (no DIV)  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -70,6 +71,7 @@ Key commits (algorithm/perf only):
 | 1.3.2 | `22ba10d` Earlier segmented path + bit sieve + 8-way ILP |
 | 1.4.0 | this tree — precomputed-prime 2-adic trial + deferred OpenMP |
 | 1.4.1 | this tree — wheel-30 segmented sieve on the hard path |
+| 1.4.2 | this tree — 2-adic wrap-mul trial on sieved primes |
 
 ---
 
@@ -295,7 +297,7 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 
 ---
 
-## Era 9 — v1.4.1 (2026-08-07): **Current** — wheel-30 hard sieve
+## Era 9 — v1.4.1 (2026-08-07): wheel-30 hard sieve
 
 **Design change (hard path only).** Mid-size $\sqrt{n}\le 2^{20}$ is unchanged (precomputed 2-adic trial). For larger $\sqrt{n}$:
 
@@ -323,6 +325,35 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 
 ---
 
+## Era 10 — v1.4.2 (2026-08-08): **Current** — 2-adic trial of sieved primes
+
+**Design change (64-bit hard path trial only).** Sieve is still wheel-30. Mid-size $\sqrt{n}\le 2^{20}$ still uses precomputed `PRE_INV`/`PRE_TH`. For primes produced by the segmented sieve:
+
+- Exact identity: odd $p$ divides $n&lt;2^{64}$ iff $(n\cdot p^{-1}\bmod 2^{64})\cdot p &lt; 2^{64}$ (equivalently $n\cdot p^{-1}\le\lfloor(2^{64}-1)/p\rfloor$, without storing the threshold).
+- $p^{-1}\bmod 2^{64}$ from a 128-byte `INV8` table (inverse mod 256) + three Newton lift steps.
+- Eight independent inverses/tests hide MUL latency. Replaces 8-way `DIV`.
+- u128 full trial still uses 128-bit `%` (the wrap-mul identity is 64-bit).
+
+**Tried and not taken (same session):** wheel-210 retry; presieve $7\cdot11\cdot13\cdot17$; precomputed $m_0$ mark starts; 8-way mark unroll; 16-way `DIV`. None beat inv64 ILP reliably after setup / noise, and several hurt M61 or semiprimes.
+
+**Performance vs 1.4.1 (same machine, 12 OpenMP threads).**
+
+| Case | 1.4.1 | 1.4.2 | Δ |
+|------|------:|------:|--:|
+| M61 in-process | ~0.17 s | ~0.14 s | ~15% |
+| near $2^{63}$ in-process | ~0.34 s | ~0.28 s | ~17% |
+| near $2^{63}$ e2e | ~0.32 s | ~0.29 s | ~8–15% |
+| largest prime $<2^{64}$ | ~0.50 s class | ~0.41 s | ~18% |
+| Default e2e suite | — | unchanged class | — |
+
+| | |
+|--|--|
+| **Advantages** | Same exact prime-only trial model; no extra `.so` bulk; fewer DIV-port stalls on Zen 2 / similar |
+| **Disadvantages** | Newton inv is more MUL work per prime than a precomputed inverse (still wins vs DIV when $p$ is seen once) |
+| **Still true** | Stochastic / range-limited MR is out of product policy as the engine |
+
+---
+
 ## Summary comparison
 
 | Era | 64-bit engine (best case) | Big-int practical | Big-int huge | E2E focus | Main win | Main cost / risk |
@@ -336,7 +367,8 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 | **1.3.1** | same (build at install) | same | AKS | Yes | Portable packaging | No compiler ⇒ slower |
 | **1.3.2** | seg-primes if $\sqrt{n}\ge 2\cdot10^5$; 8-way; bit sieve | same | AKS | Yes | Mid-size 4–7× | Empirical knobs |
 | **1.4.0** | precomputed primes $\le 2^{20}$ (2-adic mul); seg-primes after | same | AKS | Yes | 12-digit e2e ~45%; no many-core mid-size tax | Extra rodata; still $\sim\sqrt{n}$ hard primes |
-| **1.4.1 (now)** | + **wheel-30** sieve (byte/30) on hard path | same | AKS | Yes | Hard primes ~40–45% (M61 / $2^{63}$) | Wheel-210 marking overhead lost |
+| **1.4.1** | + **wheel-30** sieve (byte/30) on hard path | same | AKS | Yes | Hard primes ~40–45% (M61 / $2^{63}$) | Wheel-210 marking overhead lost |
+| **1.4.2 (now)** | + **2-adic wrap-mul** trial of sieved primes | same | AKS | Yes | Hard 64-bit ~15–17% more (M61 / $2^{63}$) | Newton cost if inverse not reused |
 
 ---
 
@@ -394,4 +426,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.4.1** (wheel-30 hard sieve + 1.4.0 precomputed-prime mid-size path). Extend forward; do not delete past eras.*
+*Last updated for package **1.4.2** (2-adic wrap-mul trial of sieved primes + 1.4.1 wheel-30 sieve). Extend forward; do not delete past eras.*

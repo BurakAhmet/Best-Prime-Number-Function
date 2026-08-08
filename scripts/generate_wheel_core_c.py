@@ -4,8 +4,9 @@
 Emits a compact OpenMP C engine:
   * precomputed odd primes up to PRE_MAX plus 2-adic inverses / thresholds
     (exact wrap-mul divisibility, no DIV on the mid-size path)
-  * wheel-30 segmented sieve + 8-way prime-only trial for larger isqrt(n)
-  * same model for u128 full trial
+  * wheel-30 segmented sieve + 8-way 2-adic prime-only trial for larger isqrt(n)
+    (Newton inv64 from an 8-bit table; exact: odd p | n iff (n*inv)*p < 2^64)
+  * same sieve model for u128 full trial (128-bit DIV; wrap-mul is 64-bit)
 
 The 9699690-wheel table is intentionally *not* embedded: it bloated the .so
 and lost to prime-only trial once a modest prime table is available. Numba /
@@ -70,9 +71,48 @@ static int trial_pre_u64(uint64_t n, uint64_t limit) {
     return 1;
 }
 
+/*
+ * Exact 64-bit divisibility without DIV.
+ * Theorem (odd p, n < 2^64): p | n  iff  (n * p^{-1} mod 2^64) * p  < 2^64.
+ * INV8[(p>>1)&127] is p^{-1} mod 256; three Newton steps lift to mod 2^64.
+ * Eight independent inverses hide MUL latency on OoO CPUs.
+ */
+static inline uint64_t inv64_odd(uint64_t p) {
+    uint64_t x = INV8[(p >> 1) & 127];
+    x *= 2 - p * x;
+    x *= 2 - p * x;
+    x *= 2 - p * x;
+    return x;
+}
+
+static inline int divides_u64(uint64_t n, uint64_t p) {
+    uint64_t q = n * inv64_odd(p);
+    return ((unsigned __int128)q * p) >> 64 == 0;
+}
+
 static inline int any_div8_u64(uint64_t n, const uint64_t *b) {
-    return n % b[0] == 0 || n % b[1] == 0 || n % b[2] == 0 || n % b[3] == 0 ||
-           n % b[4] == 0 || n % b[5] == 0 || n % b[6] == 0 || n % b[7] == 0;
+    uint64_t p0 = b[0], p1 = b[1], p2 = b[2], p3 = b[3];
+    uint64_t p4 = b[4], p5 = b[5], p6 = b[6], p7 = b[7];
+    uint64_t x0 = INV8[(p0 >> 1) & 127], x1 = INV8[(p1 >> 1) & 127];
+    uint64_t x2 = INV8[(p2 >> 1) & 127], x3 = INV8[(p3 >> 1) & 127];
+    uint64_t x4 = INV8[(p4 >> 1) & 127], x5 = INV8[(p5 >> 1) & 127];
+    uint64_t x6 = INV8[(p6 >> 1) & 127], x7 = INV8[(p7 >> 1) & 127];
+    x0 *= 2 - p0 * x0; x1 *= 2 - p1 * x1; x2 *= 2 - p2 * x2; x3 *= 2 - p3 * x3;
+    x4 *= 2 - p4 * x4; x5 *= 2 - p5 * x5; x6 *= 2 - p6 * x6; x7 *= 2 - p7 * x7;
+    x0 *= 2 - p0 * x0; x1 *= 2 - p1 * x1; x2 *= 2 - p2 * x2; x3 *= 2 - p3 * x3;
+    x4 *= 2 - p4 * x4; x5 *= 2 - p5 * x5; x6 *= 2 - p6 * x6; x7 *= 2 - p7 * x7;
+    x0 *= 2 - p0 * x0; x1 *= 2 - p1 * x1; x2 *= 2 - p2 * x2; x3 *= 2 - p3 * x3;
+    x4 *= 2 - p4 * x4; x5 *= 2 - p5 * x5; x6 *= 2 - p6 * x6; x7 *= 2 - p7 * x7;
+    uint64_t q0 = n * x0, q1 = n * x1, q2 = n * x2, q3 = n * x3;
+    uint64_t q4 = n * x4, q5 = n * x5, q6 = n * x6, q7 = n * x7;
+    return ((unsigned __int128)q0 * p0) >> 64 == 0 ||
+           ((unsigned __int128)q1 * p1) >> 64 == 0 ||
+           ((unsigned __int128)q2 * p2) >> 64 == 0 ||
+           ((unsigned __int128)q3 * p3) >> 64 == 0 ||
+           ((unsigned __int128)q4 * p4) >> 64 == 0 ||
+           ((unsigned __int128)q5 * p5) >> 64 == 0 ||
+           ((unsigned __int128)q6 * p6) >> 64 == 0 ||
+           ((unsigned __int128)q7 * p7) >> 64 == 0;
 }
 
 static int precheck(uint64_t n) {
@@ -95,7 +135,7 @@ static int precheck(uint64_t n) {
 
 /*
  * Wheel-30 segmented sieve (1 byte / 30 numbers, bits = residues
- * 1,7,11,13,17,19,23,29) then 8-way prime-only trial.
+ * 1,7,11,13,17,19,23,29) then 8-way 2-adic prime-only trial.
  * Bakes out 2/3/5 so those hottest marking streams disappear.
  * Fully deterministic; sieve is ours (no primesieve / external prime engine).
  */
@@ -237,7 +277,7 @@ static int seg_primes_u64(uint64_t n, uint64_t limit, int parallel) {
                 }
                 if (!found) {
                     for (int t = 0; t < nb; t++) {
-                        if (n % buf[t] == 0) {
+                        if (divides_u64(n, buf[t])) {
                             found = 1;
                             break;
                         }
@@ -445,6 +485,34 @@ def _odd_primes_to(limit: int) -> list[int]:
     return [p for p in range(3, limit + 1) if not sv[p]]
 
 
+def _emit_u8(name: str, vals: list[int]) -> list[str]:
+    lines = [f"static const uint8_t {name}[{len(vals)}] = {{"]
+    row: list[str] = []
+    for v in vals:
+        row.append(str(int(v)))
+        if len(row) == 16:
+            lines.append(",".join(row) + ",")
+            row = []
+    if row:
+        lines.append(",".join(row))
+    lines.append("};")
+    return lines
+
+
+def _inv8_table() -> list[int]:
+    """p^{-1} mod 256 for every odd byte; index = (p >> 1) & 127."""
+    out: list[int] = []
+    for i in range(128):
+        a = 2 * i + 1
+        x = a
+        for _ in range(3):
+            x = (x * (2 - a * x)) & 255
+        if (a * x) & 255 != 1:
+            raise SystemExit(f"INV8 build failed for a={a}")
+        out.append(x)
+    return out
+
+
 def _emit_u32(name: str, vals: list[int]) -> list[str]:
     lines = [f"static const uint32_t {name}[{len(vals)}] = {{"]
     row: list[str] = []
@@ -495,6 +563,7 @@ def main() -> None:
         "   OpenMP overhead is repaid (mid-size uses serial precomputed trial). */",
         "#define PARALLEL_SEG_MIN 10000000ull",
     ]
+    lines.extend(_emit_u8("INV8", _inv8_table()))
     lines.extend(_emit_u32("PRE_P", primes))
     lines.extend(_emit_u64_hex("PRE_INV", invs))
     lines.extend(_emit_u64_hex("PRE_TH", thresh))

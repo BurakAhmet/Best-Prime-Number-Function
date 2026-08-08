@@ -160,3 +160,57 @@ class TestCSemiprimes:
     def test_large_factors_are_prime(self):
         for p in _LARGE_P:
             assert is_prime(p) is True
+
+
+class TestTwoAdicDivisibilityTheorem:
+    """Exact wrap-mul identity used by the u64 segmented trial (no DIV).
+
+    For odd p and n < 2^64: p | n  iff  (n * p^{-1} mod 2^64) * p < 2^64.
+    """
+
+    _P = [
+        3,
+        5,
+        7,
+        11,
+        17,
+        101,
+        1_048_583,
+        1_000_000_007,
+        4_294_967_291,
+    ]
+    _N = [
+        1,
+        15,
+        21,
+        35,
+        1_000_000_007,
+        9_223_372_036_854_775_783,
+        3 * 5 * 7 * 11,
+        (1 << 64) - 1,
+        1_048_583 * 1_048_601,
+        1_000_000_007 * 1_000_000_009,
+    ]
+
+    def test_identity_matches_mod(self):
+        mod = 1 << 64
+        for p in self._P:
+            inv = pow(p, -1, mod)
+            assert (p * inv) % mod == 1
+            for n in self._N:
+                q = (n * inv) % mod
+                fits = (q * p) < mod
+                assert fits is (n % p == 0)
+
+    def test_segmented_path_factors_above_pre_max(self):
+        # Primes just above 2^20 → wheel-30 sieve + 2-adic trial (not PRE table).
+        ps = [1_048_583, 1_048_601, 1_048_609, 3_000_017, 3_000_029]
+        for p in ps:
+            assert is_prime(p) is True
+        for i, a in enumerate(ps):
+            for b in ps[i:]:
+                n = a * b
+                if n >= (1 << 64):
+                    continue
+                assert is_prime(n, parallel=True) is False
+                assert is_prime(n, parallel=False) is False
