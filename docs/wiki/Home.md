@@ -64,7 +64,7 @@ bash scripts/compile_wheel_core.sh
 
 python -c "from best_prime import is_prime; print(is_prime(17))"
 is-prime 1000000007                    # console script
-python is_prime.py                     # default: near-2^63 prime
+python is_prime.py                     # default: largest prime < 2^64
 python is_prime.py 100000000000000000039  # ~10^20 prime (u128_wheel_c)
 pytest -q -m "not slow"
 ```

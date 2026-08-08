@@ -19,11 +19,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from is_prime import is_prime  # noqa: E402
+from is_prime import DEFAULT_N, is_prime  # noqa: E402
 
 
-# Mix of edges, small primes/composites, and medium-large 64-bit values
-# (avoid multi-minute primes so CI stays fast).
+# Mix of edges, small primes/composites, and medium 64-bit values.
+# Avoid multi-minute primes so CI stays fast; hard primes live under @pytest.mark.slow.
 DEFAULT_CASES: list[tuple[str, object, bool]] = [
     ("int 0", 0, False),
     ("int 1", 1, False),
@@ -40,15 +40,25 @@ DEFAULT_CASES: list[tuple[str, object, bool]] = [
     ("prime 97", 97, True),
     ("prime 7919", 7919, True),
     ("composite 561 Carmichael", 561, False),
+    ("composite 1105 Carmichael", 1105, False),
+    ("composite 1729 Carmichael", 1729, False),
+    ("Poulet 341", 341, False),
+    ("F5 Fermat", (1 << 32) + 1, False),
     ("prime 10^9+7", 1_000_000_007, True),
     ("prime 10^9+9", 1_000_000_009, True),
+    ("str 10^9+7", "1000000007", True),
     ("Mersenne M31", (1 << 31) - 1, True),
     ("composite 2^32-1", (1 << 32) - 1, False),
     ("prime 12-digit", 999_999_999_989, True),
     ("composite 10^12", 10**12, False),
+    ("semiprime 1e9+7 * 1e9+9", 1_000_000_007 * 1_000_000_009, False),
+    ("MR liar Chernick", 3_943_673_813_084_040_361, False),
+    ("table edge prime 1048573", 1_048_573, True),
+    ("table+ semiprime", 1_048_583 * 1_048_601, False),
     ("100 nines", "9" * 100, False),
     ("10^50 * 7", 7 * 10**50, False),
     ("2^64", 1 << 64, False),
+    ("2^64+1 F6", (1 << 64) + 1, False),
 ]
 
 
@@ -96,9 +106,16 @@ def main() -> int:
     print(f"NUMBA/OMP threads env: {threads or '(default)'}")
     print()
 
-    # Warm JIT once so first-trial quirks are less noisy (results must still match)
+    # Warm engines once so first-trial quirks are less noisy (results must still match).
     is_prime(97, parallel=False)
     is_prime(97, parallel=True)
+    is_prime(1_000_000_007, parallel=True)
+
+    # CLI default must remain the largest prime < 2^64 (not evaluated — too slow for this script).
+    if DEFAULT_N != 18_446_744_073_709_551_557:
+        print(f"  FAIL  DEFAULT_N drifted: {DEFAULT_N}")
+        return 1
+    print("  OK  DEFAULT_N is largest prime < 2^64")
 
     failed = 0
     for label, n, expected in DEFAULT_CASES:

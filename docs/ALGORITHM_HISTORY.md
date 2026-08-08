@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.4.2** (`pyproject.toml`) |
+| **Current package version** | **1.4.3** (`pyproject.toml`) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -55,7 +55,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-04  v1.3.2   Earlier segmented path (√n ≥ 2·10⁵), bit sieve, 8-way ILP, LTO
 2026-08-07  v1.4.0   Precomputed primes ≤ 2²⁰ + 2-adic mul trial; drop C wheel table
 2026-08-07  v1.4.1   Wheel-30 segmented sieve for hard √n (skip 2/3/5 marking)
-2026-08-08  v1.4.2   8-way 2-adic wrap-mul trial of sieved primes (no DIV)  ← current
+2026-08-08  v1.4.2   8-way 2-adic wrap-mul trial of sieved primes (no DIV)
+2026-08-08  v1.4.3   memcpy presieve 7·11·13·17 + 32-bit mark starts; CLI default = max 64-bit prime  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -325,7 +326,7 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 
 ---
 
-## Era 10 — v1.4.2 (2026-08-08): **Current** — 2-adic trial of sieved primes
+## Era 10 — v1.4.2 (2026-08-08): 2-adic trial of sieved primes
 
 **Design change (64-bit hard path trial only).** Sieve is still wheel-30. Mid-size $\sqrt{n}\le 2^{20}$ still uses precomputed `PRE_INV`/`PRE_TH`. For primes produced by the segmented sieve:
 
@@ -354,6 +355,34 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 
 ---
 
+## Era 11 — v1.4.3 (2026-08-08): **Current** — memcpy presieve + 32-bit mark starts
+
+**Design.** After inv64 trial, sieve marking was the remaining hard-path cost (especially the new CLI default, $\lfloor\sqrt{n}\rfloor=2^{32}-1$).
+
+- Build a 17017-byte ($7\cdot11\cdot13\cdot17$) wheel-30 bitmap **once**, marking *all* multiples (including $<p^2$) so wrapping onto large bases stays exact.
+- Each segment is **memcpy**-tiled from that pattern (not `memset` + four hottest mark streams).
+- Remaining primes $p\ge 19$: **32-bit** start arithmetic (`r % p` with $r<30$, single ceil onto $\max(p^2,\mathrm{base})$).
+- CLI / `DEFAULT_N` = `18446744073709551557`. Pages in-browser demo stays near $2^{63}$ (JS wheel is much slower).
+
+**Tried same session:** 512 KiB / 128 KiB segments on the max-64-bit prime — 256 KiB still won.
+
+**Performance vs 1.4.2 (12 threads, same machine).**
+
+| Case | 1.4.2 | 1.4.3 | Δ |
+|------|------:|------:|--:|
+| largest $<2^{64}$ | ~425 ms | ~397 ms | ~7% |
+| near $2^{63}$ | ~308 ms | ~281 ms | ~9% |
+| M61 | ~150 ms | ~142 ms | ~5% |
+| $10^9+7\times10^9+9$ | ~83 ms | ~76 ms | ~8% |
+
+| | |
+|--|--|
+| **Advantages** | Sequential fill beats strided ORs for $p=7,11,13,17$; cheaper mark starts; no `.so` bloat |
+| **Disadvantages** | 17 KiB BSS + first-call pattern build; wrapping memcpy must keep $\mathrm{base}/30 \bmod 17017$ exact |
+| **F6 note** | Default CLI $n$ is now *harder*, not faster; README / wiki / `DEFAULT_N` / e2e hard list all agree |
+
+---
+
 ## Summary comparison
 
 | Era | 64-bit engine (best case) | Big-int practical | Big-int huge | E2E focus | Main win | Main cost / risk |
@@ -368,7 +397,8 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 | **1.3.2** | seg-primes if $\sqrt{n}\ge 2\cdot10^5$; 8-way; bit sieve | same | AKS | Yes | Mid-size 4–7× | Empirical knobs |
 | **1.4.0** | precomputed primes $\le 2^{20}$ (2-adic mul); seg-primes after | same | AKS | Yes | 12-digit e2e ~45%; no many-core mid-size tax | Extra rodata; still $\sim\sqrt{n}$ hard primes |
 | **1.4.1** | + **wheel-30** sieve (byte/30) on hard path | same | AKS | Yes | Hard primes ~40–45% (M61 / $2^{63}$) | Wheel-210 marking overhead lost |
-| **1.4.2 (now)** | + **2-adic wrap-mul** trial of sieved primes | same | AKS | Yes | Hard 64-bit ~15–17% more (M61 / $2^{63}$) | Newton cost if inverse not reused |
+| **1.4.2** | + **2-adic wrap-mul** trial of sieved primes | same | AKS | Yes | Hard 64-bit ~15–17% more (M61 / $2^{63}$) | Newton cost if inverse not reused |
+| **1.4.3 (now)** | + **memcpy presieve** $7{..}17$ + 32-bit mark starts | same | AKS | Yes | Hard 64-bit ~5–9% more (max $<2^{64}$ ~7%) | Pattern wrap must stay exact |
 
 ---
 
@@ -383,7 +413,7 @@ Recorded so agents and humans do not “rediscover” them:
 | **F3** | **AKS too early** for multi-limb with practical $\sqrt{n}$ | Correct but unusable latency | Full trial up to `_MAX_FULL_TRIAL_ISQRT`; AKS only beyond |
 | **F4** | Prebuilt **Linux `.so` in pure wheel** | Broken/ misleading installs on other platforms | Build at install or ship **platform wheels** |
 | **F5** | Segmented-prime **threshold only tuned on hardest primes** | 12-digit path left on dense wheel | Retune with full e2e suite (1.3.2: $2\cdot10^5$) |
-| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Prefer documenting both fast demos **and** hard primes; default restored near $2^{63}$ (`77242d6`) |
+| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **hardest** 64-bit prime (`DEFAULT_N`, v1.4.3+); keep README / wiki / e2e hard list in sync. Pages JS demo may stay near $2^{63}$. |
 | **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled |
 | **F8** | Skipping **serial vs parallel** determinism checks | Racey OpenMP bugs | `benchmarks/check_determinism.py` + Determinism workflow |
 | **F9** | Changing wheel/sieve without regenerating **committed C / tables** | Drift between generators and shipped artifacts | `generate_wheel_core_c.py` / `generate_wheel_data.py` + compile script |
@@ -426,4 +456,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.4.2** (2-adic wrap-mul trial of sieved primes + 1.4.1 wheel-30 sieve). Extend forward; do not delete past eras.*
+*Last updated for package **1.4.3** (memcpy presieve + 32-bit mark starts; CLI default = largest prime $<2^{64}$). Extend forward; do not delete past eras.*

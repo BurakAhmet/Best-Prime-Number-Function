@@ -21,10 +21,10 @@ try:
     try:
         __version__ = version("best-prime-number-function")
     except PackageNotFoundError:  # pragma: no cover - editable / source tree
-        __version__ = "1.4.2"
+        __version__ = "1.4.3"
 except ImportError:  # pragma: no cover
-    __version__ = "1.4.2"
+    __version__ = "1.4.3"
 
-from is_prime import is_prime, lab, main
+from is_prime import DEFAULT_N, is_prime, lab, main
 
-__all__ = ["is_prime", "lab", "main", "__version__"]
+__all__ = ["DEFAULT_N", "is_prime", "lab", "main", "__version__"]

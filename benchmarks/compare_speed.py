@@ -68,6 +68,7 @@ DEFAULT_CASES = [
 
 # Hard 64-bit primes: optimized is timed; primitive optional via --primitive-hard
 HARD_CASES = [
+    ("largest prime < 2^64", 18_446_744_073_709_551_557),
     ("near 2^63 prime", 9_223_372_036_854_775_783),
     ("Mersenne M61", (1 << 61) - 1),
 ]
