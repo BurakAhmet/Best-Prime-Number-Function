@@ -231,7 +231,7 @@ is_prime(n)
        ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
        │                      →  OpenMP C full trial (u128 limbs; no AKS)
        ├─ same size, no .so  →  stdlib 9699690-wheel full trial
-       └─ larger still       →  partial trial → AKS if needed
+       └─ larger still       →  30030-wheel to 1e8 → AKS (Kronecker) if needed
 
   ✗  stochastic Miller–Rabin · prime sieving libraries
   ✓  deterministic for every natural number
@@ -277,7 +277,7 @@ Let $N = n$ when discussing bit size, and write $L = \lfloor\sqrt{n}\rfloor$. Ar
 | OpenMP precomputed-prime trial ($L \le 2^{20}$) | $\Theta(\pi(L))=\Theta(\sqrt{n}/\log n)$ | Exact wrap-mul divisibility; serial (OpenMP not worth it) |
 | OpenMP seg-primes ($t$ threads, large $L$) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* | Same work, split across cores; 2-adic wrap-mul trial (no `DIV`) on 64-bit $n$ |
 | Segmented sieve + prime-only trial (large $L$) | $\widetilde{O}(\sqrt{n})$ | Fewer candidates ($\sim \pi(L)$) plus sieving; 64-bit path uses wrap-mul, still $\Theta(\sqrt{n}/\log n)$ tests |
-| Partial trial then **AKS** (huge $n$) | Poly in $\log n$ for AKS *in theory* | Practical AKS here is far costlier than trial on moderate sizes; used only when full trial is abandoned |
+| Partial trial then **AKS** (huge $n$) | Poly in $\log n$ for AKS *in theory* | Wheel to $10^8$ first; Kronecker poly mul; still much slower than trial on moderate sizes |
 
 **Composite early exit:** if the least prime factor is $p$, work is roughly $\Theta(p)$ (or $\Theta(\varphi(W)/W \cdot p)$ on a wheel), so smooth composites are much cheaper than the prime worst case.
 

@@ -20,7 +20,7 @@ Legacy `W30030` / `RES_TO_WI` load lazily for tests. Build the C core with `bash
 1. If $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits (covers e.g. primes near $10^{20}$):
    - Prefer OpenMP C **`is_prime_u128_core`** (same wheel / segmented-prime full trial as the 64-bit engine; limbs `lo`/`hi`).
    - Else stdlib **9699690-wheel** full trial in Python.
-2. For still-larger $n$: partial trial up to a practical bound, then **AKS** if needed (correct but can be very slow).
+2. For still-larger $n$: **30030-wheel** trial up to $\min(10^8,\lfloor\sqrt{n}\rfloor)$, then **AKS** if needed (Kronecker poly mul; correct, still slow for huge primes).
 
 ## Related
 

@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.5.0] — 2026-08-08
+
+### Changed
+- **Huge \(n\)** (beyond practical full trial): 30030-wheel factor scan to \(10^8\) (was an odd loop to \(5\cdot10^7\)), then a faster exact **AKS**:
+  - Kronecker substitution (Python long-int) instead of \(O(r^2)\) schoolbook poly mul
+  - prime \(r\) only; skip when \(r-1\le(\log_2 n)^2\)
+  - perfect-power: squares + odd exponents only
+  - optional threaded witness loop (`parallel=True`)
+- Still fully deterministic; AKS remains the final engine (no Miller–Rabin). Huge **primes** can still take a long time; huge **composites** with a factor \(\le 10^8\) return quickly.
+
+### Tests
+- New `tests/test_aks.py`: perfect powers, Kronecker mul vs schoolbook, AKS vs `is_prime` on \(0\ldots399\), Carmichael/Poulet, huge pre-AKS composites.
+
 ## [1.4.4] — 2026-08-08
 
 ### Changed
