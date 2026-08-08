@@ -21,9 +21,9 @@ try:
     try:
         __version__ = version("best-prime-number-function")
     except PackageNotFoundError:  # pragma: no cover - editable / source tree
-        __version__ = "1.4.3"
+        __version__ = "1.4.4"
 except ImportError:  # pragma: no cover
-    __version__ = "1.4.3"
+    __version__ = "1.4.4"
 
 from is_prime import DEFAULT_N, is_prime, lab, main
 

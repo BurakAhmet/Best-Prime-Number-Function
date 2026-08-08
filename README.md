@@ -119,7 +119,7 @@ No argument defaults to the largest prime $<2^{64}$: `18446744073709551557` (har
 TEST:    18446744073709551557 (20 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    397150000 ns  (397.150000 ms)
+TIME:    280800000 ns  (280.800000 ms)
 ```
 
 Example for the mid-size 12-digit prime (precomputed-prime C path):
@@ -303,9 +303,9 @@ Indicative **end-to-end CLI `TIME`** on a dev machine (`benchmarks/compare_e2e.p
 | Small prime | 97 | ~0.4 ms |
 | $10^9+7$ | 1000000007 | ~2–3 ms |
 | 12-digit prime | 999999999989 | ~2–4 ms (sample: `2421823 ns` / `2.421823 ms`) |
-| Near $2^{63}$ prime | 9223372036854775783 | ~0.28–0.32 s |
-| Largest prime $<2^{64}$ | 18446744073709551557 | ~0.40–0.45 s (sample: `397150000 ns` / `397.150 ms`) |
-| Mersenne M61 | $2^{61}-1$ | ~0.14–0.17 s |
+| Near $2^{63}$ prime | 9223372036854775783 | ~0.19–0.22 s |
+| Largest prime $<2^{64}$ | 18446744073709551557 | ~0.28–0.32 s (sample: `280800000 ns` / `280.800 ms`) |
+| Mersenne M61 | $2^{61}-1$ | ~0.10–0.12 s |
 
 In-process hot-loop comparisons (warm engines) live in [`benchmarks/compare_speed.py`](benchmarks/compare_speed.py). End-to-end CLI timing: [`benchmarks/compare_e2e.py`](benchmarks/compare_e2e.py). More context: [`benchmarks/README.md`](benchmarks/README.md), [Hall of fame](docs/wiki/Hall-of-fame.md).
 

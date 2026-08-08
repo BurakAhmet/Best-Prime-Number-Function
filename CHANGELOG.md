@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.4] — 2026-08-08
+
+### Changed
+- Hard-path prime extract: scan **8 wheel-30 bytes per `ctzll`** instead of one byte per loop. Same exact prime-only trial; u64 wrap-mul and u128 `%` unchanged.
+
+### Performance (indicative vs 1.4.3, 12 OpenMP threads)
+- Largest prime $<2^{64}$ (CLI default): ~**381 ms → ~303 ms** (~**20%**).
+- Near $2^{63}$ / M61 / large semiprime: ~**20–29%** faster in-process.
+- Default mid-size e2e suite: unchanged class.
+
 ## [1.4.3] — 2026-08-08
 
 ### Changed
