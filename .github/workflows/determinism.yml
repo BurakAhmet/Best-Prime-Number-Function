@@ -48,7 +48,7 @@ jobs:
         run: bash scripts/compile_wheel_core.sh
 
       - name: Unit tests for determinism class
-        run: pytest -q tests/test_is_prime.py::TestDeterminism tests/test_is_prime.py::TestParallelSerial
+        run: pytest -q tests/test_determinism.py tests/test_is_prime.py::TestDeterminism tests/test_is_prime.py::TestParallelSerial tests/test_lab.py::TestLabContract
 
       - name: Multi-trial determinism script
         run: python benchmarks/check_determinism.py --trials 7

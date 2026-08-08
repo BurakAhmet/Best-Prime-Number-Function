@@ -29,6 +29,8 @@ WHEEL_MOD = 9_699_690
 WHEEL_NW = 1_658_880
 _WHEEL_START_I = 23
 _SMALL_LIMIT = 10_000
+# CLI default / hard 64-bit specimen: largest prime strictly below 2^64.
+DEFAULT_N = 18_446_744_073_709_551_557
 # Stdlib wheel wins end-to-end TIME up to this n (avoids NumPy/Numba import).
 _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000
@@ -850,6 +852,14 @@ def _print_result(arg: str, prime: bool, threads: int) -> None:
     print(f"TIME:    {dt} ns  ({dt / 1e6:.6f} ms)")
 
 
+def _looks_like_int_token(s: str) -> bool:
+    """True for decimal tokens argparse would reject as flags (e.g. -17, +17)."""
+    t = s.strip()
+    if len(t) >= 2 and t[0] in "+-" and t[1].isdigit():
+        return t[1:].replace("_", "").isdigit()
+    return t[:1].isdigit() and t.replace("_", "").isdigit()
+
+
 def _main_simple(argv: list[str]) -> int:
     """Fast CLI path: no argparse overhead."""
     serial = False
@@ -857,11 +867,11 @@ def _main_simple(argv: list[str]) -> int:
     for a in argv:
         if a == "--serial":
             serial = True
-        elif a.startswith("-"):
+        elif a.startswith("-") and not _looks_like_int_token(a):
             return _main_full(argv)
         else:
             positional.append(a)
-    arg = positional[0] if positional else "9223372036854775783"
+    arg = positional[0] if positional else str(DEFAULT_N)
     parallel = not serial
     try:
         n = int(arg.strip())
@@ -906,7 +916,7 @@ def _main_full(argv: list[str] | None = None) -> int:
     import json
 
     parser = argparse.ArgumentParser(description="Deterministic is_prime CLI")
-    parser.add_argument("n", nargs="?", default="9223372036854775783")
+    parser.add_argument("n", nargs="?", default=str(DEFAULT_N))
     parser.add_argument("--lab", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--serial", action="store_true")

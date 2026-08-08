@@ -12,6 +12,7 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from is_prime import (  # noqa: E402
+    DEFAULT_N,
     RES_TO_WI,
     RES_WHEEL,
     W30030,
@@ -20,6 +21,20 @@ from is_prime import (  # noqa: E402
     W_WHEEL,
     _isqrt_u64,
     is_prime,
+)
+from tests.numbers import (  # noqa: E402
+    CARMICHAEL,
+    FERMAT_COMPOSITE,
+    LARGE_COMPOSITES,
+    LARGE_PRIMES_FAST,
+    LARGE_PRIMES_SLOW,
+    LARGEST_PRIME_LT_2_64,
+    MR_LIAR,
+    MR_LIAR_FACTORS,
+    NEAR_2_63_PRIME,
+    POULET,
+    SEMIPRIME_1E9,
+    SMALL_PRIMES,
 )
 
 
@@ -38,57 +53,9 @@ def naive_is_prime(n: int) -> bool:
     return True
 
 
-SMALL_PRIMES = [
-    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
-    73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
-    157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233,
-    239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317,
-    331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419,
-    421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503,
-    509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607,
-    613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701,
-    709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811,
-    821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911,
-    919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997,
-]
-
-LARGE_64BIT_PRIME = 9223372036854775783
+LARGE_64BIT_PRIME = NEAR_2_63_PRIME
 MERSENNE_COMPOSITE = (1 << 63) - 1
-
-# Fast enough for default CI (parallel, but not multi-minute)
-LARGE_PRIMES_FAST = [
-    1_000_000_007,
-    1_000_000_009,
-    (1 << 31) - 1,
-    4_294_967_291,
-    999_999_999_989,
-    1_000_000_000_039,
-    999_999_999_999_999_989,
-]
-
-# Very large 64-bit primes — full wheel to sqrt(n); mark slow for CI
-LARGE_PRIMES_SLOW = [
-    2_305_843_009_213_693_951,  # M61
-    9_223_372_036_854_775_783,  # near 2^63
-    18_446_744_073_709_551_557,  # largest prime < 2^64
-]
-
 LARGE_PRIMES = LARGE_PRIMES_FAST + LARGE_PRIMES_SLOW
-
-# Chernick Carmichael found by benchmarks/find_large_sympy_liars.py
-# n < 9223372036854775783; sympy.mr(n, [2,3,5]) is True; exact trial is False.
-MR_LIAR = 3_943_673_813_084_040_361
-MR_LIAR_FACTORS = (869_461, 1_738_921, 2_608_381)
-
-LARGE_COMPOSITES = [
-    MERSENNE_COMPOSITE,
-    (1 << 32) - 1,
-    1_000_000_000_000,
-    9_223_372_036_854_775_782,
-    18_446_744_073_709_551_556,
-    1_000_000_007 * 1_000_000_009,
-    MR_LIAR,
-]
 
 
 # ---------------------------------------------------------------------------
@@ -191,17 +158,27 @@ class TestExhaustiveSmall:
     def test_matches_naive_0_to_4999(self, n):
         assert is_prime(n) is naive_is_prime(n)
 
+    def test_matches_naive_5000_to_9999(self):
+        # Completes the python_small band (_SMALL_LIMIT = 10_000).
+        for n in range(5000, 10_000):
+            assert is_prime(n) is naive_is_prime(n), n
+
     def test_all_listed_small_primes(self):
         for p in SMALL_PRIMES:
             assert is_prime(p) is True, p
 
     def test_composites_from_products(self):
-        for a in SMALL_PRIMES[:30]:
-            for b in SMALL_PRIMES[:30]:
+        for a in SMALL_PRIMES[:40]:
+            for b in SMALL_PRIMES[:40]:
                 n = a * b
                 if n < 5000:
                     continue
-                assert is_prime(n) is False
+                assert is_prime(n) is False, n
+
+    def test_prime_squares_and_cubes(self):
+        for p in SMALL_PRIMES[1:40]:
+            assert is_prime(p * p) is False
+            assert is_prime(p * p * p) is False
 
 
 # ---------------------------------------------------------------------------
@@ -271,10 +248,12 @@ class TestIsqrt:
         got = int(_isqrt_u64(np.uint64(n)))
         assert got == math.isqrt(n)
 
-    def test_many_random_u64(self):
-        rng = np.random.default_rng(0)
-        for n in rng.integers(0, 2**63 - 1, size=200, dtype=np.uint64):
-            nn = int(n)
+    def test_many_deterministic_u64(self):
+        # Weyl sequence — reproducible, no RNG module.
+        x = 0x9E3779B97F4A7C15
+        for i in range(256):
+            x = (x + 0x9E3779B97F4A7C15) & ((1 << 64) - 1)
+            nn = x >> 1  # stay in [0, 2^63)
             assert int(_isqrt_u64(np.uint64(nn))) == math.isqrt(nn)
 
 
@@ -313,6 +292,10 @@ class TestLarge64Bit:
 
     def test_near_int64_max_prime_listed(self):
         assert LARGE_64BIT_PRIME in LARGE_PRIMES_SLOW
+
+    def test_default_n_is_largest_64bit_prime(self):
+        assert DEFAULT_N == LARGEST_PRIME_LT_2_64
+        assert DEFAULT_N in LARGE_PRIMES_SLOW
 
     def test_two_pow_63_minus_one_composite(self):
         assert is_prime(MERSENNE_COMPOSITE) is False
@@ -371,12 +354,17 @@ class TestBigIntegers:
 
 class TestDeterminism:
     def test_repeated_calls_identical(self):
-        samples = [0, 1, 2, 4, 97, 100, *LARGE_PRIMES_FAST[:2], MERSENNE_COMPOSITE]
+        samples = [0, 1, 2, 4, 97, 100, *LARGE_PRIMES_FAST[:2], MERSENNE_COMPOSITE, MR_LIAR]
         for n in samples:
             a = is_prime(n)
             b = is_prime(n)
             c = is_prime(n, parallel=False)
-            assert a == b == c
+            assert a is b is c
+
+    def test_string_and_int_agree(self):
+        for n in (0, 1, 17, 97, 1_000_000_007, SEMIPRIME_1E9):
+            assert is_prime(n) is is_prime(str(n))
+            assert is_prime(n) is is_prime(f"  {n}  ")
 
 
 # ---------------------------------------------------------------------------
@@ -385,13 +373,28 @@ class TestDeterminism:
 
 class TestKnownValues:
     def test_carmichael_numbers_are_composite(self):
-        for n in (561, 1105, 1729, 2465, 2821, 6601, 8911):
-            assert is_prime(n) is False
+        for n in CARMICHAEL:
+            assert is_prime(n) is False, n
+
+    def test_poulet_base2_pseudoprimes_are_composite(self):
+        for n in POULET:
+            assert is_prime(n) is False, n
+
+    def test_fermat_numbers_f5_f6_composite(self):
+        for n in FERMAT_COMPOSITE:
+            assert is_prime(n) is False, n
 
     def test_mersenne_primes_small(self):
         for p in (2, 3, 5, 7, 13, 17, 19, 31):
             assert is_prime((1 << p) - 1) is True
 
     def test_mersenne_composites_small(self):
-        for p in (11, 23, 29):
+        for p in (11, 23, 29, 37):
             assert is_prime((1 << p) - 1) is False
+
+    def test_pronic_and_factorial_neighbors(self):
+        # n(n+1) even for n>1; 5!±1 classic.
+        for n in range(2, 80):
+            assert is_prime(n * (n + 1)) is False
+        assert is_prime(119) is False  # 5! − 1
+        assert is_prime(121) is False  # 5! + 1 = 11^2

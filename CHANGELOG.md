@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.3] — 2026-08-08
+
+### Changed
+- CLI default $n$ is now **`18446744073709551557`** (largest prime $<2^{64}$), the hardest 64-bit yardstick. `DEFAULT_N` is exported from `is_prime` / `best_prime`.
+- Hard-path sieve: **memcpy presieve** of $7\cdot11\cdot13\cdot17$ (17017-byte repeating wheel-30 bitmap) plus **32-bit mark starts**. Same exact prime-only trial.
+
+### Tests
+- Shared `tests/numbers.py` + `conftest.py`; new `test_cli.py`, `test_lab.py`, `test_determinism.py`.
+- Exhaustive naive match extended through $9999$; more Carmichael / Poulet / Fermat specimens; Hypothesis products/squares/evens/string parity; threaded small-n determinism; `lab()` contract.
+- Hard 64-bit serial==parallel moved under `@pytest.mark.slow`. CI determinism script covers more mid-size / composite / MR-liar cases without evaluating the 64-bit default (too slow).
+
+### Performance (indicative vs 1.4.2, 12 OpenMP threads)
+- Largest prime $<2^{64}$: ~**425 ms → ~397 ms** (~**7%**).
+- Near $2^{63}$ / M61 / large semiprime: ~**5–9%** faster in-process.
+- Default mid-size e2e suite: unchanged class.
+
 ## [1.4.2] — 2026-08-08
 
 ### Changed

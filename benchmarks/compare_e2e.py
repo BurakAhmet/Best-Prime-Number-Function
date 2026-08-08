@@ -22,6 +22,7 @@ DEFAULT_CASES = [
     ("12-digit prime", 999_999_999_989),
 ]
 HARD_CASES = [
+    ("largest prime < 2^64", 18_446_744_073_709_551_557),
     ("near 2^63 prime", 9_223_372_036_854_775_783),
     ("Mersenne M61", (1 << 61) - 1),
 ]

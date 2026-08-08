@@ -68,6 +68,7 @@ from best_prime import is_prime, lab
 
 is_prime(17)                              # True
 is_prime(100)                             # False
+is_prime(18446744073709551557)            # True  (largest prime < 2^64; wants wheel_core.so)
 is_prime(9223372036854775783)             # True  (hard 64-bit; wants wheel_core.so)
 is_prime("100000000000000000039")         # True  (~10^20; u128 OpenMP path)
 is_prime("9" * 100)                       # False (tiny factor / big-int path)
@@ -99,12 +100,12 @@ After `pip install`, use the console scripts (same program as `python is_prime.p
 
 ```bash
 is-prime 97
-is-prime 9223372036854775783
+is-prime 18446744073709551557
 best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 ```
 
-No argument defaults to the near $2^{63}$ prime `9223372036854775783`.
+No argument defaults to the largest prime $<2^{64}$: `18446744073709551557` (hardest 64-bit yardstick). Near $2^{63}$ (`9223372036854775783`) remains a documented mid-hard specimen.
 
 | Exit code | Meaning |
 |-----------|---------|
@@ -115,10 +116,10 @@ No argument defaults to the near $2^{63}$ prime `9223372036854775783`.
 `TIME` on the CLI is **end-to-end** (import + tables/native load + check), not a warm hot-loop only.
 
 ```text
-TEST:    9223372036854775783 (19 chars)
+TEST:    18446744073709551557 (20 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    292380000 ns  (292.380000 ms)
+TIME:    397150000 ns  (397.150000 ms)
 ```
 
 Example for the mid-size 12-digit prime (precomputed-prime C path):
@@ -302,8 +303,9 @@ Indicative **end-to-end CLI `TIME`** on a dev machine (`benchmarks/compare_e2e.p
 | Small prime | 97 | ~0.4 ms |
 | $10^9+7$ | 1000000007 | ~2–3 ms |
 | 12-digit prime | 999999999989 | ~2–4 ms (sample: `2421823 ns` / `2.421823 ms`) |
-| Near $2^{63}$ prime | 9223372036854775783 | ~0.28–0.32 s (sample: `292380000 ns` / `292.380 ms`) |
-| Mersenne M61 | $2^{61}-1$ | ~0.15–0.17 s |
+| Near $2^{63}$ prime | 9223372036854775783 | ~0.28–0.32 s |
+| Largest prime $<2^{64}$ | 18446744073709551557 | ~0.40–0.45 s (sample: `397150000 ns` / `397.150 ms`) |
+| Mersenne M61 | $2^{61}-1$ | ~0.14–0.17 s |
 
 In-process hot-loop comparisons (warm engines) live in [`benchmarks/compare_speed.py`](benchmarks/compare_speed.py). End-to-end CLI timing: [`benchmarks/compare_e2e.py`](benchmarks/compare_e2e.py). More context: [`benchmarks/README.md`](benchmarks/README.md), [Hall of fame](docs/wiki/Hall-of-fame.md).
 

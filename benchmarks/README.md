@@ -65,7 +65,8 @@ Indicative sample (OpenMP `.so`, multi-core; see `e2e_results.json` for last com
 | 10⁹+7 | 1000000007 | ~2–3 |
 | Mersenne M31 | 2147483647 | ~2–3 |
 | 12-digit prime | 999999999989 | ~2–4 (precomputed primes) |
-| near 2⁶³ prime | 9223372036854775783 | ~300–350 (OpenMP `.so`, wheel-30) |
+| near 2⁶³ prime | 9223372036854775783 | ~280–320 (OpenMP `.so`, wheel-30 + 2-adic) |
+| largest prime < 2⁶⁴ (CLI default) | 18446744073709551557 | ~400–450 |
 | Mersenne M61 | 2⁶¹−1 | ~150–200 |
 
 Example CLI lines (same metric as `TIME:` on stdout):

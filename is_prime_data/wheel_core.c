@@ -25771,7 +25771,7 @@ static int precheck(uint64_t n) {
 
 /*
  * Wheel-30 segmented sieve (1 byte / 30 numbers, bits = residues
- * 1,7,11,13,17,19,23,29) then 8-way prime-only trial.
+ * 1,7,11,13,17,19,23,29) then 8-way 2-adic prime-only trial.
  * Bakes out 2/3/5 so those hottest marking streams disappear.
  * Fully deterministic; sieve is ours (no primesieve / external prime engine).
  */
@@ -25797,17 +25797,18 @@ static inline void w30_mark_prime(uint8_t *seg, uint64_t nbytes, uint64_t base,
                                   uint64_t p2) {
     uint64_t span30 = 30ull * p;
     uint64_t st = p;
+    uint32_t pu = (uint32_t)p;
     for (int ri = 0; ri < 8; ri++) {
-        uint64_t r = WR30[ri];
-        uint64_t k30 = ((p - (r % p)) * (uint64_t)inv30) % p;
+        uint32_t r = WR30[ri];
+        uint32_t rp = r % pu;
+        uint32_t k30 = (uint32_t)(((uint64_t)(pu - rp) * inv30) % pu);
         uint64_t m = 30ull * k30 + r;
-        if (m < p2) {
-            uint64_t q = (p2 - m + span30 - 1) / span30;
+        uint64_t T = p2 > base ? p2 : base;
+        if (m < T) {
+            uint64_t num = T - m;
+            uint64_t q = num / span30;
             m += q * span30;
-        }
-        if (m < base) {
-            uint64_t q = (base - m + span30 - 1) / span30;
-            m += q * span30;
+            if (m < T) m += span30;
         }
         if (m > hi) continue;
         uint64_t bi = (m - base) / 30ull;
@@ -25820,6 +25821,38 @@ static inline void w30_mark_prime(uint8_t *seg, uint64_t nbytes, uint64_t base,
             seg[bi + 3 * st] |= bit;
         }
         for (; bi < nbytes; bi += st) seg[bi] |= bit;
+    }
+}
+
+/* Repeating wheel-30 bitmap of multiples of 7,11,13,17. Built once; tiled
+ * onto each segment with memcpy (replaces memset + those four mark streams).
+ * Pattern marks every multiple, including < p^2, so wrapping onto large bases
+ * stays exact. */
+#define PS_LEN 17017u
+static uint8_t PRESIEVE[PS_LEN];
+static int PRESIEVE_READY = 0;
+
+static void ensure_presieve(void) {
+    if (PRESIEVE_READY) return;
+    memset(PRESIEVE, 0, PS_LEN);
+    static const uint32_t ps[4] = {7, 11, 13, 17};
+    for (int t = 0; t < 4; t++) {
+        uint32_t p = ps[t];
+        uint32_t inv30 = inv_mod_prime(30u % p, p);
+        w30_mark_prime(PRESIEVE, PS_LEN, 0, 30ull * PS_LEN - 1, p, inv30, p);
+    }
+    PRESIEVE_READY = 1;
+}
+
+static inline void fill_presieve(uint8_t *seg, uint64_t nbytes, uint64_t base) {
+    uint64_t idx = (base / 30ull) % PS_LEN;
+    uint64_t done = 0;
+    while (done < nbytes) {
+        uint64_t chunk = PS_LEN - idx;
+        if (chunk > nbytes - done) chunk = nbytes - done;
+        memcpy(seg + done, PRESIEVE + idx, (size_t)chunk);
+        done += chunk;
+        idx = 0;
     }
 }
 
@@ -25842,9 +25875,12 @@ static int seg_primes_u64(uint64_t n, uint64_t limit, int parallel) {
 
     int k0 = 0;
     while (k0 < np && PRE_P[k0] < 7) k0++;
+    ensure_presieve();
+    int k_mark0 = k0;
+    while (k_mark0 < np && PRE_P[k_mark0] <= 17) k_mark0++;
     uint32_t *inv30 = (uint32_t *)malloc(sizeof(uint32_t) * (size_t)np);
     if (!inv30) return 0;
-    for (int k = k0; k < np; k++)
+    for (int k = k_mark0; k < np; k++)
         inv30[k] = inv_mod_prime(30u % PRE_P[k], PRE_P[k]);
 
     volatile int found = 0;
@@ -25879,9 +25915,9 @@ static int seg_primes_u64(uint64_t n, uint64_t limit, int parallel) {
                 if (base > hi) continue;
                 uint64_t nbytes = (hi - base) / 30ull + 1;
                 if (nbytes > NBYTES) nbytes = NBYTES;
-                memset(seg, 0, (size_t)nbytes);
+                fill_presieve(seg, nbytes, base);
 
-                for (int k = k0; k < np; k++) {
+                for (int k = k_mark0; k < np; k++) {
                     uint64_t p = PRE_P[k];
                     uint64_t p2 = p * p;
                     if (p2 > hi) break;
@@ -26010,9 +26046,12 @@ static int seg_primes_u128(u128 n, uint64_t limit, int parallel) {
 
     int k0 = 0;
     while (k0 < np && PRE_P[k0] < 7) k0++;
+    ensure_presieve();
+    int k_mark0 = k0;
+    while (k_mark0 < np && PRE_P[k_mark0] <= 17) k_mark0++;
     uint32_t *inv30 = (uint32_t *)malloc(sizeof(uint32_t) * (size_t)np);
     if (!inv30) return 0;
-    for (int k = k0; k < np; k++)
+    for (int k = k_mark0; k < np; k++)
         inv30[k] = inv_mod_prime(30u % PRE_P[k], PRE_P[k]);
 
     volatile int found = 0;
@@ -26047,9 +26086,9 @@ static int seg_primes_u128(u128 n, uint64_t limit, int parallel) {
                 if (base > hi) continue;
                 uint64_t nbytes = (hi - base) / 30ull + 1;
                 if (nbytes > NBYTES) nbytes = NBYTES;
-                memset(seg, 0, (size_t)nbytes);
+                fill_presieve(seg, nbytes, base);
 
-                for (int k = k0; k < np; k++) {
+                for (int k = k_mark0; k < np; k++) {
                     uint64_t p = PRE_P[k];
                     uint64_t p2 = p * p;
                     if (p2 > hi) break;
