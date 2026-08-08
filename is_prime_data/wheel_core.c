@@ -9,6 +9,16 @@
 /* Parallel segmented sieve only when isqrt(n) is large enough that
    OpenMP overhead is repaid (mid-size uses serial precomputed trial). */
 #define PARALLEL_SEG_MIN 10000000ull
+static const uint8_t INV8[128] = {
+1,171,205,183,57,163,197,239,241,27,61,167,41,19,53,223,
+225,139,173,151,25,131,165,207,209,251,29,135,9,243,21,191,
+193,107,141,119,249,99,133,175,177,219,253,103,233,211,245,159,
+161,75,109,87,217,67,101,143,145,187,221,71,201,179,213,127,
+129,43,77,55,185,35,69,111,113,155,189,39,169,147,181,95,
+97,11,45,23,153,3,37,79,81,123,157,7,137,115,149,63,
+65,235,13,247,121,227,5,47,49,91,125,231,105,83,117,31,
+33,203,237,215,89,195,229,15,17,59,93,199,73,51,85,255,
+};
 static const uint32_t PRE_P[82024] = {
 3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,
 61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,
@@ -25697,9 +25707,48 @@ static int trial_pre_u64(uint64_t n, uint64_t limit) {
     return 1;
 }
 
+/*
+ * Exact 64-bit divisibility without DIV.
+ * Theorem (odd p, n < 2^64): p | n  iff  (n * p^{-1} mod 2^64) * p  < 2^64.
+ * INV8[(p>>1)&127] is p^{-1} mod 256; three Newton steps lift to mod 2^64.
+ * Eight independent inverses hide MUL latency on OoO CPUs.
+ */
+static inline uint64_t inv64_odd(uint64_t p) {
+    uint64_t x = INV8[(p >> 1) & 127];
+    x *= 2 - p * x;
+    x *= 2 - p * x;
+    x *= 2 - p * x;
+    return x;
+}
+
+static inline int divides_u64(uint64_t n, uint64_t p) {
+    uint64_t q = n * inv64_odd(p);
+    return ((unsigned __int128)q * p) >> 64 == 0;
+}
+
 static inline int any_div8_u64(uint64_t n, const uint64_t *b) {
-    return n % b[0] == 0 || n % b[1] == 0 || n % b[2] == 0 || n % b[3] == 0 ||
-           n % b[4] == 0 || n % b[5] == 0 || n % b[6] == 0 || n % b[7] == 0;
+    uint64_t p0 = b[0], p1 = b[1], p2 = b[2], p3 = b[3];
+    uint64_t p4 = b[4], p5 = b[5], p6 = b[6], p7 = b[7];
+    uint64_t x0 = INV8[(p0 >> 1) & 127], x1 = INV8[(p1 >> 1) & 127];
+    uint64_t x2 = INV8[(p2 >> 1) & 127], x3 = INV8[(p3 >> 1) & 127];
+    uint64_t x4 = INV8[(p4 >> 1) & 127], x5 = INV8[(p5 >> 1) & 127];
+    uint64_t x6 = INV8[(p6 >> 1) & 127], x7 = INV8[(p7 >> 1) & 127];
+    x0 *= 2 - p0 * x0; x1 *= 2 - p1 * x1; x2 *= 2 - p2 * x2; x3 *= 2 - p3 * x3;
+    x4 *= 2 - p4 * x4; x5 *= 2 - p5 * x5; x6 *= 2 - p6 * x6; x7 *= 2 - p7 * x7;
+    x0 *= 2 - p0 * x0; x1 *= 2 - p1 * x1; x2 *= 2 - p2 * x2; x3 *= 2 - p3 * x3;
+    x4 *= 2 - p4 * x4; x5 *= 2 - p5 * x5; x6 *= 2 - p6 * x6; x7 *= 2 - p7 * x7;
+    x0 *= 2 - p0 * x0; x1 *= 2 - p1 * x1; x2 *= 2 - p2 * x2; x3 *= 2 - p3 * x3;
+    x4 *= 2 - p4 * x4; x5 *= 2 - p5 * x5; x6 *= 2 - p6 * x6; x7 *= 2 - p7 * x7;
+    uint64_t q0 = n * x0, q1 = n * x1, q2 = n * x2, q3 = n * x3;
+    uint64_t q4 = n * x4, q5 = n * x5, q6 = n * x6, q7 = n * x7;
+    return ((unsigned __int128)q0 * p0) >> 64 == 0 ||
+           ((unsigned __int128)q1 * p1) >> 64 == 0 ||
+           ((unsigned __int128)q2 * p2) >> 64 == 0 ||
+           ((unsigned __int128)q3 * p3) >> 64 == 0 ||
+           ((unsigned __int128)q4 * p4) >> 64 == 0 ||
+           ((unsigned __int128)q5 * p5) >> 64 == 0 ||
+           ((unsigned __int128)q6 * p6) >> 64 == 0 ||
+           ((unsigned __int128)q7 * p7) >> 64 == 0;
 }
 
 static int precheck(uint64_t n) {
@@ -25864,7 +25913,7 @@ static int seg_primes_u64(uint64_t n, uint64_t limit, int parallel) {
                 }
                 if (!found) {
                     for (int t = 0; t < nb; t++) {
-                        if (n % buf[t] == 0) {
+                        if (divides_u64(n, buf[t])) {
                             found = 1;
                             break;
                         }

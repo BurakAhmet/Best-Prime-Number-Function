@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.2] — 2026-08-08
+
+### Changed
+- Hard 64-bit OpenMP path: **8-way 2-adic wrap-mul trial** of sieved primes instead of `DIV`. Odd $p$ divides $n&lt;2^{64}$ iff $(n\cdot p^{-1}\bmod 2^{64})\cdot p&lt;2^{64}$. Inverse lifted from a 128-byte table (`INV8`) by three Newton steps. Mid-size precomputed `PRE_INV`/`PRE_TH` path unchanged. u128 trial still uses limb `DIV`.
+
+### Performance (indicative, same machine as 1.4.1, 12 OpenMP threads)
+- Near $2^{63}$ prime in-process ~**340 ms → ~281 ms** (~**17%**); e2e ~**0.29 s**.
+- M61 in-process ~**168 ms → ~143 ms** (~**15%**); e2e ~**0.16 s**.
+- Largest prime $<2^{64}$ in-process ~**0.41 s** (was ~0.50 s class).
+- Default mid-size e2e suite: unchanged class (still precomputed-prime path).
+
 ## [1.4.1] — 2026-08-07
 
 ### Changed

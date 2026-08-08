@@ -9,11 +9,11 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 1000000009 | $10^9+9$ | ~2–3 ms |
 | 2147483647 | $2^{31}-1$ (M31) | ~2–3 ms |
 | 999999999989 | 12-digit prime | ~2–4 ms |
-| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.15–0.20 s |
-| 9223372036854775783 | near $2^{63}$ | ~0.30–0.35 s |
-| 18446744073709551557 | largest prime $\lt 2^{64}$ | ~0.50 s class |
+| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.15–0.17 s |
+| 9223372036854775783 | near $2^{63}$ | ~0.28–0.32 s |
+| 18446744073709551557 | largest prime $\lt 2^{64}$ | ~0.41 s class |
 
-C core (v1.4.1+): precomputed primes $\le 2^{20}$ with 2-adic inverse trial for mid-size $n$; harder 64-bit paths use a **wheel-30** segmented sieve + 8-way prime-only trial. Stdlib / Numba still keep the **30030** / **9699690** wheels.
+C core (v1.4.2+): precomputed primes $\le 2^{20}$ with 2-adic inverse trial for mid-size $n$; harder 64-bit paths use a **wheel-30** segmented sieve + **8-way 2-adic** prime-only trial (Newton inv64, no `DIV`). Stdlib / Numba still keep the **30030** / **9699690** wheels.
 
 Reproduce:
 
