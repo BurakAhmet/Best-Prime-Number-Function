@@ -36,6 +36,14 @@ _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000
 # Full deterministic trial (no AKS) when isqrt(n) is at most this (covers ~10^20).
 _MAX_FULL_TRIAL_ISQRT = 25_000_000_000  # 2.5e10 → n up to ~6.25e20
+# Before AKS: 30030-wheel trial up to this (or isqrt, whichever is smaller).
+_AKS_TRIAL_BOUND = 100_000_000
+_PRECHECK_BIG = (
+    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61,
+    67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139,
+    149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223,
+    227, 229, 233, 239, 241, 251, 257, 263, 269, 271,
+)
 _RES_INVALID = 0xFFFFFFFF
 _PRECHECK_PRIMES = (3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53)
 
@@ -475,9 +483,10 @@ def _precheck(n: int):
     return None
 
 
-def _wheel_trial(n: int, steps, start: int) -> bool:
-    """Unrolled stdlib wheel trial division."""
-    limit = math.isqrt(n)
+def _wheel_trial(n: int, steps, start: int, limit: int | None = None) -> bool:
+    """Unrolled stdlib wheel trial division up to ``limit`` (default isqrt(n))."""
+    if limit is None:
+        limit = math.isqrt(n)
     i = start
     wi = 0
     nW = len(steps)
@@ -594,8 +603,26 @@ def _phi(x: int) -> int:
     return result
 
 
-def _mult_order(a: int, r: int) -> int:
-    order = _phi(r)
+def _small_odd_prime(p: int) -> bool:
+    """Deterministic trial primality for the small AKS modulus r."""
+    if p < 2:
+        return False
+    if p < 4:
+        return True
+    if (p & 1) == 0 or p % 3 == 0:
+        return p in (2, 3)
+    d = 5
+    lim = math.isqrt(p)
+    while d <= lim:
+        if p % d == 0 or p % (d + 2) == 0:
+            return False
+        d += 6
+    return True
+
+
+def _mult_order_prime_mod(a: int, r: int) -> int:
+    """Multiplicative order of a mod prime r (order | r-1)."""
+    order = r - 1
     x = order
     p = 2
     while p * p <= x:
@@ -612,36 +639,55 @@ def _mult_order(a: int, r: int) -> int:
 
 
 def _is_perfect_power(n: int) -> bool:
+    """True iff n = a^b for integers a>1, b>1. Squares first; then odd exponents."""
     if n < 4:
         return False
+    r = math.isqrt(n)
+    if r * r == n:
+        return True
     max_b = n.bit_length()
-    for b in range(2, max_b + 1):
-        lo, hi = 2, 1 << ((n.bit_length() + b - 1) // b)
-        while lo <= hi:
-            mid = (lo + hi) // 2
-            p = pow(mid, b)
-            if p == n:
+    for b in range(3, max_b + 1, 2):
+        hi = 1 << ((n.bit_length() + b - 1) // b)
+        lo = 1
+        while lo < hi:
+            mid = (lo + hi + 1) >> 1
+            pwr = pow(mid, b)
+            if pwr == n:
                 return True
-            if p > n:
+            if pwr > n:
                 hi = mid - 1
             else:
-                lo = mid + 1
+                lo = mid
+        if pow(lo, b) == n:
+            return True
     return False
 
 
 def _poly_mul_mod(a, b, r, mod):
+    """(a*b) mod (X^r - 1, mod) via Kronecker substitution (fast Python long mul)."""
+    # Each output coeff is a sum of < 2r products of residues, so
+    #   < 2r * (mod-1)^2  <  2^{ 2*bitlen(mod) + bitlen(r) + 3 }.
+    s = 2 * mod.bit_length() + r.bit_length() + 3
+    A = 0
+    B = 0
+    for i in range(r):
+        ai = a[i]
+        bi = b[i]
+        if ai:
+            A += ai << (i * s)
+        if bi:
+            B += bi << (i * s)
+    C = A * B
+    mask = (1 << s) - 1
     res = [0] * r
     for i in range(r):
-        if not a[i]:
-            continue
-        ai = a[i]
-        for j in range(r):
-            if not b[j]:
-                continue
-            k = i + j
-            if k >= r:
-                k -= r
-            res[k] = (res[k] + ai * b[j]) % mod
+        res[i] = (C >> (i * s)) & mask
+    for i in range(r, 2 * r - 1):
+        res[i - r] += (C >> (i * s)) & mask
+    for i in range(r):
+        c = res[i]
+        if c >= mod:
+            res[i] = c % mod
     return res
 
 
@@ -652,32 +698,59 @@ def _poly_pow_mod(base, exp, r, mod):
     while e:
         if e & 1:
             result = _poly_mul_mod(result, b, r, mod)
-        b = _poly_mul_mod(b, b, r, mod)
         e >>= 1
+        if e:
+            b = _poly_mul_mod(b, b, r, mod)
     return result
 
 
-def _aks_is_prime(n: int) -> bool:
-    """AKS primality test (deterministic for all natural numbers)."""
+def _aks_congruence_holds(a: int, n: int, r: int, nr: int) -> bool:
+    """(X + a)^n ≡ X^n + a  (mod X^r - 1, n)."""
+    base = [0] * r
+    base[0] = a % n
+    if r > 1:
+        base[1] = 1
+    lhs = _poly_pow_mod(base, n, r, n)
+    rhs = [0] * r
+    rhs[nr] = 1
+    rhs[0] = (rhs[0] + a) % n
+    return lhs == rhs
+
+
+def _aks_is_prime(n: int, *, parallel: bool = False) -> bool:
+    """AKS primality test (deterministic for all natural numbers).
+
+    Practical speedups that do not change the decision:
+      * integer perfect-power (squares + odd exponents only)
+      * search prime r only; skip when r-1 ≤ (log2 n)^2
+      * Kronecker / Python long-int polynomial multiplication
+      * optional threaded witness loop (same booleans)
+    """
     if n < 2:
         return False
     if n in (2, 3):
         return True
-    if n % 2 == 0 or _is_perfect_power(n):
+    if (n & 1) == 0 or _is_perfect_power(n):
         return False
 
     log2n = n.bit_length()
     log2n_sq = log2n * log2n
+    r_limit = log2n_sq * log2n**3 + 1000
     r = 2
     while True:
-        g = math.gcd(n % r, r)
+        if r > r_limit:
+            break
+        if r > 2 and not _small_odd_prime(r):
+            r += 2
+            continue
+        g = math.gcd(n, r)
         if 1 < g < n:
             return False
-        if g == 1 and _mult_order(n % r, r) > log2n_sq:
-            break
-        if r > log2n_sq * log2n**3 + 1000:
-            break
-        r += 1
+        if g == 1:
+            phi_r = 1 if r == 2 else r - 1
+            if phi_r > log2n_sq and _mult_order_prime_mod(n % r, r) > log2n_sq:
+                break
+        r = 3 if r == 2 else r + 2
 
     for a in range(1, r + 1):
         g = math.gcd(a, n)
@@ -686,17 +759,26 @@ def _aks_is_prime(n: int) -> bool:
     if n <= r:
         return True
 
-    max_a = max(1, math.isqrt(_phi(r)) * log2n)
+    phi_r = r - 1 if r > 2 and _small_odd_prime(r) else _phi(r)
+    max_a = max(1, math.isqrt(phi_r) * log2n)
+    nr = n % r
+    if parallel and max_a >= 48:
+        import os
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        nt = _thread_count if _thread_count > 1 else (os.cpu_count() or 1)
+        nt = max(1, min(int(nt), max_a))
+        with ThreadPoolExecutor(max_workers=nt) as pool:
+            futs = [
+                pool.submit(_aks_congruence_holds, a, n, r, nr)
+                for a in range(1, max_a + 1)
+            ]
+            for fut in as_completed(futs):
+                if not fut.result():
+                    return False
+        return True
     for a in range(1, max_a + 1):
-        base = [0] * r
-        base[0] = a % n
-        if r > 1:
-            base[1] = 1
-        lhs = _poly_pow_mod(base, n, r, n)
-        rhs = [0] * r
-        rhs[n % r] = 1
-        rhs[0] = (rhs[0] + a) % n
-        if lhs != rhs:
+        if not _aks_congruence_holds(a, n, r, nr):
             return False
     return True
 
@@ -728,23 +810,24 @@ def _is_prime_big_full_trial(n: int, parallel: bool) -> bool:
 
 def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
     """Primality for n >= 2^64. Full trial when practical; else partial + AKS."""
-    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61):
+    for p in _PRECHECK_BIG:
         if n == p:
             return True
         if n % p == 0:
             return False
+        if p * p > n:
+            return True
     sq = math.isqrt(n)
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
         return _is_prime_big_full_trial(n, parallel)
-    # Larger: cheap factor scan, then AKS (correct but can be very slow).
-    limit = min(50_000_000, sq)
-    for i in range(67, limit + 1, 2):
-        if n % i == 0:
-            return False
-    if limit >= sq:
+    # Larger: 30030-wheel factor scan, then AKS (correct; still slow for huge primes).
+    bound = min(_AKS_TRIAL_BOUND, sq)
+    if not _wheel_trial(n, _get_steps_30030(), 17, limit=bound):
+        return False
+    if bound >= sq:
         return True
-    return _aks_is_prime(n)
+    return _aks_is_prime(n, parallel=parallel)
 
 
 def is_prime(n: int | str, *, parallel: bool = True) -> bool:
@@ -820,7 +903,7 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "u64_wheel_numba": "Numba 9699690-wheel trial division up to isqrt(n).",
         "u128_wheel_c": "OpenMP C full trial for 65–128-bit n (wheel / seg-primes; no AKS).",
         "bigint_wheel": "Stdlib 9699690-wheel full trial for moderate big ints (no AKS).",
-        "bigint_trial_or_aks": "Huge-int path: partial trial, AKS if needed (may be slow).",
+        "bigint_trial_or_aks": "Huge-int path: 30030-wheel partial trial, then AKS (Kronecker; may be slow).",
     }
     info["note"] = notes[path]
     return info

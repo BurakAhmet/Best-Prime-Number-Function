@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.4.4** (`pyproject.toml`) |
+| **Current package version** | **1.5.0** (`pyproject.toml`) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -57,7 +57,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-07  v1.4.1   Wheel-30 segmented sieve for hard √n (skip 2/3/5 marking)
 2026-08-08  v1.4.2   8-way 2-adic wrap-mul trial of sieved primes (no DIV)
 2026-08-08  v1.4.3   memcpy presieve 7·11·13·17 + 32-bit mark starts; CLI default = max 64-bit prime
-2026-08-08  v1.4.4   uint64 ctzll extract of wheel-30 bits  ← current
+2026-08-08  v1.4.4   uint64 ctzll extract of wheel-30 bits
+2026-08-08  v1.5.0   Huge-n: wheel pre-AKS + Kronecker AKS  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -384,7 +385,7 @@ Committed default e2e suite snapshot (`benchmarks/e2e_results.json`): 12-digit ~
 
 ---
 
-## Era 12 — v1.4.4 (2026-08-08): **Current** — uint64 bit extract
+## Era 12 — v1.4.4 (2026-08-08): uint64 bit extract
 
 **Design.** After inv64 trial + presieve, the remaining cost on $\lfloor\sqrt{n}\rfloor=2^{32}-1$ was **walking the sieve**: one Python-style byte loop × $\sim n/30$ bytes. Unset wheel-30 bits are packed 8-to-a-byte; loading `uint64_t`, inverting, skipping zeros, and `__builtin_ctzll` pulls the next prime in one bit-scan.
 
@@ -406,6 +407,37 @@ Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes 
 
 ---
 
+## Era 13 — v1.5.0 (2026-08-08): **Current** — huge-n wheel pre-AKS + Kronecker AKS
+
+**Problem.** Naive AKS used $O(r^2)$ Python nested loops for $(\mathbb{Z}/n\mathbb{Z})[X]/(X^r-1)$ multiplication. Direct `_aks_is_prime(10^9+7)` did not finish in minutes. Pre-AKS scan was an odd loop to $5\cdot10^7$ (~25 M mods).
+
+**Design.**
+
+- Pre-AKS: embedded **30030-wheel** to $\min(10^8,\lfloor\sqrt{n}\rfloor)$; small-prime list through 271.
+- Perfect power: `isqrt` then **odd** exponents only (even powers are squares).
+- Find prime $r$ with $\mathrm{ord}_r(n)>(\log_2 n)^2$; skip when $r-1$ is too small.
+- Poly mul via **Kronecker substitution** + CPython long multiplication; optional threaded $a$-loop.
+- Still exact AKS; no Miller–Rabin.
+
+**Indicative (this machine).**
+
+| Case | Notes |
+|------|--------|
+| `_aks_is_prime(97)` | ~8 ms |
+| `_aks_is_prime(7919)` | ~0.45 s |
+| `_aks_is_prime(10007)` | ~0.79 s |
+| $100003\times10^{40}$ | ~0.01 ms (wheel factor, no AKS) |
+| $7\times10^{50}$, $3^{80}$ | instant small factor / precheck |
+| Huge **primes** past full-trial | Still AKS — seconds to very long; Kronecker is $10^{2+}$× vs schoolbook, not MR-fast |
+
+| | |
+|--|--|
+| **Advantages** | Composites with a factor $\le10^8$ leave quickly; AKS usable on 4-digit primes in CI; same correctness |
+| **Disadvantages** | Huge primes remain poly$(\log n)$ with large constants; threads help only the witness loop |
+| **Not taken** | ECPP / APR-CL (different engine, large project); raising u128 full-trial $\sqrt{n}$ enough to cover 80-bit primes (infeasible) |
+
+---
+
 ## Summary comparison
 
 | Era | 64-bit engine (best case) | Big-int practical | Big-int huge | E2E focus | Main win | Main cost / risk |
@@ -422,7 +454,8 @@ Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes 
 | **1.4.1** | + **wheel-30** sieve (byte/30) on hard path | same | AKS | Yes | Hard primes ~40–45% (M61 / $2^{63}$) | Wheel-210 marking overhead lost |
 | **1.4.2** | + **2-adic wrap-mul** trial of sieved primes | same | AKS | Yes | Hard 64-bit ~15–17% more (M61 / $2^{63}$) | Newton cost if inverse not reused |
 | **1.4.3** | + **memcpy presieve** $7{..}17$ + 32-bit mark starts | same | AKS | Yes | Hard 64-bit ~5–9% more (max $<2^{64}$ ~7%) | Pattern wrap must stay exact |
-| **1.4.4 (now)** | + **uint64 ctzll** sieve extract | same | AKS | Yes | Hard 64-bit ~20–26% more (default $n$ ~280 ms) | Word tail + aliasing |
+| **1.4.4** | + **uint64 ctzll** sieve extract | same | AKS | Yes | Hard 64-bit ~20–26% more (default $n$ ~280 ms) | Word tail + aliasing |
+| **1.5.0 (now)** | same 64-bit | same u128 | **wheel→Kronecker AKS** | Yes | Huge composites with $p\le10^8$ instant; AKS usable on 4-digit $n$ | Huge primes still AKS-slow |
 
 ---
 
@@ -480,4 +513,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.4.4** (uint64 ctzll extract). Extend forward; do not delete past eras.*
+*Last updated for package **1.5.0** (huge-n Kronecker AKS + wheel pretrial). Extend forward; do not delete past eras.*
