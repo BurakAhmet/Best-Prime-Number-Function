@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.7.0] — 2026-08-10
+
+### Added
+Deterministic library APIs on top of the existing engines (no new primality shortcut):
+
+- **`prev_prime(n, k=1)`** — k-th prime strictly below `n` (table / interval sieve / backward 30030-wheel).
+- **`nth_prime(k)`** — $p_k$; odds-only sieve or segmented sieve from a Dusart bound.
+- **`prime_count(n)`** — $\pi(n)$; sieve below $2\cdot10^6$, Lucy–Hedgehog (optional Numba) above.
+- **`primes(n)`**, **`primerange(a, b)`** — cached odds-only Eratosthenes / segmented interval sieve.
+- **`prime_factors(n)`**, **`factorint(n)`** — 30-wheel trial, Fermat for close factors, deterministic Brent–Pollard (fixed $c=1,2,\ldots$), then `is_prime` on pieces.
+- **`is_perfect_power(n)`**, **`is_prime_power(n)`** — Newton integer $k$-th roots; only prime exponents.
+
+Shared engine: [`prime_sieve.py`](prime_sieve.py). Still no stochastic engines and no prime libraries.
+
+### Tests
+- `tests/test_prime_sieve.py`, `test_prev_prime.py`, `test_prime_factors.py`, `test_prime_power.py`.
+
 ## [1.6.0] — 2026-08-10
 
 ### Added

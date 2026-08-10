@@ -29,44 +29,29 @@ from is_prime import (  # noqa: E402
     _parse_n,
     is_prime,
 )
+from prime_sieve import (  # noqa: E402
+    _TABLE_LIMIT,
+    _parse_k,
+    _primes_in_range,
+    _primes_upto_cached,
+    _sieve_primes_upto,
+)
 
 # 2·3·5·7·11·13. Wheel numbers start at 17; 2,3,5,7,11,13 are handled first.
 _W30030 = 30_030
 _RES_INVALID = 0xFFFF
-# First prime strictly above _SMALL_LIMIT (10_000). Table must include it.
-_TABLE_LIMIT = 10_007
 # Prefilter primes (already past the wheel primes) before calling is_prime.
 _PREFILTER_LIMIT = 1_021
 # Interval sieve: only when k is large enough to repay setup and √hi is cheap.
 _SIEVE_MIN_K = 8
 _SIEVE_ISQRT_MAX = 2_000_000
 
-_small_table: tuple[int, ...] | None = None
 _prefilter: tuple[int, ...] | None = None
 _res30030: array | None = None
-_base_cache: tuple[int, tuple[int, ...]] = (0, ())
-
-
-def _sieve_primes_upto(limit: int) -> tuple[int, ...]:
-    """Deterministic Eratosthenes. Ours — not a prime-library engine."""
-    if limit < 2:
-        return ()
-    mark = bytearray(b"\x01") * (limit + 1)
-    mark[0] = 0
-    mark[1] = 0
-    r = math.isqrt(limit)
-    for p in range(2, r + 1):
-        if mark[p]:
-            start = p * p
-            mark[start : limit + 1 : p] = b"\x00" * (((limit - start) // p) + 1)
-    return tuple(i for i in range(2, limit + 1) if mark[i])
 
 
 def _get_small_table() -> tuple[int, ...]:
-    global _small_table
-    if _small_table is None:
-        _small_table = _sieve_primes_upto(_TABLE_LIMIT)
-    return _small_table
+    return _primes_upto_cached(_TABLE_LIMIT)
 
 
 def _get_prefilter() -> tuple[int, ...]:
@@ -75,18 +60,6 @@ def _get_prefilter() -> tuple[int, ...]:
     if _prefilter is None:
         _prefilter = tuple(p for p in _sieve_primes_upto(_PREFILTER_LIMIT) if p >= 17)
     return _prefilter
-
-
-def _primes_upto_cached(limit: int) -> tuple[int, ...]:
-    global _base_cache
-    cached_lim, cached = _base_cache
-    if cached_lim >= limit:
-        if cached_lim == limit:
-            return cached
-        return tuple(p for p in cached if p <= limit)
-    primes = _sieve_primes_upto(limit)
-    _base_cache = (limit, primes)
-    return primes
 
 
 def _get_res_30030() -> array:
@@ -99,14 +72,6 @@ def _get_res_30030() -> array:
             buf.fromfile(f, _W30030)
         _res30030 = buf
     return _res30030
-
-
-def _parse_k(k: int) -> int:
-    if isinstance(k, bool) or not isinstance(k, int):
-        raise TypeError("k must be a positive int")
-    if k < 1:
-        raise ValueError("k must be a positive integer (k >= 1)")
-    return k
 
 
 def _align_wheel30030(cand: int) -> tuple[int, int]:
@@ -132,26 +97,6 @@ def _span_guess(n: int, k: int) -> int:
         pk = int(k * (lnk + math.log(lnk) + 2)) + 16
         span = max(span, pk - n)
     return max(span, 48)
-
-
-def _primes_in_range(lo: int, hi: int) -> list[int]:
-    """Primes p with lo ≤ p < hi. Requires lo ≥ 2."""
-    if hi <= lo:
-        return []
-    limit = math.isqrt(hi - 1)
-    base = _primes_upto_cached(limit)
-    width = hi - lo
-    mark = bytearray(b"\x01") * width
-    for p in base:
-        start = ((lo + p - 1) // p) * p
-        pp = p * p
-        if start < pp:
-            start = pp
-        if start >= hi:
-            continue
-        off = start - lo
-        mark[off:width:p] = b"\x00" * (((width - 1 - off) // p) + 1)
-    return [lo + i for i, bit in enumerate(mark) if bit]
 
 
 def _try_interval(n: int, k: int) -> int | None:

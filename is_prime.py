@@ -909,12 +909,26 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
     return info
 
 
-def __getattr__(name: str):
-    if name == "next_prime":
-        from next_prime import next_prime as _next_prime
+_LAZY_API = {
+    "next_prime": ("next_prime", "next_prime"),
+    "prev_prime": ("prev_prime", "prev_prime"),
+    "nth_prime": ("prime_sieve", "nth_prime"),
+    "prime_count": ("prime_sieve", "prime_count"),
+    "primes": ("prime_sieve", "primes"),
+    "primerange": ("prime_sieve", "primerange"),
+    "prime_factors": ("prime_factors", "prime_factors"),
+    "factorint": ("prime_factors", "factorint"),
+    "is_perfect_power": ("prime_power", "is_perfect_power"),
+    "is_prime_power": ("prime_power", "is_prime_power"),
+}
 
-        globals()["next_prime"] = _next_prime
-        return _next_prime
+
+def __getattr__(name: str):
+    if name in _LAZY_API:
+        mod, attr = _LAZY_API[name]
+        val = getattr(__import__(mod), attr)
+        globals()[name] = val
+        return val
     if name in {"W30030", "RES_TO_WI", "W_WHEEL"}:
         np = _numpy()
         mapping = {
