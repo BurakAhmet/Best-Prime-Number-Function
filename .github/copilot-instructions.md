@@ -33,6 +33,8 @@ other idea. Read `docs/ALGORITHM_HISTORY.md` **F1–F13** first.
 4. Interleaved A/B: `python3 scripts/optimize_hunt.py examine --orig /tmp/orig_wheel_core.so`
 5. Open a PR **only** on a real win; update `docs/ALGORITHM_HISTORY.md` + `CHANGELOG.md`.
 6. **Do not merge.** The Optimize examine workflow merges only if a fresh runner agrees.
+7. **No empty PR.** If the idea loses, revert, comment numbers on the `[Optimize]`
+   issue, and do **not** open (or leave) a PR with zero engine files changed.
 
 Forbidden as the engine: stochastic primality tests, external prime libraries.
 
