@@ -130,7 +130,16 @@ is-prime 18446744073709551557
 best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 next-prime 100                 # 101 (smallest prime > 100)
-next-prime 14 3                # 23  (3rd prime after 14)
+next-prime 14 3                # 23
+prev-prime 14                  # 13
+prev-prime 10 3                # 3
+nth-prime 5                    # 11
+prime-count 10                 # 4
+primes 10                      # 2 3 5 7
+primerange 10 20               # 11 13 17 19
+prime-factors 360              # 2 2 2 3 3 5
+is-prime-power 8               # yes (exit 0)
+is-perfect-power 36            # yes (exit 0)
 ```
 
 `is-prime` with no argument defaults to the largest prime $<2^{64}$: `18446744073709551557` (hardest 64-bit yardstick). Near $2^{63}$ (`9223372036854775783`) remains a documented mid-hard specimen. `next-prime` requires `n` (it does **not** default to that 64-bit prime — the successor is 65-bit).

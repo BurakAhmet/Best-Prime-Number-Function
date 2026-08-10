@@ -16,8 +16,10 @@ Deterministic library APIs on top of the existing engines (no new primality shor
 
 Shared engine: [`prime_sieve.py`](prime_sieve.py). Still no stochastic engines and no prime libraries.
 
+Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange`, `prime-factors`, `is-prime-power`, `is-perfect-power` (plus existing `next-prime`).
+
 ### Tests
-- `tests/test_prime_sieve.py`, `test_prev_prime.py`, `test_prime_factors.py`, `test_prime_power.py`.
+- `tests/test_prime_sieve.py`, `test_prev_prime.py`, `test_prime_factors.py`, `test_prime_power.py`, `test_prime_cli.py`.
 
 ## [1.6.0] — 2026-08-10
 

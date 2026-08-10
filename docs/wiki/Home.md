@@ -66,6 +66,10 @@ python -c "from best_prime import is_prime, next_prime; print(is_prime(17), next
 is-prime 1000000007                    # console script
 next-prime 100                         # 101
 next-prime 14 3                        # 23
+prev-prime 14                          # 13
+nth-prime 5                            # 11
+prime-count 10                         # 4
+prime-factors 360                      # 2 2 2 3 3 5
 python is_prime.py                     # default: largest prime < 2^64
 python is_prime.py 100000000000000000039  # ~10^20 prime (u128_wheel_c)
 pytest -q -m "not slow"

@@ -58,6 +58,14 @@ Documentation = "https://github.com/BurakAhmet/Best-Prime-Number-Function#readme
 is-prime = "is_prime:main"
 best-prime = "is_prime:main"
 next-prime = "next_prime:main"
+prev-prime = "prime_cli:prev_prime_main"
+nth-prime = "prime_cli:nth_prime_main"
+prime-count = "prime_cli:prime_count_main"
+primes = "prime_cli:primes_main"
+primerange = "prime_cli:primerange_main"
+prime-factors = "prime_cli:prime_factors_main"
+is-prime-power = "prime_cli:is_prime_power_main"
+is-perfect-power = "prime_cli:is_perfect_power_main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -75,6 +83,7 @@ py-modules = [
   "prime_sieve",
   "prime_factors",
   "prime_power",
+  "prime_cli",
 ]
 include-package-data = true
 
