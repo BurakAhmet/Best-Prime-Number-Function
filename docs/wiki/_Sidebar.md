@@ -3,6 +3,7 @@
 **Wiki**
 
 * [Home](Home)
+* [**Library reference**](Library)
 * [Project restrictions](Project-restrictions)
 * [Algorithm overview](Algorithm-overview)
 * [**Algorithm history**](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)

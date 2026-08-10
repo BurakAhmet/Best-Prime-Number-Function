@@ -19,6 +19,8 @@ Library arithmetic on top of existing exact `is_prime` / `factorint` (still no M
 
 New module: [`ntheory.py`](ntheory.py). Import from `best_prime`.
 
+**Docs:** [Library reference](docs/wiki/Library.md) explains every public function with examples. Runnable tour: [`examples/library_tour.py`](examples/library_tour.py).
+
 ## [1.8.2] — 2026-08-10
 
 ### Added

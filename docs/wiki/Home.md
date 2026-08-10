@@ -36,6 +36,7 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 | Page | Description |
 |------|-------------|
 | **[Home](Home)** | This overview |
+| **[Library reference](Library)** | Every public function, with examples |
 | **[Project restrictions](Project-restrictions)** | Non-negotiable rules for humans **and agents** |
 | **[Algorithm overview](Algorithm-overview)** | Tiered wheel trial (u64/u128) + AKS for huge n |
 | **[Algorithm history](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)** | Performance eras, opts, tradeoffs, failures to avoid |

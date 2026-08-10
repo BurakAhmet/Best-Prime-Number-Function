@@ -2,7 +2,7 @@
 
 We welcome contributions—bugs, tests, docs, benchmarks, and features that respect **determinism restrictions**.
 
-Full guide in the repo: [CONTRIBUTING.md](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CONTRIBUTING.md).
+Full guide in the repo: [CONTRIBUTING.md](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CONTRIBUTING.md). Public API: [Library reference](Library).
 
 Community standards: [Code of Conduct](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CODE_OF_CONDUCT.md) · [Security policy](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/SECURITY.md) · [Issue templates](https://github.com/BurakAhmet/Best-Prime-Number-Function/tree/main/.github/ISSUE_TEMPLATE) · [PR template](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/.github/PULL_REQUEST_TEMPLATE.md)
 

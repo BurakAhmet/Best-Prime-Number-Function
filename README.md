@@ -117,7 +117,7 @@ info = lab(10**9 + 7)
 # info["elapsed_ms"] (check only), info["e2e_ms"] (since process start), info["note"]
 ```
 
-Runnable sample: [`examples/basic_usage.py`](examples/basic_usage.py).
+**Full library reference** (every function, with examples): [`docs/wiki/Library.md`](docs/wiki/Library.md). Runnable tours: [`examples/basic_usage.py`](examples/basic_usage.py) · [`examples/library_tour.py`](examples/library_tour.py).
 
 ### What to expect for performance
 
