@@ -6,6 +6,7 @@
 | **Determinism** | push / PR | Repeated serial/parallel trials + `check_determinism.py` |
 | **Auto-merge** | CI / Determinism completed | Squash-merge **same-repo** PRs when tests + determinism (+ perf if present) are green |
 | **Prime of the day** | daily 12:00 UTC / manual | Deterministic date→`n` challenge via `lab()`; upserts issue labeled `prime-of-the-day` |
+| **Optimize** | daily 05:00 UTC / manual | Compile `.so`, snapshot e2e + hard-path `lab` timings, comment on the standing **Optimization log** issue (`optimize/log`). Does not change the engine; assign Copilot or run Grok on a new **Optimization round** issue to hunt. |
 | **Issue agent** | issue opened | Keyword answers + restrictions briefing + labels |
 | **PR agent** | PR open/sync | Briefing, Copilot review request (best-effort), **auto-approve same-repo PRs** |
 | **Project autonomy** | issues / PRs | Label kanban without a human-only lane |

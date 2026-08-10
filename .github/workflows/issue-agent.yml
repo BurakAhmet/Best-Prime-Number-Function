@@ -53,6 +53,24 @@ jobs:
                 '',
                 'If you need MR-level speed with a different correctness model, that would be a **different project** (or an optional off-by-default experiment behind a clear flag and docs — discuss first).',
               ].join('\n');
+            } else if (/\[optimize\]|optimization round|optimize this/.test(text)) {
+              answer = [
+                '### Optimization round',
+                '',
+                'Treat this as **optimize this** on the current `main` engine.',
+                '',
+                '- Playbook: `.grok/skills/optimize-primes/SKILL.md`',
+                '- History / do-not-repeat: `docs/ALGORITHM_HISTORY.md` (F1–F13)',
+                '- Primary metric: e2e CLI `TIME` (`python -m best_prime`, `benchmarks/compare_e2e.py`)',
+                '- Interleaved A/B vs the previous `wheel_core.so`; no PR on noise',
+                '- No Miller–Rabin, no primesieve / `sympy.isprime` as the engine',
+                '- Daily numbers live on the standing **Optimization log** issue (label `optimize/log`)',
+                '',
+                '```bash',
+                'bash scripts/compile_wheel_core.sh',
+                'python3 scripts/optimize_baseline.py --repeats 2 --md /tmp/opt.md',
+                '```',
+              ].join('\n');
             } else if (/slow|performance|benchmark|speed|faster/.test(text)) {
               answer = [
                 '### Regarding performance',

@@ -1,0 +1,47 @@
+name: Optimization round
+description: Start a tracked “optimize this” hunt (assign Copilot or work locally).
+title: "[Optimize] "
+labels: ["performance", "area/benchmarks", "area/core", "restriction-risk/high"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when you want a **GitHub-visible** optimization attempt.
+        The daily **Optimize** workflow already posts numbers on the standing
+        *Optimization log* issue — open a round here to assign an agent.
+
+        Read [`docs/ALGORITHM_HISTORY.md`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)
+        (especially **F1–F13**) and `.grok/skills/optimize-primes/SKILL.md`.
+
+        **Forbidden as the engine:** stochastic Miller–Rabin, `primesieve`, `sympy.isprime`.
+  - type: dropdown
+    id: target
+    attributes:
+      label: Target
+      options:
+        - Hard 64-bit is_prime (DEFAULT_N / M61 / near 2^63)
+        - Default e2e CLI TIME (mid-size)
+        - prime_count / next_prime
+        - Import / packaging overhead
+        - Other (describe)
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea (optional)
+      description: Leave blank to let the agent pick one untried idea.
+      placeholder: e.g. tile cutoff 512 on Zen 2; residue-major marking; …
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Agent must
+      options:
+        - label: Stay deterministic; serial == parallel
+          required: true
+        - label: Not use MR / prime libraries as the engine
+          required: true
+        - label: Interleaved A/B vs previous wheel_core.so; no ship on noise
+          required: true
+        - label: Open a PR only if there is a real win; update ALGORITHM_HISTORY
+          required: true

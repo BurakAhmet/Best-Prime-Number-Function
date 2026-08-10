@@ -33,6 +33,7 @@ ALLOW_PATH_SUBSTRINGS = (
     "docs/wiki",
     "docs/guide",
     "docs/theme",
+    ".grok/skills",
     "mkdocs.yml",
     ".readthedocs.yaml",
     "copilot-instructions",
