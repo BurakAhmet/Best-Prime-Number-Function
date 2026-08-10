@@ -11,5 +11,6 @@ When you (a coding or triage agent) work on this repository:
    - `python benchmarks/check_determinism.py`
 6. **Remind** users the project is largely AI-generated and needs human review for critical use.
 7. **Performance** claims: primary metric is e2e CLI `TIME` (`compare_e2e.py`); `compare_speed.py` is the warm hot-loop secondary.
+8. **Docs** — public API / install / CLI live in `docs/guide/` (MkDocs → Pages `/guide/`). The exhibit lab stays at the Pages root. Keep `docs/wiki/` in sync with README (`check_wiki_sync.py`).
 
 Issue/PR automation posts a subset of this briefing automatically via **Issue agent** / **PR agent** workflows.

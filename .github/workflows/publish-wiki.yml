@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - "docs/wiki/**"
+      - "docs/guide/**"
+      - "docs/theme/**"
+      - "mkdocs.yml"
+      - ".readthedocs.yaml"
+      - "pyproject.toml"
       - ".github/workflows/publish-wiki.yml"
   workflow_dispatch:
 
@@ -28,11 +33,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Markdown renderer
-        run: pip install markdown
+      - name: Install Markdown renderer and MkDocs
+        run: pip install markdown "mkdocs>=1.6,<2" "mkdocs-material>=9.5,<10"
 
-      - name: Build static wiki site
+      - name: Build exhibit wiki (Pages root)
         run: python3 docs/wiki/build_site.py _site
+
+      - name: Build library guide into /guide/
+        run: mkdocs build --strict --site-dir _site/guide
 
       - name: Assert pages compiled (not raw Markdown dumps)
         run: |
@@ -54,7 +62,13 @@ jobs:
           assert 'class="acta"' in index
           assert 'og:image' in index
           assert "lab-orrery" in (site / "assets" / "checker.js").read_text(encoding="utf-8")
-          print("wiki HTML compile checks OK")
+          assert 'href="guide/"' in index, "exhibit must link to the library guide"
+          guide = site / "guide" / "index.html"
+          assert guide.is_file(), "mkdocs must land at _site/guide/"
+          api = (site / "guide" / "api" / "index.html").read_text(encoding="utf-8")
+          assert "is_prime" in api and "totient" in api and "primorial" in api
+          assert not (site / "guide" / "Home.md").exists()
+          print("wiki HTML + /guide/ compile checks OK")
           PY
 
       - uses: actions/upload-pages-artifact@v3

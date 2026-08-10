@@ -75,6 +75,7 @@ ALERT_META = {
 
 NAV_FALLBACK = [
     ("Home", "index.html"),
+    ("Library guide", "guide/"),
     ("Library reference", "Library.html"),
     ("Project restrictions", "Project-restrictions.html"),
     ("Algorithm overview", "Algorithm-overview.html"),
@@ -187,6 +188,8 @@ def parse_nav(sidebar: Path, stems: set[str]) -> list[tuple[str, str]]:
         if href.startswith("http"):
             if "ALGORITHM_HISTORY" in href:
                 href = "Algorithm-history.html"
+            elif "/guide" in href:
+                href = "guide/"
             else:
                 continue
         else:
@@ -518,6 +521,7 @@ def page_html(
       <div class="top-actions">
         <span class="badge">v{html.escape(version)}</span>
         <button class="nav-toggle" type="button" onclick="document.getElementById('sidenav').classList.toggle('open')">Menu</button>
+        <a class="btn" href="guide/">Guide</a>
         <a class="btn" href="https://github.com/BurakAhmet/Best-Prime-Number-Function">GitHub</a>
       </div>
     </div>

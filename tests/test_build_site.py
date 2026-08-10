@@ -40,6 +40,8 @@ def test_parse_latest_potd_and_site_inject(tmp_path: Path):
     assert potd["n"] == row["n"]
     assert (dest / "assets" / "og.png").is_file()
     assert "lab-orrery" in (dest / "assets" / "checker.js").read_text(encoding="utf-8")
+    assert 'href="guide/"' in index
+    assert "Library guide" in index or "Guide" in index
 
 
 def import_build_site():

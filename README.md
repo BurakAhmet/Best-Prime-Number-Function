@@ -5,7 +5,7 @@
 
 **Exact `is_prime(n)` for every natural number** — audited wheel trial, then **AKS** only when √n is no longer practical. No stochastic Miller–Rabin.
 
-[Open the exhibit →](https://burakahmet.github.io/Best-Prime-Number-Function/) daily CI specimen, 30-wheel orrery, downloadable trial certificate. This repo is the Python / OpenMP engine behind it.
+[Open the exhibit →](https://burakahmet.github.io/Best-Prime-Number-Function/) daily CI specimen, 30-wheel orrery, downloadable trial certificate. [Library guide →](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) install, API, CLI, engines. This repo is the Python / OpenMP engine behind both.
 
 <p align="center">
   <a href="https://burakahmet.github.io/Best-Prime-Number-Function/">
@@ -19,6 +19,7 @@
 [![OpenMP](https://img.shields.io/badge/hard%2064--bit-OpenMP%20C-blue.svg)](scripts/compile_wheel_core.sh)
 [![Numba](https://img.shields.io/badge/fallback-Numba-orange.svg)](https://numba.pydata.org/)
 [![CI](https://github.com/BurakAhmet/Best-Prime-Number-Function/actions/workflows/ci.yml/badge.svg)](https://github.com/BurakAhmet/Best-Prime-Number-Function/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-library%20guide-teal.svg)](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)
 [![Packages GHCR](https://img.shields.io/badge/Packages-GHCR%20container-blue?logo=github)](https://github.com/BurakAhmet/Best-Prime-Number-Function/pkgs/container/best-prime-number-function)
 
 ---
@@ -33,6 +34,9 @@ pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
 
 # optional: NumPy/Numba fallbacks + faster Lucy π (OpenMP C still needs gcc)
 pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git#egg=best-prime-number-function[fast]"
+
+# optional: MkDocs library guide (`mkdocs serve` → local /guide/)
+pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git#egg=best-prime-number-function[docs]"
 
 # or editable install while hacking on this repo
 git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
@@ -117,7 +121,7 @@ info = lab(10**9 + 7)
 # info["elapsed_ms"] (check only), info["e2e_ms"] (since process start), info["note"]
 ```
 
-**Full library reference** (every function, with examples): [`docs/wiki/Library.md`](docs/wiki/Library.md). Runnable tours: [`examples/basic_usage.py`](examples/basic_usage.py) · [`examples/library_tour.py`](examples/library_tour.py).
+**Library guide** (install, every function, CLI, engines): [burakahmet.github.io/Best-Prime-Number-Function/guide/](https://burakahmet.github.io/Best-Prime-Number-Function/guide/). Same catalogue in the exhibit wiki: [`docs/wiki/Library.md`](docs/wiki/Library.md). Runnable tours: [`examples/basic_usage.py`](examples/basic_usage.py) · [`examples/library_tour.py`](examples/library_tour.py). Build the guide locally with `pip install -e ".[docs]"` then `mkdocs serve`.
 
 ### What to expect for performance
 
@@ -392,13 +396,13 @@ Think of four layers. Only the first is the product.
 |     CI, Determinism, performance gate, auto-merge, agents, GHCR, wiki    |
 +--------------------------------------------------------------------------+
 |  4. DOCS & TRACKING                                                      |
-|     README, CONTRIBUTING, docs/wiki, labels / optional Project board     |
+|     README, CONTRIBUTING, docs/guide (MkDocs), docs/wiki (exhibit)       |
 +--------------------------------------------------------------------------+
 ```
 
 | If you want to… | Go here |
 |-----------------|--------|
-| Use the checker | [Quick start](#quick-start) |
+| Use the checker | [Quick start](#quick-start) · [library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) |
 | Understand the math/engines | [How the checker chooses a path](#how-the-checker-chooses-a-path) · [restrictions](#design-restrictions) |
 | Run tests / benchmarks | [Testing & quality gates](#testing--quality-gates) · [`benchmarks/`](benchmarks/README.md) |
 | See automation | [Automation map](#automation-map) |
@@ -422,7 +426,9 @@ Best-Prime-Number-Function/
 │   ├── generate_wheel_data.py
 │   ├── write_attestation.py
 │   └── design_github_project.py
-├── docs/wiki/
+├── mkdocs.yml                  # library guide (Pages /guide/)
+├── docs/guide/                 # MkDocs pages
+├── docs/wiki/                  # exhibit lab + wiki
 ├── .github/workflows/
 ├── Dockerfile
 ├── pyproject.toml / requirements.txt

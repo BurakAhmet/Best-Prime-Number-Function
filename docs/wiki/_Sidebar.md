@@ -3,6 +3,7 @@
 **Wiki**
 
 * [Home](Home)
+* [**Library guide**](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)
 * [**Library reference**](Library)
 * [Project restrictions](Project-restrictions)
 * [Algorithm overview](Algorithm-overview)
@@ -15,6 +16,6 @@
 
 ---
 
-[Repository](https://github.com/BurakAhmet/Best-Prime-Number-Function) · [Pages wiki](https://burakahmet.github.io/Best-Prime-Number-Function/)
+[Repository](https://github.com/BurakAhmet/Best-Prime-Number-Function) · [Pages wiki](https://burakahmet.github.io/Best-Prime-Number-Function/) · [Library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)
 
 > AI-designed project — review before production use.

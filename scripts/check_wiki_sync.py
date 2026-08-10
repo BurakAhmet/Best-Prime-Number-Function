@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail if docs/wiki drifts from key README facts."""
+"""Fail if docs/wiki or the MkDocs guide drift from key README facts."""
 from __future__ import annotations
 
 import re
@@ -79,6 +79,21 @@ def main() -> int:
                 bad.append(f"{rel}: pattern /{pat}/ found in README but missing in wiki")
             if not in_readme and not in_wiki:
                 bad.append(f"{rel}: pattern /{pat}/ missing in both README and wiki")
+    yml = ROOT / "mkdocs.yml"
+    if not yml.is_file():
+        bad.append("missing mkdocs.yml (standalone library guide)")
+    else:
+        yml_text = yml.read_text(encoding="utf-8")
+        if "docs/guide" not in yml_text or "/guide/" not in yml_text:
+            bad.append("mkdocs.yml must publish docs/guide to Pages /guide/")
+    api = ROOT / "docs" / "guide" / "api.md"
+    if not api.is_file():
+        bad.append("missing docs/guide/api.md")
+    else:
+        api_text = api.read_text(encoding="utf-8")
+        for pat in (r"totient", r"primorial", r"primerange", r"No stochastic Miller", r"is_prime"):
+            if not re.search(pat, api_text, re.I):
+                bad.append(f"docs/guide/api.md: missing /{pat}/")
     if bad:
         print("Wiki sync check FAILED:")
         for b in bad:
