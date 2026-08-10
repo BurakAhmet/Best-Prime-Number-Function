@@ -53,8 +53,8 @@ def show(expr: str, value: object) -> None:
 
 def main() -> None:
     print(f"best_prime {__version__}")
-    print("Full reference: https://burakahmet.github.io/Best-Prime-Number-Function/guide/")
-    print("Wiki copy:      docs/wiki/Library.md")
+    print("Full reference: https://burakahmet.github.io/Best-Prime-Number-Function/guide/api/")
+    print("Wiki map:       docs/wiki/Library.md")
     print()
 
     print("constants")

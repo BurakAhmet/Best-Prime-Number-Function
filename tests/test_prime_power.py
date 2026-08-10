@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from prime_power import is_perfect_power, is_prime_power
+from best_prime.prime_power import is_perfect_power, is_prime_power
 from tests.numbers import SMALL_PRIMES
 
 _HYP = dict(

@@ -64,20 +64,20 @@ Changelog = "https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/
 Documentation = "https://burakahmet.github.io/Best-Prime-Number-Function/guide/"
 
 [project.scripts]
-is-prime = "is_prime:main"
-best-prime = "is_prime:main"
-next-prime = "next_prime:main"
-prev-prime = "prime_cli:prev_prime_main"
-nth-prime = "prime_cli:nth_prime_main"
-prime-count = "prime_cli:prime_count_main"
-primes = "prime_cli:primes_main"
-primerange = "prime_cli:primerange_main"
-prime-factors = "prime_cli:prime_factors_main"
-is-prime-power = "prime_cli:is_prime_power_main"
-is-perfect-power = "prime_cli:is_perfect_power_main"
-totient = "prime_cli:totient_main"
-primorial = "prime_cli:primorial_main"
-divisors = "prime_cli:divisors_main"
+is-prime = "best_prime.is_prime:main"
+best-prime = "best_prime.is_prime:main"
+next-prime = "best_prime.next_prime:main"
+prev-prime = "best_prime.prime_cli:prev_prime_main"
+nth-prime = "best_prime.prime_cli:nth_prime_main"
+prime-count = "best_prime.prime_cli:prime_count_main"
+primes = "best_prime.prime_cli:primes_main"
+primerange = "best_prime.prime_cli:primerange_main"
+prime-factors = "best_prime.prime_cli:prime_factors_main"
+is-prime-power = "best_prime.prime_cli:is_prime_power_main"
+is-perfect-power = "best_prime.prime_cli:is_perfect_power_main"
+totient = "best_prime.prime_cli:totient_main"
+primorial = "best_prime.prime_cli:primorial_main"
+divisors = "best_prime.prime_cli:divisors_main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -87,17 +87,8 @@ markers = [
 ]
 
 [tool.setuptools]
-# Flat modules + data package + best_prime re-exports.
-py-modules = [
-  "is_prime",
-  "next_prime",
-  "prev_prime",
-  "prime_sieve",
-  "prime_factors",
-  "prime_power",
-  "prime_cli",
-  "ntheory",
-]
+# Compatibility CLI shim + data package + best_prime implementation.
+py-modules = ["is_prime"]
 include-package-data = true
 
 [tool.setuptools.packages.find]

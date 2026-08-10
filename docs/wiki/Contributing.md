@@ -10,7 +10,7 @@ Community standards: [Code of Conduct](https://github.com/BurakAhmet/Best-Prime-
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt pytest
+pip install -e ".[dev]"
 pytest -q -m "not slow"
 ```
 

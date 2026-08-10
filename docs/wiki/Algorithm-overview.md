@@ -44,4 +44,4 @@ Console scripts: `next-prime 100` · `totient 10` · `primorial 7`.
 - [**Algorithm history**](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md) — every engine era, benchmarks, advantages/disadvantages, **failures not to repeat**
 - [Benchmarks](Benchmarks) — in-process vs end-to-end CLI `TIME`
 - [Project restrictions](Project-restrictions)
-- Source: [`is_prime.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/is_prime.py) · [`prime_sieve.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/prime_sieve.py)
+- Source: [`best_prime/is_prime.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/best_prime/is_prime.py) · [`best_prime/prime_sieve.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/best_prime/prime_sieve.py)

@@ -7,7 +7,7 @@ import math
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from ntheory import (
+from best_prime.ntheory import (
     TOTIENT_RANGE_MAX,
     bigomega,
     carmichael_lambda,
@@ -29,7 +29,7 @@ from ntheory import (
     totient,
     totient_range,
 )
-from prime_sieve import primes
+from best_prime.prime_sieve import primes
 
 _HYP = dict(
     deadline=None,

@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Package layout.** Implementations live in `best_prime/` (`is_prime`, `next_prime`, `prime_sieve`, `ntheory`, …). Root `is_prime.py` is a thin CLI / import shim so `python is_prime.py` and `from is_prime import is_prime` still work without loading the rest of the library into e2e `TIME`. Console scripts point at `best_prime.*`. Prefer `from best_prime import …`.
+- `best_prime` exports are **lazy** (PEP 562) so `from best_prime import is_prime` does not import sieves/ntheory.
+- CI / Determinism / potd install via `pip install -e ".[fast,test]"` (or `[fast]`). Dropped `requirements.txt`.
+- Wiki `Library.md` is a map; the full catalogue is the MkDocs [API page](https://burakahmet.github.io/Best-Prime-Number-Function/guide/api/).
+
+### Removed
+- Unused hot-loop snapshots and the old in-process regression helper: `benchmarks/baseline.json`, `results.json`, `latest_run.txt`, `check_regression.py` (CI has used `scripts/check_e2e_regression.py` + `e2e_results.json` for a while).
+- Dockerfile no longer copies unused `tests/` / `benchmarks/`; it copies `best_prime/`.
+
 ### Added
 - **Standalone library guide** (MkDocs Material) at [`/guide/`](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) on the same GitHub Pages deploy as the exhibit lab (`/` stays the orrery). Pages: install, quick start, full API, CLI, restrictions, engines, performance.
 - Extra **`[docs]`** (`mkdocs-material`). `pip install -e ".[docs]"` then `mkdocs serve`.

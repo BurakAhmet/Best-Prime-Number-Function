@@ -1,8 +1,9 @@
 """
 best-prime-number-function — fully deterministic primality testing.
 
-Canonical implementation lives in the ``is_prime`` module; this package is a
-stable, library-friendly import path.
+Public import path. Implementations live in sibling modules; they load lazily
+so ``python is_prime.py`` / ``from best_prime import is_prime`` do not pull
+ntheory, sieves, and factoring into the end-to-end CLI ``TIME``.
 
 Example
 -------
@@ -19,6 +20,9 @@ True
 
 from __future__ import annotations
 
+from importlib import import_module
+from typing import Any
+
 try:
     from importlib.metadata import PackageNotFoundError, version
 
@@ -29,34 +33,44 @@ try:
 except ImportError:  # pragma: no cover
     __version__ = "1.9.0"
 
-from is_prime import DEFAULT_N, is_prime, lab, main
-from next_prime import next_prime
-from ntheory import (
-    TOTIENT_RANGE_MAX,
-    bigomega,
-    carmichael_lambda,
-    crt,
-    divisor_count,
-    divisor_sum,
-    divisors,
-    egcd,
-    euler_phi,
-    gcd,
-    is_carmichael,
-    is_semiprime,
-    is_squarefree,
-    jacobi,
-    modinv,
-    omega,
-    primorial,
-    radical,
-    totient,
-    totient_range,
-)
-from prev_prime import prev_prime
-from prime_factors import factorint, prime_factors
-from prime_power import is_perfect_power, is_prime_power
-from prime_sieve import PRIME_COUNT_MAX_N, nth_prime, prime_count, primerange, primes
+# (submodule, attribute)
+_EXPORTS: dict[str, tuple[str, str]] = {
+    "DEFAULT_N": (".is_prime", "DEFAULT_N"),
+    "PRIME_COUNT_MAX_N": (".prime_sieve", "PRIME_COUNT_MAX_N"),
+    "TOTIENT_RANGE_MAX": (".ntheory", "TOTIENT_RANGE_MAX"),
+    "bigomega": (".ntheory", "bigomega"),
+    "carmichael_lambda": (".ntheory", "carmichael_lambda"),
+    "crt": (".ntheory", "crt"),
+    "divisor_count": (".ntheory", "divisor_count"),
+    "divisor_sum": (".ntheory", "divisor_sum"),
+    "divisors": (".ntheory", "divisors"),
+    "egcd": (".ntheory", "egcd"),
+    "euler_phi": (".ntheory", "euler_phi"),
+    "factorint": (".prime_factors", "factorint"),
+    "gcd": (".ntheory", "gcd"),
+    "is_carmichael": (".ntheory", "is_carmichael"),
+    "is_perfect_power": (".prime_power", "is_perfect_power"),
+    "is_prime": (".is_prime", "is_prime"),
+    "is_prime_power": (".prime_power", "is_prime_power"),
+    "is_semiprime": (".ntheory", "is_semiprime"),
+    "is_squarefree": (".ntheory", "is_squarefree"),
+    "jacobi": (".ntheory", "jacobi"),
+    "lab": (".is_prime", "lab"),
+    "main": (".is_prime", "main"),
+    "modinv": (".ntheory", "modinv"),
+    "next_prime": (".next_prime", "next_prime"),
+    "nth_prime": (".prime_sieve", "nth_prime"),
+    "omega": (".ntheory", "omega"),
+    "prev_prime": (".prev_prime", "prev_prime"),
+    "prime_count": (".prime_sieve", "prime_count"),
+    "prime_factors": (".prime_factors", "prime_factors"),
+    "primerange": (".prime_sieve", "primerange"),
+    "primes": (".prime_sieve", "primes"),
+    "primorial": (".ntheory", "primorial"),
+    "radical": (".ntheory", "radical"),
+    "totient": (".ntheory", "totient"),
+    "totient_range": (".ntheory", "totient_range"),
+}
 
 __all__ = [
     "DEFAULT_N",
@@ -96,3 +110,22 @@ __all__ = [
     "totient_range",
     "__version__",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    spec = _EXPORTS.get(name)
+    if spec is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    mod_name, _attr = spec
+    mod = import_module(mod_name, __name__)
+    # import_module also sets ``best_prime.is_prime`` to the *module*. Re-bind
+    # every export from that submodule so ``from best_prime import is_prime``
+    # is the function.
+    for exp, (m, a) in _EXPORTS.items():
+        if m == mod_name:
+            globals()[exp] = getattr(mod, a)
+    return globals()[name]
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

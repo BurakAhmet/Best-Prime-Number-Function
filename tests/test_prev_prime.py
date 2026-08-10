@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from next_prime import next_prime
-from prev_prime import prev_prime
-from prime_sieve import primes
+from best_prime.next_prime import next_prime
+from best_prime.prev_prime import prev_prime
+from best_prime.prime_sieve import primes
 from tests.numbers import P10_9_7, P10_9_9, SMALL_PRIMES
 
 _HYP = dict(

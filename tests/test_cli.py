@@ -13,6 +13,7 @@ from tests.numbers import LARGEST_PRIME_LT_2_64, P10_9_7
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "is_prime.py"
+IMPL = ROOT / "best_prime" / "is_prime.py"
 
 
 def _run(*args: str, timeout: float = 30.0) -> subprocess.CompletedProcess[str]:
@@ -58,7 +59,7 @@ class TestCliDefault:
         assert DEFAULT_N < (1 << 64)
 
     def test_source_default_string_matches(self):
-        src = SCRIPT.read_text(encoding="utf-8")
+        src = IMPL.read_text(encoding="utf-8")
         assert "DEFAULT_N" in src
         assert "18_446_744_073_709_551_557" in src or str(LARGEST_PRIME_LT_2_64) in src
 

@@ -18,7 +18,7 @@ from collections.abc import Iterator
 if sys.getrecursionlimit() < 20_000:
     sys.setrecursionlimit(20_000)
 
-from is_prime import _parse_n
+from .is_prime import _parse_n
 
 # Tiny table used by next/prev_prime (first prime above 10^4).
 _TABLE_LIMIT = 10_007
