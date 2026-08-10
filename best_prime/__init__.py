@@ -29,9 +29,9 @@ try:
     try:
         __version__ = version("best-prime-number-function")
     except PackageNotFoundError:  # pragma: no cover - editable / source tree
-        __version__ = "1.9.0"
+        __version__ = "1.10.0"
 except ImportError:  # pragma: no cover
-    __version__ = "1.9.0"
+    __version__ = "1.10.0"
 
 # (submodule, attribute)
 _EXPORTS: dict[str, tuple[str, str]] = {

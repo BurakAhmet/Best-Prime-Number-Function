@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.9.0** (`pyproject.toml`; totient / primorial / divisor APIs) |
+| **Current package version** | **1.10.0** (`pyproject.toml`; L1-tiled small-prime marking) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -64,7 +64,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-10  v1.8.0   INV16 + 19·23·29 OR presieve + persisted contiguous marks
 2026-08-10  v1.8.1   uint32 nextg persist + DELTA[64] extract
 2026-08-10  v1.8.2   prime_count Meissel–Lehmer through 2^64−1
-2026-08-10  v1.9.0   totient / primorial / divisors; primerange generator  ← current
+2026-08-10  v1.9.0   totient / primorial / divisors; primerange generator
+2026-08-10  v1.10.0  L1-tiled marking for p<256 on the hard path  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -493,7 +494,7 @@ Lucy–Hedgehog allows $n\le 2.5\cdot10^{15}$ ($\sqrt{n}\le 5\cdot10^7$, compact
 
 ---
 
-## Era 15 — v1.8.1 (2026-08-10): **Current** — uint32 nextg + DELTA extract
+## Era 15 — v1.8.1 (2026-08-10): uint32 nextg + DELTA extract
 
 **Design (hard path only).** Mid-size $\sqrt{n}\le 2^{20}$ unchanged.
 
@@ -516,6 +517,34 @@ Lucy–Hedgehog allows $n\le 2.5\cdot10^{15}$ ($\sqrt{n}\le 5\cdot10^7$, compact
 |--|--|
 | **Advantages** | Same primes; fewer DIVs; cheaper extract; smaller persist working set |
 | **Disadvantages** | `nextg` assumes $\mathrm{limit}/30 < 2^{32}$ (true for u64 and for u128 full-trial $\sqrt{n}\le 2.5\cdot10^{10}$) |
+
+---
+
+## Era 16 — v1.10.0 (2026-08-10): **Current** — L1-tiled small-prime marking
+
+**Design (hard path only).** Mid-size $\sqrt{n}\le 2^{20}$ unchanged.
+
+Marking a 128 KiB wheel-30 segment with every $p\le\sqrt{\mathrm{limit}}$ walks the segment once per prime. For $p<256$ that is a dense store stream that falls out of L1 when mixed with thousands of large-$p$ streams.
+
+- Split `mark_segment`: primes $31\le p<256$ mark **16 KiB tiles** (L1-resident); $p\ge 256$ still one pass over the full segment (few stores per prime — tile restart costs more than it saves).
+- Persist `nextg` is unchanged (global byte index; each tile is just a smaller `nbytes`/`g0`).
+- Same wheel-30 + INV16 trial; same F11-safe index form.
+
+**Tried same session and rejected:** 8-way mark unroll (noise); `__builtin_umul_overflow` (that builtin is 32-bit — would miscompile the 64-bit wrap-mul); PGO / `-mprefer-vector-width=128` (noise / mid-size only); tiling *all* primes (already lost in 1.8.x).
+
+**Performance vs 1.8.1 / 1.9.0 `.so` (interleaved A/B, 12 threads, Zen 2).**
+
+| Case | Δ best-of |
+|------|----------:|
+| $10^9+7\times10^9+9$ | ~**10%** |
+| M61 | ~**8–14%** |
+| near $2^{63}$ | ~**6–10%** |
+| largest $<2^{64}$ | ~**6–7%** |
+
+| | |
+|--|--|
+| **Advantages** | Same exact primes; marking-bound hard path hits L1 on the dense streams |
+| **Disadvantages** | Extra loop nest for ~40 small primes; tile size / cutoff are CPU-tuned (16 KiB / 256 on Zen 2 L1D) |
 
 ---
 
@@ -542,7 +571,8 @@ Lucy–Hedgehog allows $n\le 2.5\cdot10^{15}$ ($\sqrt{n}\le 5\cdot10^7$, compact
 | **1.8.0** | + **INV16**, **19·23·29 OR presieve**, **persist + contiguous segs**, 128 KiB | same persist u128 | same | Yes | Hard 64-bit ~10–15% (max $<2^{64}$ ~287 ms in-process) | Extra BSS (~INV16/inv30 cache); 16-way / PS3 rejected |
 | **1.8.1** | + **uint32 nextg**, **DELTA extract** | same | same | Yes | Hard 64-bit another ~6–15% | `limit/30` must fit `uint32` |
 | **1.8.2** | same | same | same | Yes | **`prime_count` to $2^{64}-1$** (Lucy then Meissel–Lehmer) | Hardest 64-bit $\pi(n)$ needs primes $\le 2^{32}$ once |
-| **1.9.0 (now)** | same | same | same | Yes | **`primerange` generator**; totient / primorial / divisors / Jacobi / CRT | Product-tree primorial; linear-sieve `totient_range` |
+| **1.9.0** | same | same | same | Yes | **`primerange` generator**; totient / primorial / divisors / Jacobi / CRT | Product-tree primorial; linear-sieve `totient_range` |
+| **1.10.0 (now)** | + **L1 tiles for $p<256$** (16 KiB) | same tiles on u128 | same | Yes | Hard 64-bit ~6–14% (marking-bound) | Tile only the dense streams; tiling *all* primes still loses |
 
 ---
 
@@ -607,4 +637,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.9.0** (ntheory APIs + generator `primerange`). Extend forward; do not delete past eras.*
+*Last updated for package **1.10.0** (L1-tiled small-prime marking). Extend forward; do not delete past eras.*

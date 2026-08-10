@@ -33,7 +33,7 @@ End-to-end CLI `TIME` on a dev machine (`compare_e2e.py`, best of several runs; 
 | Largest prime $<2^{64}$ | 18446744073709551557 | ~0.28–0.31 s |
 | Mersenne M61 | $2^{61}-1$ | ~0.10–0.12 s |
 
-Recent engine work (INV16, persist uint32 marks, `DELTA[64]`) moved the hard 64-bit class roughly **10–15%** in-process versus the v1.7 engine; mid-size e2e stays on the precomputed-prime path and is unchanged in class.
+Recent engine work (INV16, persist uint32 marks, `DELTA[64]`, then **L1-tiled $p<256$ marking** in v1.10.0) moved the hard 64-bit class roughly **15–25%** in-process versus the v1.7 engine; v1.10.0 alone is ~**6–14%** versus v1.9.0 on the same machine. Mid-size e2e stays on the precomputed-prime path and is unchanged in class.
 
 ## Reproduce
 
