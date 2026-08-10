@@ -103,9 +103,13 @@ def to_markdown(payload: dict) -> str:
         "5. Ship a PR only on a real win; no empty PRs.",
         "6. Code only in `best_prime/`. CLI: `python -m best_prime`.",
         "",
+        "The same **Optimize** workflow also hunts `scripts/optimize_hunt.py`",
+        "and will open / examine / merge a PR only if a catalog candidate is faster.",
+        "Novel ideas still go through an **Optimization round** issue or Grok.",
+        "",
         "Skill: `.grok/skills/optimize-primes/SKILL.md`.",
         "",
-        "<sub>Posted by the **Optimize** workflow. Assign Copilot or run Grok locally on this brief.</sub>",
+        "<sub>Posted by the **Optimize** workflow.</sub>",
     ]
     return "\n".join(lines) + "\n"
 

@@ -11,7 +11,15 @@
 #define PRE_NP 82024
 /* Parallel segmented sieve only when isqrt(n) is large enough that
    OpenMP overhead is repaid (mid-size uses serial precomputed trial). */
+#ifndef PARALLEL_SEG_MIN
 #define PARALLEL_SEG_MIN 10000000ull
+#endif
+#ifndef TILE_BYTES
+#define TILE_BYTES 16384u
+#endif
+#ifndef TILE_P_MAX
+#define TILE_P_MAX 256u
+#endif
 static const uint8_t INV8[128] = {
 1,171,205,183,57,163,197,239,241,27,61,167,41,19,53,223,
 225,139,173,151,25,131,165,207,209,251,29,135,9,243,21,191,
@@ -26010,11 +26018,12 @@ static inline void mark_segment(uint8_t *seg, uint32_t nbytes, uint32_t g0,
     int k_hi = k_mark0;
     while (k_hi < np && (uint64_t)PRE_P[k_hi] * (uint64_t)PRE_P[k_hi] <= hi)
         k_hi++;
-    /* Dense small primes: walk 16 KiB tiles so the working set stays in L1.
-     * Large primes keep a single pass (few stores; tile restart would dominate). */
+    /* Dense small primes: walk TILE_BYTES tiles so the working set stays in L1.
+     * Large primes keep a single pass (few stores; tile restart would dominate).
+     * TILE_BYTES / TILE_P_MAX are compile-time knobs (defaults from the generator). */
     int k_small = k_mark0;
-    while (k_small < k_hi && PRE_P[k_small] < 256u) k_small++;
-    const uint32_t TILE = 16384u;
+    while (k_small < k_hi && PRE_P[k_small] < TILE_P_MAX) k_small++;
+    const uint32_t TILE = TILE_BYTES;
     if (k_small > k_mark0) {
         for (uint32_t off = 0; off < nbytes; off += TILE) {
             uint32_t ntile = nbytes - off;

@@ -8,6 +8,7 @@ Copy or attach this context when triaging **Best-Prime-Number-Function**.
 **CI gates:** build `wheel_core.so`, restriction linter, wiki sync, pytest not slow, Linux `lab(n)["path"]=="u64_wheel_c"` for 64-bit, **e2e** perf vs base, Determinism.  
 **Paths:** `u64_wheel_c` / `u128_wheel_c` (OpenMP), `python_wheel`, `bigint_wheel`, `bigint_trial_or_aks`.  
 **Primary speed metric:** end-to-end CLI `TIME` (`benchmarks/compare_e2e.py`), not in-process hot loop alone.  
+**Optimize workflow:** daily hunt of compile-time knobs; opens `optimize/candidate` PRs and merges them only after a same-machine A/B win. Do not rely on generic Auto-merge for those PRs.  
 **Algorithm history:** before changing engines/thresholds, read [`docs/ALGORITHM_HISTORY.md`](../docs/ALGORITHM_HISTORY.md) (past eras, tradeoffs, **failures not to repeat**). Update that file when you ship a meaningful engine change.  
 **Library docs:** public API / install / CLI live in [`docs/guide/`](../docs/guide/) (MkDocs → Pages `/guide/`). The exhibit lab stays at the Pages root.  
 **Authorship:** repository largely designed by an AI agent; encourage human review.

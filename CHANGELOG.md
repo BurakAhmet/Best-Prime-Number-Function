@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - GitHub **Optimize** workflow (`optimize.yml`) + `scripts/optimize_baseline.py`: daily baseline on a standing **Optimization log** issue, plus an **Optimization round** issue template. Trackable in Actions / Issues; engine changes still go through PRs.
+- Optimize **closed loop**: `scripts/optimize_hunt.py` searches a compile-time catalog (tile size / small-prime cutoff / OpenMP threshold), opens an `optimize/candidate` PR on a win, examines it with interleaved A/B + tests on a fresh runner, and squash-merges only if it is still faster. Generic Auto-merge skips these PRs.
 
 ### Changed
 - Dropped root ``is_prime.py`` / ``next_prime.py`` shims. One implementation each, under ``best_prime/``. Clone CLI is ``python -m best_prime`` and ``python -m best_prime.next_prime``; after install use ``is-prime`` / ``next-prime``. Import only ``from best_prime import …``.

@@ -628,7 +628,8 @@ Recorded so agents and humans do not “rediscover” them:
 | `is_prime_data/wheel_core.c` | OpenMP u64/u128 engines (generated + hand-tuned sections) |
 | `scripts/generate_wheel_core_c.py` | C generator |
 | `scripts/generate_wheel_data.py` | Wheel tables |
-| `scripts/compile_wheel_core.sh` | Build `.so` (LTO in 1.3.2+) |
+| `scripts/compile_wheel_core.sh` | Build `.so` (LTO in 1.3.2+; `WHEEL_CORE_CFLAGS` for hunt overrides) |
+| `scripts/optimize_hunt.py` | Catalog hunt + examine verdict for the Optimize workflow |
 | `benchmarks/compare_e2e.py` | Primary perf metric |
 | `benchmarks/compare_speed.py` | Warm in-process + primitive baseline |
 | `benchmarks/e2e_results.json` | Committed e2e snapshot |

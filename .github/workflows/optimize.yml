@@ -1,29 +1,51 @@
-# Daily / on-demand optimization yardstick.
-# Records e2e + hard-path timings on a standing GitHub issue so rounds are
-# trackable. Does not mutate the engine (that is an agent or human PR).
+# Daily / on-demand optimization loop.
+# 1. Record a baseline on the standing Optimization log issue.
+# 2. Hunt a small catalog of compile-time knobs (interleaved A/B).
+# 3. If a candidate wins: open a PR, examine it on a fresh runner, squash-merge
+#    only when it is still faster and tests pass. Otherwise close the PR.
+#
+# Generic Auto-merge is skipped for these PRs — "not 20% slower" is not enough.
 name: Optimize
 
 on:
   schedule:
     - cron: "0 5 * * *"   # 08:00 Europe/Istanbul (UTC+3)
   workflow_dispatch:
+    inputs:
+      hunt:
+        description: "Search the catalog and open a PR if a candidate wins"
+        type: boolean
+        default: true
+      merge:
+        description: "Merge the PR after examine confirms it is faster"
+        type: boolean
+        default: true
+      pairs:
+        description: "Interleaved A/B pairs per hard case"
+        type: string
+        default: "3"
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
   issues: write
   actions: read
+  checks: read
 
 concurrency:
-  group: optimize-baseline
-  cancel-in-progress: true
+  group: optimize-loop
+  cancel-in-progress: false
+
+env:
+  OMP_NUM_THREADS: "2"
+  NUMBA_NUM_THREADS: "2"
 
 jobs:
   baseline:
     name: Record baseline + upsert Optimization log
     runs-on: ubuntu-latest
-    env:
-      OMP_NUM_THREADS: "2"
-      NUMBA_NUM_THREADS: "2"
+    outputs:
+      issue: ${{ steps.log.outputs.issue }}
     steps:
       - uses: actions/checkout@v4
 
@@ -55,7 +77,8 @@ jobs:
             optimize_baseline.json
             optimize_baseline.md
 
-      - name: Upsert Optimization log issue
+      - id: log
+        name: Upsert Optimization log issue
         uses: actions/github-script@v7
         with:
           script: |
@@ -65,25 +88,23 @@ jobs:
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const label = 'optimize/log';
 
-            async function ensureLabel() {
+            async function ensureLabel(name, color, description) {
               try {
                 await github.rest.issues.getLabel({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  name: label,
+                  owner: context.repo.owner, repo: context.repo.repo, name,
                 });
               } catch (_) {
                 await github.rest.issues.createLabel({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  name: label,
-                  color: '1d76db',
-                  description: 'Standing log for scheduled optimization baselines',
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  name, color, description,
                 });
               }
             }
 
-            await ensureLabel();
+            await ensureLabel(label, '1d76db', 'Standing log for scheduled optimization baselines');
+            await ensureLabel('optimize/candidate', '5319e7',
+              'Optimize hunt PR; merge only if examine says it is faster');
+
             const open = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -95,12 +116,15 @@ jobs:
             const pinBody = [
               '# Optimization log',
               '',
-              'Scheduled **Optimize** workflow (08:00 Istanbul / 05:00 UTC) records a baseline here.',
-              'Each comment is one round. Open a new issue from the **Optimization round** template',
-              'and assign **Copilot** (or run Grok with the optimize-primes skill) to actually hunt.',
+              'Scheduled **Optimize** workflow (08:00 Istanbul / 05:00 UTC):',
+              '1. Record a baseline here.',
+              '2. Hunt the compile-time catalog (`scripts/optimize_hunt.py`).',
+              '3. Open a PR if a candidate wins, **examine** it on a fresh runner,',
+              '   squash-merge only when it is still faster (and tests pass).',
               '',
-              'Rules: deterministic; no Miller–Rabin; no primesieve / `sympy.isprime` as engine;',
+              'Rules: deterministic; no stochastic primality engine; no external prime libraries;',
               'e2e CLI `TIME` is primary; read `docs/ALGORITHM_HISTORY.md` F1–F13.',
+              'Generic Auto-merge does **not** land `optimize/candidate` PRs.',
               '',
               `Latest SHA: \`${report.sha}\` · [this run](${runUrl})`,
             ].join('\n');
@@ -133,4 +157,248 @@ jobs:
               body: md + `\n[Actions run](${runUrl})\n`,
             });
 
+            core.setOutput('issue', String(number));
             core.notice(`Posted optimize baseline on issue #${number}`);
+
+  hunt:
+    name: Hunt catalog
+    needs: baseline
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.hunt }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      winner: ${{ steps.verdict.outputs.winner }}
+      winner_id: ${{ steps.verdict.outputs.winner_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install build tools for OpenMP wheel core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
+
+      - run: pip install -e ".[fast]"
+
+      - name: Hunt (interleaved A/B vs current .so)
+        run: |
+          python3 scripts/optimize_hunt.py hunt \
+            --pairs "${{ github.event.inputs.pairs || '3' }}" \
+            --json optimize_hunt.json \
+            --md optimize_hunt.md \
+            --work /tmp/optimize_hunt
+
+      - id: verdict
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = json.loads(Path("optimize_hunt.json").read_text())
+          w = p.get("winner")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"winner={'true' if w else 'false'}\n")
+              fh.write(f"winner_id={(w or {}).get('id') or ''}\n")
+          print("winner", bool(w), (w or {}).get("id"))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: optimize-hunt
+          path: |
+            optimize_hunt.json
+            optimize_hunt.md
+
+      - name: Comment hunt on Optimization log
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.baseline.outputs.issue }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            cat optimize_hunt.md
+            echo
+            echo "[Actions run]($RUN_URL)"
+          } > /tmp/hunt_comment.md
+          gh issue comment "$ISSUE" --repo "${{ github.repository }}" \
+            --body-file /tmp/hunt_comment.md
+
+  ship:
+    name: Open PR, examine, merge if faster
+    needs: [baseline, hunt]
+    if: ${{ needs.hunt.outputs.winner == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install build tools for OpenMP wheel core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
+
+      - run: pip install -e ".[fast,test]"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: optimize-hunt
+          path: /tmp/optimize-hunt
+
+      - name: Compile main baseline .so
+        run: |
+          bash scripts/compile_wheel_core.sh
+          cp is_prime_data/wheel_core.so /tmp/orig_wheel_core.so
+
+      - name: Apply winner + regenerate C + docs
+        run: |
+          python3 scripts/optimize_hunt.py apply --from-json /tmp/optimize-hunt/optimize_hunt.json
+          python3 scripts/optimize_hunt.py docs --from-json /tmp/optimize-hunt/optimize_hunt.json
+          bash scripts/compile_wheel_core.sh
+
+      - name: Commit and open PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="optimize/auto-${{ github.run_id }}"
+          git checkout -B "$BRANCH"
+          git add scripts/generate_wheel_core_c.py is_prime_data/wheel_core.c \
+            CHANGELOG.md docs/ALGORITHM_HISTORY.md
+          git status
+          git diff --cached --stat
+          if git diff --cached --quiet; then
+            echo "apply produced no diff" >&2
+            exit 1
+          fi
+          ID="${{ needs.hunt.outputs.winner_id }}"
+          git commit -m "$(cat <<EOF
+          perf: auto-optimize ${ID}
+
+          Catalog hunt on Actions run ${{ github.run_id }}.
+          Examine job will merge only if a fresh A/B still wins.
+          EOF
+          )"
+          git push -u origin "$BRANCH"
+
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          {
+            echo "## Auto-optimize \`${ID}\`"
+            echo
+            echo "Opened by the **Optimize** workflow ([run](${RUN_URL}))."
+            echo
+            echo "Generic Auto-merge will **not** land this PR. The same workflow"
+            echo "examines it on this runner (interleaved A/B + tests) and squash-merges"
+            echo "only if it is still faster than current \`main\`."
+            echo
+            cat /tmp/optimize-hunt/optimize_hunt.md
+          } > /tmp/pr.md
+
+          gh label create optimize/candidate --color 5319e7 \
+            --description "Optimize hunt PR; merge only if examine says it is faster" \
+            --force || true
+          URL=$(gh pr create \
+            --title "perf: auto-optimize ${ID}" \
+            --body-file /tmp/pr.md \
+            --base main \
+            --head "$BRANCH")
+          NUM=$(gh pr view "$URL" --json number -q .number)
+          gh pr edit "$NUM" --add-label optimize/candidate --add-label performance --add-label area/core || true
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "number=$NUM" >> "$GITHUB_OUTPUT"
+          echo "Opened $URL"
+
+      - name: Examine PR tree vs main .so
+        id: examine
+        continue-on-error: true
+        run: |
+          python3 scripts/optimize_hunt.py examine \
+            --orig /tmp/orig_wheel_core.so \
+            --pairs "${{ github.event.inputs.pairs || '3' }}" \
+            --json optimize_examine.json \
+            --md optimize_examine.md \
+            --work /tmp/optimize_examine
+
+      - name: Tests + restrictions + determinism
+        id: tests
+        continue-on-error: true
+        run: |
+          python3 scripts/check_restrictions.py
+          python3 scripts/check_wiki_sync.py
+          pytest -q -m "not slow"
+          python benchmarks/check_determinism.py --trials 2
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: optimize-examine
+          path: |
+            optimize_examine.json
+            optimize_examine.md
+
+      - name: Comment examine report on the PR
+        if: always() && steps.pr.outputs.number
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## Examine"
+            echo
+            echo "- Hunt winner: \`${{ needs.hunt.outputs.winner_id }}\`"
+            echo "- A/B step: **${{ steps.examine.outcome }}**"
+            echo "- Tests step: **${{ steps.tests.outcome }}**"
+            echo
+            if [ -f optimize_examine.md ]; then cat optimize_examine.md; fi
+          } > /tmp/ex.md
+          gh pr comment "${{ steps.pr.outputs.number }}" --body-file /tmp/ex.md
+
+      - name: Merge or close
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.baseline.outputs.issue }}
+          PR: ${{ steps.pr.outputs.number }}
+          BRANCH: ${{ steps.pr.outputs.branch }}
+          WANT_MERGE: ${{ github.event_name != 'workflow_dispatch' || inputs.merge }}
+        run: |
+          set -euo pipefail
+          AB="${{ steps.examine.outcome }}"
+          TS="${{ steps.tests.outcome }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if [ "$AB" = "success" ] && [ "$TS" = "success" ] && [ "$WANT_MERGE" = "true" ]; then
+            gh pr merge "$PR" --squash --delete-branch \
+              --subject "perf: auto-optimize ${{ needs.hunt.outputs.winner_id }} (#${PR})" \
+              --body "Autonomous optimize merge after examine A/B + tests. Head from run ${{ github.run_id }}."
+            echo "Merged optimize PR #${PR}"
+            {
+              echo "**Merged** optimize PR #${PR} after examine confirmed a win."
+              echo
+              echo "[PR](${{ steps.pr.outputs.url }}) · [run](${RUN_URL})"
+            } > /tmp/done.md
+            gh issue comment "$ISSUE" --body-file /tmp/done.md
+            gh pr comment "$PR" --body "Examine confirmed a win. **Merged** (squash)."
+          else
+            REASON="examine=${AB} tests=${TS} merge_requested=${WANT_MERGE}"
+            gh pr close "$PR" --comment "Examine did not accept this candidate (${REASON}). Closed; no merge."
+            git push origin --delete "$BRANCH" || true
+            {
+              echo "**Closed** optimize PR #${PR} without merge (${REASON})."
+              echo
+              echo "[PR](${{ steps.pr.outputs.url }}) · [run](${RUN_URL})"
+            } > /tmp/done.md
+            gh issue comment "$ISSUE" --body-file /tmp/done.md
+            echo "Did not merge optimize PR #${PR} (${REASON})"
+          fi

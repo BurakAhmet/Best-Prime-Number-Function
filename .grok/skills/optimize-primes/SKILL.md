@@ -75,6 +75,21 @@ Then:
 6. Commit on the feature branch, push, open a PR against `main`.
 7. Do **not** merge, tag, or create a GitHub release unless the user asked in that run.
 
+## GitHub Optimize workflow
+
+`.github/workflows/optimize.yml` now does more than log timings:
+
+1. Baseline comment on the standing Optimization log issue.
+2. `python3 scripts/optimize_hunt.py hunt` over the compile-time catalog.
+3. On a win: apply knobs, open `optimize/auto-*` PR (`optimize/candidate`).
+4. Fresh runner examines (interleaved A/B + tests) and squash-merges **only**
+   if it is still faster. Generic Auto-merge skips these PRs.
+
+When you hunt locally, skip catalog knobs that the workflow already rejected
+in the latest #34 comment. Prefer ideas that are **not** TILE_BYTES /
+TILE_P_MAX / PARALLEL_SEG_MIN unless you have a reason the GHA 2-thread
+catalog would miss (e.g. 12-thread-only).
+
 ## No win
 
 If nothing beats baseline after a few serious attempts:

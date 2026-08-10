@@ -6,9 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this when you want a **GitHub-visible** optimization attempt.
-        The daily **Optimize** workflow already posts numbers on the standing
-        *Optimization log* issue — open a round here to assign an agent.
+        Use this when you want a **GitHub-visible** optimization attempt
+        **beyond** the daily catalog hunt.
+        The **Optimize** workflow already records baselines, tries TILE /
+        TILE_P_MAX / PARALLEL_SEG_MIN, and will open+merge a PR if that
+        catalog beats `main`. Open a round here for a *new* idea (assign
+        Copilot or run Grok).
 
         Read [`docs/ALGORITHM_HISTORY.md`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)
         (especially **F1–F13**) and `.grok/skills/optimize-primes/SKILL.md`.

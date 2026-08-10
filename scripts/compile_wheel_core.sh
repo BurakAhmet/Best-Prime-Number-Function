@@ -12,10 +12,18 @@ ARCH_FLAGS=(-march=native -mtune=native)
 if ! gcc -march=native -E -x c /dev/null -o /dev/null 2>/dev/null; then
   ARCH_FLAGS=(-march=x86-64-v2)
 fi
+# Optional extra flags from the Optimize hunt (e.g. -DTILE_BYTES=32768u).
+EXTRA=()
+if [[ -n "${WHEEL_CORE_CFLAGS:-}" ]]; then
+  # Intentional word-split: caller passes a gcc flag string.
+  # shellcheck disable=SC2206
+  EXTRA=( ${WHEEL_CORE_CFLAGS} )
+fi
 # Link -lm last (isqrt is integer-only, but keep -lm for portability).
 # -funroll-loops + LTO help the independent-mod / segmented-prime hot paths.
 gcc -O3 -flto -fPIC -shared -fopenmp \
   "${ARCH_FLAGS[@]}" \
   -funroll-loops -fomit-frame-pointer \
+  "${EXTRA[@]}" \
   -o "$DATA/wheel_core.so" "$DATA/wheel_core.c" -lm -fopenmp
-echo "Built $DATA/wheel_core.so"
+echo "Built $DATA/wheel_core.so ${WHEEL_CORE_CFLAGS:-}"

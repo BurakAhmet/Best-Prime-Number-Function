@@ -63,6 +63,12 @@ jobs:
               core.info('PR not open');
               return;
             }
+            const names = (pr.labels || []).map(l => (typeof l === 'string' ? l : l.name));
+            const headRef = (pr.head && pr.head.ref) || '';
+            if (names.includes('optimize/candidate') || headRef.startsWith('optimize/auto-')) {
+              core.info('Optimize candidate — skip generic auto-merge (Optimize examine owns merge)');
+              return;
+            }
             if (pr.draft) {
               core.info('Draft PR — skip');
               return;
