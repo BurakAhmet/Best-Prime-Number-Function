@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+- **Standalone library guide** (MkDocs Material) at [`/guide/`](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) on the same GitHub Pages deploy as the exhibit lab (`/` stays the orrery). Pages: install, quick start, full API, CLI, restrictions, engines, performance.
+- Extra **`[docs]`** (`mkdocs-material`). `pip install -e ".[docs]"` then `mkdocs serve`.
+- Optional [`.readthedocs.yaml`](.readthedocs.yaml) for the same `mkdocs.yml`.
+- Exhibit top bar / sidebar link to the guide. `Documentation` URL in `pyproject.toml` now points at `/guide/`.
+
 ## [1.9.0] — 2026-08-10
 
 ### Added

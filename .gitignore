@@ -22,3 +22,6 @@ build/
 .DS_Store
 .idea/
 .vscode/
+# MkDocs local build; CI publishes into the Pages artifact at _site/guide
+site/
+_site/

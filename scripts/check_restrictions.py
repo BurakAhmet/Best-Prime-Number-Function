@@ -31,6 +31,10 @@ ALLOW_PATH_SUBSTRINGS = (
     "PROJECT_BOARD",
     "ALGORITHM_HISTORY",
     "docs/wiki",
+    "docs/guide",
+    "docs/theme",
+    "mkdocs.yml",
+    ".readthedocs.yaml",
     "copilot-instructions",
     "AGENT_BRIEFING",
     "test_is_prime.py",  # may mention Carmichael / MR context

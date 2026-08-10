@@ -1,0 +1,27 @@
+/* Chalkboard-adjacent accents so /guide/ sits next to the exhibit lab. */
+:root {
+  --md-primary-fg-color: #163028;
+  --md-primary-fg-color--light: #245c3d;
+  --md-primary-fg-color--dark: #0f221c;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-typeset-a-color: #e8c96a;
+  --md-accent-fg-color: #e8c96a;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.md-typeset .admonition.warning,
+.md-typeset details.warning {
+  border-color: #c45c2c;
+}
+
+.md-typeset code {
+  font-variant-ligatures: none;
+}

@@ -51,6 +51,15 @@ jobs:
       - name: Wiki sync
         run: python3 scripts/check_wiki_sync.py
 
+      - name: Build library guide (MkDocs)
+        if: matrix.python-version == '3.12'
+        run: |
+          pip install -e ".[docs]"
+          mkdocs build --strict --site-dir /tmp/guide-site
+          test -f /tmp/guide-site/index.html
+          test -f /tmp/guide-site/api/index.html
+          grep -q "is_prime" /tmp/guide-site/api/index.html
+
       - name: Run fast tests
         run: pytest -q -m "not slow"
 

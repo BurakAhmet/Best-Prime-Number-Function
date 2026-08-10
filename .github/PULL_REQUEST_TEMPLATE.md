@@ -28,6 +28,7 @@ Primary metric is **end-to-end CLI `TIME`**, not warm hot-loop alone.
 ## Docs
 
 - [ ] README and `docs/wiki/` still agree (`check_wiki_sync.py`)
+- [ ] `docs/guide/` (MkDocs `/guide/`) updated if the public API or install story changed
 - [ ] Changelog / version bump if this is a user-visible engine or API change
 
 ## Notes for reviewers

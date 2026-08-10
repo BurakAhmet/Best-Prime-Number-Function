@@ -1,10 +1,6 @@
-# Library reference
+# API reference
 
 Import the public API from **`best_prime`**. Every result is **exact and deterministic**. No stochastic Miller–Rabin, no prime libraries as the engine.
-
-**Standalone docs (MkDocs):** [burakahmet.github.io/Best-Prime-Number-Function/guide/](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) — install, quick start, full API, CLI, engines.
-
-This page is `docs/wiki/Library.md` in the repository (also published on the exhibit wiki).
 
 ```python
 from best_prime import is_prime, next_prime, totient, primorial, primerange
@@ -12,10 +8,12 @@ from best_prime import is_prime, next_prime, totient, primorial, primerange
 
 Runnable tours: [`examples/basic_usage.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/examples/basic_usage.py) · [`examples/library_tour.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/examples/library_tour.py).
 
+The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/wiki/Library.md).
+
 **Input contract (shared).** `n` is a non-negative `int` or a decimal `str` (whitespace / leading zeros OK). `bool` is rejected. `parallel=True` only affects OpenMP / Numba on large $\sqrt{n}$; serial and parallel **always agree**.
 
-> [!WARNING]
-> This repository is AI-designed. Review before production or research-critical use.
+!!! warning "AI-designed"
+    This repository is AI-designed. Review before production or research-critical use.
 
 ---
 
@@ -61,6 +59,8 @@ info["is_prime"], info["path"], info["isqrt"]
 # (True, 'u64_wheel_c', 31622)   # path depends on wheel_core.so
 ```
 
+Typical `path` values: `python_small`, `u64_wheel_c`, `u128_wheel_c`, `python_wheel`, `bigint_wheel`, `bigint_trial_or_aks`. See [Engines](engines.md).
+
 ---
 
 ## Neighbours and the $k$-th prime
@@ -77,7 +77,7 @@ next_prime(100)     # 101
 
 ### `prev_prime(n, k=1, *, parallel=True) -> int`
 
-The $k$-th prime **strictly less than** $n`. Raises if fewer than $k$ primes exist below $n$.
+The $k$-th prime **strictly less than** $n$. Raises if fewer than $k$ primes exist below $n`.
 
 ```python
 prev_prime(14)      # 13
@@ -108,6 +108,8 @@ prime_count(10)        # 4
 prime_count(100)       # 25
 prime_count(10**12)    # 37607912018
 ```
+
+$n >$ `PRIME_COUNT_MAX_N` raises `ValueError`.
 
 ### `primes(n) -> list[int]`
 
@@ -145,7 +147,7 @@ prime_factors(1)      # []
 
 ### `factorint(n, *, parallel=True) -> dict[int, int]`
 
-Prime $\to$ exponent. Empty if $n<2$.
+Prime $\to$ exponent. Empty if $n<2`.
 
 ```python
 factorint(360)    # {2: 3, 3: 2, 5: 1}
@@ -220,7 +222,7 @@ primorial(4, nth=True)    # 210      = p1·p2·p3·p4
 
 ### `divisors(n, *, parallel=True) -> list[int]`
 
-Positive divisors of $n$, ascending. Undefined for $0$.
+Positive divisors of $n$, ascending. Undefined for $0`.
 
 ```python
 divisors(12)    # [1, 2, 3, 4, 6, 12]
@@ -315,7 +317,7 @@ assert g == 2 and 240 * x + 46 * y == g
 Inverse of $a$ modulo $m>1$. Raises `ValueError` if none exists.
 
 ```python
-modinv(3, 11)           # 4
+modinv(3, 11)             # 4
 (3 * modinv(3, 11)) % 11  # 1
 ```
 
@@ -340,33 +342,9 @@ jacobi(0, 5)     # 0
 
 ---
 
-## Console scripts
-
-Same programs as `python is_prime.py` / the modules above. After `pip install`:
-
-```bash
-is-prime 97
-next-prime 14 3
-prev-prime 14
-nth-prime 5
-prime-count 10
-primes 10
-primerange 10 20
-prime-factors 360
-totient 10
-primorial 7
-divisors 12
-is-prime-power 8
-is-perfect-power 36
-```
-
-`TIME` on the CLI is **end-to-end** (import → answer).
-
----
-
 ## Related
 
-- [Library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) — standalone MkDocs site
-- [Algorithm overview](Algorithm-overview) — which engine runs
-- [Project restrictions](Project-restrictions) — why not Miller–Rabin
-- [Contributing](Contributing)
+- [Engines](engines.md) — which path runs
+- [Restrictions](restrictions.md) — why not Miller–Rabin
+- [Command line](cli.md)
+- [Contributing](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CONTRIBUTING.md)

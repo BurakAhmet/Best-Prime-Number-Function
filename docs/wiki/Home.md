@@ -36,7 +36,8 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 | Page | Description |
 |------|-------------|
 | **[Home](Home)** | This overview |
-| **[Library reference](Library)** | Every public function, with examples |
+| **[Library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)** | Standalone MkDocs site (install, API, CLI, engines) at `/guide/` |
+| **[Library reference](Library)** | Every public function, with examples (wiki copy) |
 | **[Project restrictions](Project-restrictions)** | Non-negotiable rules for humans **and agents** |
 | **[Algorithm overview](Algorithm-overview)** | Tiered wheel trial (u64/u128) + AKS for huge n |
 | **[Algorithm history](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)** | Performance eras, opts, tradeoffs, failures to avoid |
@@ -48,7 +49,7 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 
 **Source of truth in git:** [`docs/wiki/`](https://github.com/BurakAhmet/Best-Prime-Number-Function/tree/main/docs/wiki).
 
-**Also published as Pages:** [burakahmet.github.io/Best-Prime-Number-Function](https://burakahmet.github.io/Best-Prime-Number-Function/)
+**Also published as Pages:** [burakahmet.github.io/Best-Prime-Number-Function](https://burakahmet.github.io/Best-Prime-Number-Function/) (exhibit) · [library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)
 
 ---
 

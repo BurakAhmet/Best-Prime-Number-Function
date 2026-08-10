@@ -44,6 +44,7 @@ dependencies = []
 # benefit from `[fast]`. Pure install uses stdlib wheels + Python Lucy.
 fast = ["numpy>=1.22", "numba>=0.56"]
 test = ["pytest>=7.0", "hypothesis>=6.0"]
+docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10"]
 dev = [
   "pytest>=7.0",
   "hypothesis>=6.0",
@@ -51,6 +52,8 @@ dev = [
   "wheel",
   "numpy>=1.22",
   "numba>=0.56",
+  "mkdocs>=1.6,<2",
+  "mkdocs-material>=9.5,<10",
 ]
 
 [project.urls]
@@ -58,7 +61,7 @@ Homepage = "https://github.com/BurakAhmet/Best-Prime-Number-Function"
 Repository = "https://github.com/BurakAhmet/Best-Prime-Number-Function"
 Issues = "https://github.com/BurakAhmet/Best-Prime-Number-Function/issues"
 Changelog = "https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/BurakAhmet/Best-Prime-Number-Function#readme"
+Documentation = "https://burakahmet.github.io/Best-Prime-Number-Function/guide/"
 
 [project.scripts]
 is-prime = "is_prime:main"

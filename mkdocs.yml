@@ -1,0 +1,130 @@
+# Standalone library docs. Published to GitHub Pages at /guide/
+# (the exhibit lab stays at the site root via docs/wiki/build_site.py).
+site_name: best_prime
+site_description: Fully deterministic primality, π(n), factoring, and arithmetic — no stochastic Miller–Rabin
+site_url: https://burakahmet.github.io/Best-Prime-Number-Function/guide/
+site_author: BurakAhmet
+docs_dir: docs/guide
+# Default `site/` is local-only; CI copies into the Pages artifact at _site/guide.
+site_dir: site
+repo_url: https://github.com/BurakAhmet/Best-Prime-Number-Function
+repo_name: BurakAhmet/Best-Prime-Number-Function
+edit_uri: edit/main/docs/guide/
+copyright: >
+  AI-designed project — review before production or research-critical use.
+  MIT License.
+
+theme:
+  name: material
+  custom_dir: docs/theme
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  font:
+    text: Source Sans 3
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/sigma
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+    - toc.integrate
+
+extra_css:
+  - stylesheets/extra.css
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css
+
+extra_javascript:
+  - javascripts/katex.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/BurakAhmet/Best-Prime-Number-Function
+      name: Source repository
+  generator: false
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tilde
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Install: install.md
+      - Quick start: quickstart.md
+      - Command line: cli.md
+  - Reference:
+      - API: api.md
+  - Design:
+      - Restrictions: restrictions.md
+      - Engines: engines.md
+      - Performance: performance.md
+
+watch:
+  - mkdocs.yml
+
+strict: true
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: ignore
+  links:
+    not_found: warn
+    absolute_links: ignore
+    unrecognized_links: ignore
+    anchors: warn

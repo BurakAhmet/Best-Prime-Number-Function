@@ -29,6 +29,8 @@ pip install -e ".[dev]"
 bash scripts/compile_wheel_core.sh
 python3 scripts/check_restrictions.py
 python3 scripts/check_wiki_sync.py
+# if you changed docs/guide or mkdocs.yml:
+pip install -e ".[docs]" && mkdocs build --strict
 pytest -q -m "not slow"
 OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
 OMP_NUM_THREADS=2 python3 benchmarks/compare_e2e.py --json /tmp/e2e.json
@@ -55,7 +57,7 @@ pytest -q   # includes @pytest.mark.slow hard 64-bit primes
 1. **Restrictions** — deterministic; no MR / prime libs as engine.
 2. **Tests** — `pytest -m "not slow"` passes; add C-path coverage if you touch `wheel_core.c`.
 3. **Speed** — run `compare_e2e.py`; avoid e2e regressions CI would flag (>25% on measurable cases).
-4. **Docs** — update README **and** `docs/wiki/` (`check_wiki_sync.py` must pass).
+4. **Docs** — update README **and** `docs/wiki/` (`check_wiki_sync.py` must pass). Public API / install / CLI live in `docs/guide/` (MkDocs → Pages `/guide/`); keep that site in sync when the library surface changes.
 5. **Build path** — use `scripts/compile_wheel_core.sh` / `generate_wheel_data.py` / `generate_wheel_core_c.py` only (no ad-hoc AOT scripts).
 6. **Scope** — prefer small, reviewable PRs.
 
