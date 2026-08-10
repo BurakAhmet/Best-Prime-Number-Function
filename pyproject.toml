@@ -88,7 +88,7 @@ markers = [
 
 [tool.setuptools]
 # Compatibility CLI shim + data package + best_prime implementation.
-py-modules = ["is_prime"]
+py-modules = ["is_prime", "next_prime"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
