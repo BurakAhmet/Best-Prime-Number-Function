@@ -20,8 +20,8 @@ pytest -q -m "not slow"
 pytest -q                                          # includes @pytest.mark.slow + Hypothesis
 NUMBA_NUM_THREADS=2 python benchmarks/check_determinism.py
 NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py
-python is_prime.py --lab 18446744073709551557
-python is_prime.py --lab --json 97
+python -m best_prime --lab 18446744073709551557
+python -m best_prime --lab --json 97
 ```
 
 ## Auto-approve / auto-merge policy

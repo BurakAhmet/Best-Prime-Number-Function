@@ -1,6 +1,6 @@
 # Install
 
-Package name on disk: **`best-prime-number-function`**. Import the API as **`best_prime`** (implementation lives in that package; `from is_prime import is_prime` remains as a compatibility shim).
+Package name on disk: **`best-prime-number-function`**. Import the API as **`best_prime`**.
 
 Requires **Python 3.9+**. The core install has **no required third-party dependencies**. OpenMP C is compiled at install time when `gcc` + OpenMP are present.
 

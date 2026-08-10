@@ -7,7 +7,7 @@ import math
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from is_prime import is_prime
+from best_prime.is_prime import is_prime
 from best_prime.prime_factors import factorint, prime_factors
 from tests.numbers import MR_LIAR, MR_LIAR_FACTORS, P10_9_7, P10_9_9, SEMIPRIME_1E9, SMALL_PRIMES
 

@@ -15,7 +15,7 @@ Emits a compact OpenMP C engine:
 
 The 9699690-wheel table is intentionally *not* embedded: it bloated the .so
 and lost to prime-only trial once a modest prime table is available. Numba /
-stdlib fallbacks in is_prime.py still use the on-disk wheel assets.
+stdlib fallbacks in best_prime/is_prime.py still use the on-disk wheel assets.
 """
 from __future__ import annotations
 

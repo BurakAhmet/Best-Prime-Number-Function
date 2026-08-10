@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
-from is_prime import is_prime, lab
+from best_prime.is_prime import is_prime, lab
 from tests.numbers import (
     CARMICHAEL,
     FERMAT_COMPOSITE,

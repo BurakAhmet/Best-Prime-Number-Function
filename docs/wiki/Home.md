@@ -72,8 +72,8 @@ prev-prime 14                          # 13
 nth-prime 5                            # 11
 prime-count 10                         # 4
 prime-factors 360                      # 2 2 2 3 3 5
-python is_prime.py                     # default: largest prime < 2^64
-python is_prime.py 100000000000000000039  # ~10^20 prime (u128_wheel_c)
+python -m best_prime                     # default: largest prime < 2^64
+python -m best_prime 100000000000000000039  # ~10^20 prime (u128_wheel_c)
 pytest -q -m "not slow"
 ```
 

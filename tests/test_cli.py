@@ -8,11 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from is_prime import DEFAULT_N
+from best_prime.is_prime import DEFAULT_N
 from tests.numbers import LARGEST_PRIME_LT_2_64, P10_9_7
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "is_prime.py"
 IMPL = ROOT / "best_prime" / "is_prime.py"
 
 
@@ -20,7 +19,7 @@ def _run(*args: str, timeout: float = 30.0) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.setdefault("OMP_NUM_THREADS", "2")
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
+        [sys.executable, "-m", "best_prime", *args],
         cwd=ROOT,
         capture_output=True,
         text=True,

@@ -1,6 +1,6 @@
 # Speed comparison: primitive vs optimized / end-to-end CLI
 
-CLI `TIME` in `is_prime.py` is **end-to-end** (module `t0` → result). Use `compare_e2e.py` for that metric.
+CLI `TIME` from `python -m best_prime` is **end-to-end** (module `t0` → result). Use `compare_e2e.py` for that metric.
 
 `compare_speed.py` still times in-process `is_prime()` calls only (warm JIT), useful for hot-loop regressions.
 

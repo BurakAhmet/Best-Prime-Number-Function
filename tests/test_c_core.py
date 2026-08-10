@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from is_prime import DEFAULT_N, _load_c_core, is_prime, lab  # noqa: E402
+from best_prime.is_prime import DEFAULT_N, _load_c_core, is_prime, lab  # noqa: E402
 from tests.numbers import (  # noqa: E402
     LARGEST_PRIME_LT_2_64,
     M61,

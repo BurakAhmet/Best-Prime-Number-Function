@@ -44,7 +44,7 @@ cd Best-Prime-Number-Function
 pip install -e ".[dev]"
 ```
 
-Package name on disk: **`best-prime-number-function`**. Import the API as **`best_prime`** (or the implementation module `is_prime` — same functions).
+Package name on disk: **`best-prime-number-function`**. Import the API as **`best_prime`**.
 
 If hard primes feel slow, ensure the OpenMP core built successfully (`gcc` + OpenMP). Re-run from a clone:
 
@@ -138,7 +138,7 @@ Without `wheel_core.so`, the library still works via stdlib wheels and/or Numba;
 
 ## CLI
 
-After `pip install`, use the console scripts (same program as `python is_prime.py` from a clone):
+After `pip install`, use the console scripts (same program as `python -m best_prime` from a clone):
 
 ```bash
 is-prime 97
@@ -381,8 +381,7 @@ Think of four layers. Only the first is the product.
 ```text
 +--------------------------------------------------------------------------+
 |  1. CORE                                                                 |
-|     best_prime/          public API + engines (is_prime, sieve, ntheory) |
-|     is_prime.py          thin CLI / import shim                          |
+|     best_prime/          public API + engines + CLI (`python -m best_prime`) |
 |     is_prime_data/       precomputed wheels + optional wheel_core.so     |
 |     Rules: deterministic, no stochastic MR, no prime libs as engine      |
 +--------------------------------------------------------------------------+
@@ -412,7 +411,6 @@ Think of four layers. Only the first is the product.
 ```text
 Best-Prime-Number-Function/
 ├── best_prime/                 # library package (is_prime, sieve, ntheory, …)
-├── is_prime.py                 # CLI / import compatibility shim
 ├── is_prime_data/              # wheels, wheel_core.c / .so
 ├── tests/
 ├── benchmarks/                 # compare_speed, compare_e2e, determinism
@@ -561,8 +559,7 @@ bash scripts/compile_wheel_core.sh
 python3 scripts/check_restrictions.py
 pytest -q -m "not slow"
 OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
-python3 is_prime.py --lab 97
-python3 next_prime.py 14
+python3 -m best_prime --lab 97
 python3 -m best_prime.next_prime 14
 ```
 
