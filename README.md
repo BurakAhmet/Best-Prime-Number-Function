@@ -488,10 +488,11 @@ Workflows under `.github/workflows/` are optional for *using* `is_prime`; they o
 | [**Project autonomy**](.github/workflows/project-autonomy.yml) | issues / PRs | Moves kanban / agent labels |
 | [**Project sync**](.github/workflows/project-sync.yml) | manual / optional | Re-seed GitHub Project if `PROJECT_TOKEN` has `project` scopes |
 | [**Prime of the day**](.github/workflows/prime-of-the-day.yml) | daily 12:00 UTC / manual | Deterministic date → `n` → `lab()`; upserts labeled issue |
+| [**Optimize**](.github/workflows/optimize.yml) | daily 05:00 UTC / manual | Baseline on the Optimization log; hunt catalog; open a PR; examine; merge only if faster |
 
 Agent context: [`.github/copilot-instructions.md`](.github/copilot-instructions.md), [`.github/AGENT_BRIEFING.md`](.github/AGENT_BRIEFING.md).
 
-**Policy:** same-repo PRs may be auto-approved and auto-merged after green **CI** + **Determinism**; **forks are never** auto-approved or auto-merged.
+**Policy:** same-repo PRs may be auto-approved and auto-merged after green **CI** + **Determinism**; **forks are never** auto-approved or auto-merged. PRs labeled `optimize/candidate` skip generic Auto-merge — Optimize examines them and merges only when they are faster than `main`.
 
 ```text
 Issue opened ──► Issue agent (answer + labels)

@@ -15,7 +15,7 @@ on:
   # Auto-merge and Prime-of-the-day push with GITHUB_TOKEN, which does not
   # start other `on: push` workflows. workflow_run is the supported hook.
   workflow_run:
-    workflows: ["Auto-merge", "Prime of the day"]
+    workflows: ["Auto-merge", "Prime of the day", "Optimize"]
     types: [completed]
 
 permissions:
@@ -62,6 +62,16 @@ jobs:
               echo "publish=true" >> "$GITHUB_OUTPUT"
             else
               echo "Auto-merge $WR_ID did not merge a PR — skip"
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          if [ "$WR_NAME" = "Optimize" ]; then
+            if gh run view "$WR_ID" --repo "${{ github.repository }}" --log \
+                 | grep -q "Merged optimize PR #"; then
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Optimize $WR_ID did not merge a PR — skip"
               echo "publish=false" >> "$GITHUB_OUTPUT"
             fi
             exit 0

@@ -8,7 +8,7 @@ Emits a compact OpenMP C engine:
     (Newton inv64 from a 16-bit table; exact: odd p | n iff (n*inv)*p < 2^64)
   * memcpy presieve of 7·11·13·17 plus AVX2/scalar OR of 19·23·29
   * contiguous per-thread ranges with persisted uint32 byte-index marks (no per-segment DIV)
-  * small primes (p<256) marked in 16 KiB tiles (L1) ; larger primes still one pass
+  * small primes (p<TILE_P_MAX, default 256) marked in TILE_BYTES tiles (L1); larger primes still one pass
   * DELTA[64] extract: one table lookup from ctzll instead of (byte,residue) math
   * uint64 ctzll extract of unset wheel-30 bits (8 bytes / iteration)
   * same sieve model for u128 full trial (128-bit DIV; wrap-mul is 64-bit)
@@ -26,6 +26,10 @@ DATA = ROOT / "is_prime_data"
 
 # Covers default e2e mid-size primes (12-digit isqrt = 999_999) with headroom.
 PRE_MAX = 1_048_576  # 2^20
+# Hard-path sieve knobs (overridable at compile time via -DTILE_BYTES=… etc.).
+TILE_BYTES = 16384
+TILE_P_MAX = 256
+PARALLEL_SEG_MIN = 10_000_000
 
 BODY = r"""
 /* BEGIN_WHEEL_CORE_BODY */
@@ -376,11 +380,12 @@ static inline void mark_segment(uint8_t *seg, uint32_t nbytes, uint32_t g0,
     int k_hi = k_mark0;
     while (k_hi < np && (uint64_t)PRE_P[k_hi] * (uint64_t)PRE_P[k_hi] <= hi)
         k_hi++;
-    /* Dense small primes: walk 16 KiB tiles so the working set stays in L1.
-     * Large primes keep a single pass (few stores; tile restart would dominate). */
+    /* Dense small primes: walk TILE_BYTES tiles so the working set stays in L1.
+     * Large primes keep a single pass (few stores; tile restart would dominate).
+     * TILE_BYTES / TILE_P_MAX are compile-time knobs (defaults from the generator). */
     int k_small = k_mark0;
-    while (k_small < k_hi && PRE_P[k_small] < 256u) k_small++;
-    const uint32_t TILE = 16384u;
+    while (k_small < k_hi && PRE_P[k_small] < TILE_P_MAX) k_small++;
+    const uint32_t TILE = TILE_BYTES;
     if (k_small > k_mark0) {
         for (uint32_t off = 0; off < nbytes; off += TILE) {
             uint32_t ntile = nbytes - off;
@@ -817,7 +822,15 @@ def main() -> None:
         f"#define PRE_NP {len(primes)}",
         "/* Parallel segmented sieve only when isqrt(n) is large enough that",
         "   OpenMP overhead is repaid (mid-size uses serial precomputed trial). */",
-        "#define PARALLEL_SEG_MIN 10000000ull",
+        "#ifndef PARALLEL_SEG_MIN",
+        f"#define PARALLEL_SEG_MIN {PARALLEL_SEG_MIN}ull",
+        "#endif",
+        "#ifndef TILE_BYTES",
+        f"#define TILE_BYTES {TILE_BYTES}u",
+        "#endif",
+        "#ifndef TILE_P_MAX",
+        f"#define TILE_P_MAX {TILE_P_MAX}u",
+        "#endif",
     ]
     lines.extend(_emit_u8("INV8", _inv8_table()))
     lines.extend(_emit_u32("PRE_P", primes))

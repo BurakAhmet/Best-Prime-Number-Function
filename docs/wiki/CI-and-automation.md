@@ -6,11 +6,11 @@
 | **Determinism** | push / PR | Repeated serial/parallel trials + `check_determinism.py` |
 | **Auto-merge** | CI / Determinism completed | Squash-merge **same-repo** PRs when tests + determinism (+ perf if present) are green |
 | **Prime of the day** | daily 12:00 UTC / manual | Deterministic date→`n` challenge via `lab()`; upserts issue labeled `prime-of-the-day` |
-| **Optimize** | daily 05:00 UTC / manual | Compile `.so`, snapshot e2e + hard-path `lab` timings, comment on the standing **Optimization log** issue (`optimize/log`). Does not change the engine; assign Copilot or run Grok on a new **Optimization round** issue to hunt. |
+| **Optimize** | daily 05:00 UTC / manual | Baseline on the **Optimization log** issue; hunt the compile-time catalog; open an `optimize/candidate` PR if a candidate wins; **examine** it (interleaved A/B + tests) on a fresh runner; squash-merge only if it is still faster. Generic Auto-merge skips these PRs. |
 | **Issue agent** | issue opened | Keyword answers + restrictions briefing + labels |
 | **PR agent** | PR open/sync | Briefing, Copilot review request (best-effort), **auto-approve same-repo PRs** |
 | **Project autonomy** | issues / PRs | Label kanban without a human-only lane |
-| **Publish wiki** | push to `docs/wiki/**` / `docs/guide/**` / `mkdocs.yml`; **workflow_run** after Auto-merge (only if it merged) or Prime of the day; manual dispatch | Compile exhibit Markdown → HTML (KaTeX, lab) **and** MkDocs library guide at `/guide/`; deploy GitHub Pages. Needed because `GITHUB_TOKEN` merges do not start `on: push` workflows. |
+| **Publish wiki** | push to `docs/wiki/**` / `docs/guide/**` / `mkdocs.yml`; **workflow_run** after Auto-merge (only if it merged), Prime of the day, or Optimize (only if it merged); manual dispatch | Compile exhibit Markdown → HTML (KaTeX, lab) **and** MkDocs library guide at `/guide/`; deploy GitHub Pages. Needed because `GITHUB_TOKEN` merges do not start `on: push` workflows. |
 | **Publish package** | release / manual | GHCR container (Packages section) |
 
 ## Local commands
@@ -28,6 +28,7 @@ python -m best_prime --lab --json 97
 ## Auto-approve / auto-merge policy
 
 - **Same-repository** PRs may be auto-approved (PR agent) and auto-merged (Auto-merge) after green **CI** + **Determinism**.
+- **`optimize/candidate` PRs are not auto-merged.** The Optimize workflow examines them and merges only when they are actually faster than `main`.
 - **Forks are not auto-approved or auto-merged.**
 - Approval **does not** waive CI — gates stay on green checks.
 
