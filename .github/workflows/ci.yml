@@ -145,15 +145,16 @@ jobs:
           PY
 
       - name: Smoke CLI
+        shell: bash
         run: |
-          python -c "from best_prime import is_prime; assert is_prime(17) and not is_prime(0) and not is_prime(1)"
+          python -c "from best_prime.is_prime import is_prime; assert is_prime(17) and not is_prime(0) and not is_prime(1)"
           python -m best_prime 97
           if python -m best_prime 100; then
             echo "expected exit code 1 for composite 100" >&2
             exit 1
           fi
-          python -m best_prime 1000000007 | tee /tmp/cli_out.txt
-          grep -q 'RESULT:  prime' /tmp/cli_out.txt
+          python -m best_prime 1000000007 | tee "$RUNNER_TEMP/cli_out.txt"
+          grep -q 'RESULT:  prime' "$RUNNER_TEMP/cli_out.txt"
 
   performance:
     name: E2E performance vs baseline / base branch
