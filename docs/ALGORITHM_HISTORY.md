@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.6.0** (`pyproject.toml`; engines still v1.5.0 + `next_prime` API) |
+| **Current package version** | **1.7.0** (`pyproject.toml`; `is_prime` engines still v1.5.0) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -59,7 +59,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-08  v1.4.3   memcpy presieve 7·11·13·17 + 32-bit mark starts; CLI default = max 64-bit prime
 2026-08-08  v1.4.4   uint64 ctzll extract of wheel-30 bits
 2026-08-08  v1.5.0   Huge-n: wheel pre-AKS + Kronecker AKS
-2026-08-10  v1.6.0   API: next_prime (30030-wheel candidates + existing is_prime)  ← current
+2026-08-10  v1.6.0   API: next_prime (30030-wheel candidates + existing is_prime)
+2026-08-10  v1.7.0   API: prev/nth/π/range/factor/prime-power  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -441,7 +442,19 @@ Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes 
 
 ## API addition — v1.6.0 (2026-08-10): `next_prime`
 
-**Not an engine change.** New module [`next_prime.py`](../next_prime.py) returns the least prime $> n$ under the same restrictions: tiny table + **30030-wheel** candidates + a 17…1021 prefilter, then the existing `is_prime` dispatch (OpenMP / wheel / AKS). No Miller–Rabin, no prime libraries, no new `lab()` path.
+**Not an engine change.** New module [`next_prime.py`](../next_prime.py) returns the `k`-th prime $> n$ (`k=1` default) under the same restrictions: tiny table, interval sieve for large `k`, or **30030-wheel** candidates + a 17…1021 prefilter, then the existing `is_prime` dispatch (OpenMP / wheel / AKS). No new `lab()` path.
+
+## API addition — v1.7.0 (2026-08-10): enumeration, factors, powers
+
+Still not an `is_prime` engine change. Shared [`prime_sieve.py`](../prime_sieve.py) (odds-only Eratosthenes, segmented ranges, Lucy–Hedgehog $\pi(n)$) plus:
+
+- `prev_prime` — backward wheel / sieve
+- `nth_prime` — sieve to a Dusart bound
+- `primes` / `primerange` / `prime_count`
+- `prime_factors` / `factorint` — 30-wheel + Fermat + **deterministic** Brent–Pollard (fixed $c$, no RNG), then `is_prime`
+- `is_perfect_power` / `is_prime_power` — Newton $k$-th roots
+
+Lucy–Hedgehog refuses $n$ with $\sqrt{n}>5\cdot10^6$ (memory). Brent is **not** a primality test; leftover cofactors are proved with `is_prime`.
 
 ---
 
@@ -463,7 +476,9 @@ Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes 
 | **1.4.3** | + **memcpy presieve** $7{..}17$ + 32-bit mark starts | same | AKS | Yes | Hard 64-bit ~5–9% more (max $<2^{64}$ ~7%) | Pattern wrap must stay exact |
 | **1.4.4** | + **uint64 ctzll** sieve extract | same | AKS | Yes | Hard 64-bit ~20–26% more (default $n$ ~280 ms) | Word tail + aliasing |
 | **1.5.0** | same 64-bit | same u128 | **wheel→Kronecker AKS** | Yes | Huge composites with $p\le10^8$ instant; AKS usable on 4-digit $n$ | Huge primes still AKS-slow |
-| **1.6.0 (now)** | same | same | same | Yes | **`next_prime` API** (wheel candidates + `is_prime`) | Successor search still $\sim$gap $\times$ one prime check |
+| **1.6.0** | same | same | same | Yes | **`next_prime` API** (wheel candidates + `is_prime`) | Successor search still $\sim$gap $\times$ one prime check |
+| **1.7.0 (now)** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy memory cap; Pollard only after trial, never as primality |
+| **1.7.0 (now)** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy memory cap; Pollard only after trial + not as primality |
 
 ---
 
@@ -510,6 +525,10 @@ Recorded so agents and humans do not “rediscover” them:
 |------|------|
 | `is_prime.py` | Dispatch + Python/Numba/AKS engines |
 | `next_prime.py` | Successor prime (wheel candidates + `is_prime`) |
+| `prev_prime.py` | Predecessor prime |
+| `prime_sieve.py` | Odds-only / segmented sieve, $\pi(n)$, $p_k$, ranges |
+| `prime_factors.py` | Trial + Fermat + deterministic Brent |
+| `prime_power.py` | Perfect powers / prime powers |
 | `is_prime_data/wheel_core.c` | OpenMP u64/u128 engines (generated + hand-tuned sections) |
 | `scripts/generate_wheel_core_c.py` | C generator |
 | `scripts/generate_wheel_data.py` | Wheel tables |
@@ -522,4 +541,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.6.0** (`next_prime` API; engines unchanged from 1.5.0). Extend forward; do not delete past eras.*
+*Last updated for package **1.7.0** (enumeration / factor / power APIs; `is_prime` engines unchanged from 1.5.0). Extend forward; do not delete past eras.*

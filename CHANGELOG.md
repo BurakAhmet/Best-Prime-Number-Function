@@ -2,18 +2,38 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.7.0] — 2026-08-10
+
+### Added
+Deterministic library APIs on top of the existing engines (no new primality shortcut):
+
+- **`prev_prime(n, k=1)`** — k-th prime strictly below `n` (table / interval sieve / backward 30030-wheel).
+- **`nth_prime(k)`** — $p_k$; odds-only sieve or segmented sieve from a Dusart bound.
+- **`prime_count(n)`** — $\pi(n)$; sieve below $2\cdot10^6$, Lucy–Hedgehog (optional Numba) above.
+- **`primes(n)`**, **`primerange(a, b)`** — cached odds-only Eratosthenes / segmented interval sieve.
+- **`prime_factors(n)`**, **`factorint(n)`** — 30-wheel trial, Fermat for close factors, deterministic Brent–Pollard (fixed $c=1,2,\ldots$), then `is_prime` on pieces.
+- **`is_perfect_power(n)`**, **`is_prime_power(n)`** — Newton integer $k$-th roots; only prime exponents.
+
+Shared engine: [`prime_sieve.py`](prime_sieve.py). Still no stochastic engines and no prime libraries.
+
+Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange`, `prime-factors`, `is-prime-power`, `is-perfect-power` (plus existing `next-prime`).
+
+### Tests
+- `tests/test_prime_sieve.py`, `test_prev_prime.py`, `test_prime_factors.py`, `test_prime_power.py`, `test_prime_cli.py`.
+
 ## [1.6.0] — 2026-08-10
 
 ### Added
-- **`next_prime(n, *, parallel=True) -> int`** in a new module [`next_prime.py`](next_prime.py): the smallest prime *strictly greater than* `n`.
-  - Same input contract as `is_prime` (`int` or decimal `str`; rejects `bool` / negatives).
+- **`next_prime(n, k=1, *, parallel=True) -> int`** in a new module [`next_prime.py`](next_prime.py): the `k`-th prime *strictly greater than* `n` (`k=1` is the successor).
+  - Same input contract as `is_prime` (`int` or decimal `str`; rejects `bool` / negatives). `k` is a positive `int`.
   - Tiny \(n\): one Eratosthenes table through \(10\,007\) and a bisect (no NumPy/Numba).
-  - Larger \(n\): **30030-wheel** candidates, a 17…1021 prefilter, then the existing `is_prime` engines (OpenMP C / stdlib wheel / Numba / AKS).
+  - Large `k` with practical \(\sqrt{\text{bound}}\): our own interval sieve.
+  - Otherwise: **30030-wheel** candidates, a 17…1021 prefilter, then the existing `is_prime` engines (OpenMP C / stdlib wheel / Numba / AKS).
   - Fully deterministic; no Miller–Rabin; no prime libraries as the engine.
 - Console script **`next-prime`**. Also importable as `best_prime.next_prime` and lazily as `is_prime.next_prime`.
 
 ### Tests
-- New `tests/test_next_prime.py`: exhaustive naive match on \(0\ldots4999\), API contract, wheel alignment, mid-size twins / 12-digit minimality, Hypothesis (derandomized), CLI.
+- New `tests/test_next_prime.py`: exhaustive naive match on \(0\ldots4999\), `k`-th successor, API contract, wheel alignment, mid-size twins / 12-digit minimality, Hypothesis (derandomized), CLI.
 
 ## [1.5.0] — 2026-08-08
 

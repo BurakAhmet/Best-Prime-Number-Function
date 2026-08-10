@@ -56,7 +56,16 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 | Symbol | Role |
 |--------|------|
 | `is_prime(n, *, parallel=True) -> bool` | `True` iff `n` is prime. Fully deterministic. |
-| `next_prime(n, *, parallel=True) -> int` | Smallest prime **strictly greater than** `n`. Same engines / restrictions. |
+| `next_prime(n, k=1, *, parallel=True) -> int` | The `k`-th prime **strictly greater than** `n`. |
+| `prev_prime(n, k=1, *, parallel=True) -> int` | The `k`-th prime **strictly less than** `n` (errors if fewer than `k` exist). |
+| `nth_prime(k) -> int` | The `k`-th prime (`nth_prime(1) == 2`). |
+| `prime_count(n) -> int` | $\pi(n)$: number of primes $\le n$. |
+| `primes(n) -> list[int]` | All primes $\le n$. |
+| `primerange(a, b) -> list[int]` | Primes $p$ with $a \le p \lt b$. |
+| `prime_factors(n) -> list[int]` | Prime factors with multiplicity, ascending. |
+| `factorint(n) -> dict[int, int]` | Prime $\to$ exponent. |
+| `is_perfect_power(n) -> bool` | $n=a^b$ with $a>1$, $b>1$. |
+| `is_prime_power(n) -> bool` | $n=p^k$ for prime $p$, $k\ge 1$ (primes count). |
 | `lab(n, *, parallel=True) -> dict` | Same check plus diagnostics (`path`, `isqrt`, timings, `note`). |
 | `__version__` | Installed package version (`best_prime` only). |
 
@@ -65,11 +74,25 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 **`parallel`:** only affects multi-threaded OpenMP / Numba engines on large enough $\sqrt{n}$. Result never depends on it — serial and parallel must agree.
 
 ```python
-from best_prime import is_prime, lab, next_prime
+from best_prime import (
+    factorint, is_perfect_power, is_prime, is_prime_power, lab,
+    next_prime, nth_prime, prev_prime, prime_count, prime_factors,
+    primerange, primes,
+)
 
 is_prime(17)                              # True
 is_prime(100)                             # False
 next_prime(14)                            # 17
+next_prime(14, 3)                         # 23
+prev_prime(14)                            # 13
+nth_prime(5)                              # 11
+prime_count(10)                           # 4
+primes(10)                                # [2, 3, 5, 7]
+primerange(10, 20)                        # [11, 13, 17, 19]
+prime_factors(360)                        # [2, 2, 2, 3, 3, 5]
+factorint(360)                            # {2: 3, 3: 2, 5: 1}
+is_perfect_power(36)                      # True
+is_prime_power(36)                        # False
 next_prime(10**9 + 7)                     # 1000000009
 is_prime(18446744073709551557)            # True  (largest prime < 2^64; wants wheel_core.so)
 is_prime(9223372036854775783)             # True  (hard 64-bit; wants wheel_core.so)
@@ -107,6 +130,16 @@ is-prime 18446744073709551557
 best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 next-prime 100                 # 101 (smallest prime > 100)
+next-prime 14 3                # 23
+prev-prime 14                  # 13
+prev-prime 10 3                # 3
+nth-prime 5                    # 11
+prime-count 10                 # 4
+primes 10                      # 2 3 5 7
+primerange 10 20               # 11 13 17 19
+prime-factors 360              # 2 2 2 3 3 5
+is-prime-power 8               # yes (exit 0)
+is-perfect-power 36            # yes (exit 0)
 ```
 
 `is-prime` with no argument defaults to the largest prime $<2^{64}$: `18446744073709551557` (hardest 64-bit yardstick). Near $2^{63}$ (`9223372036854775783`) remains a documented mid-hard specimen. `next-prime` requires `n` (it does **not** default to that 64-bit prime — the successor is 65-bit).
@@ -330,7 +363,8 @@ Think of four layers. Only the first is the product.
 +--------------------------------------------------------------------------+
 |  1. CORE                                                                 |
 |     is_prime.py          is_prime() / lab() / CLI                        |
-|     next_prime.py        next_prime() / next-prime CLI                   |
+|     next_prime.py / prev_prime.py / prime_sieve.py                       |
+|     prime_factors.py / prime_power.py                                    |
 |     is_prime_data/       precomputed wheels + optional wheel_core.so     |
 |     Rules: deterministic, no stochastic MR, no prime libs as engine      |
 +--------------------------------------------------------------------------+
@@ -360,7 +394,9 @@ Think of four layers. Only the first is the product.
 ```text
 Best-Prime-Number-Function/
 ├── is_prime.py                 # is_prime / lab + CLI
-├── next_prime.py               # next_prime + next-prime CLI
+├── next_prime.py / prev_prime.py
+├── prime_sieve.py              # π(n), nth_prime, primes, primerange
+├── prime_factors.py / prime_power.py
 ├── is_prime_data/              # wheels, wheel_core.c / .so
 ├── tests/
 ├── benchmarks/                 # compare_speed, compare_e2e, determinism

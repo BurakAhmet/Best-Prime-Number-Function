@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "best-prime-number-function"
-version = "1.6.0"
-description = "Fully deterministic primality testing and next-prime (precomputed-prime OpenMP C, segmented sieve, Numba/stdlib wheel fallbacks; AKS only for huge ints)"
+version = "1.7.0"
+description = "Fully deterministic primality, next/prev prime, pi(n), and factoring (OpenMP C / Numba / AKS)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -58,6 +58,14 @@ Documentation = "https://github.com/BurakAhmet/Best-Prime-Number-Function#readme
 is-prime = "is_prime:main"
 best-prime = "is_prime:main"
 next-prime = "next_prime:main"
+prev-prime = "prime_cli:prev_prime_main"
+nth-prime = "prime_cli:nth_prime_main"
+prime-count = "prime_cli:prime_count_main"
+primes = "prime_cli:primes_main"
+primerange = "prime_cli:primerange_main"
+prime-factors = "prime_cli:prime_factors_main"
+is-prime-power = "prime_cli:is_prime_power_main"
+is-perfect-power = "prime_cli:is_perfect_power_main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -67,8 +75,16 @@ markers = [
 ]
 
 [tool.setuptools]
-# Flat modules is_prime.py / next_prime.py + data package + best_prime re-exports.
-py-modules = ["is_prime", "next_prime"]
+# Flat modules + data package + best_prime re-exports.
+py-modules = [
+  "is_prime",
+  "next_prime",
+  "prev_prime",
+  "prime_sieve",
+  "prime_factors",
+  "prime_power",
+  "prime_cli",
+]
 include-package-data = true
 
 [tool.setuptools.packages.find]

@@ -153,6 +153,20 @@ jobs:
                 owner, repo, issue_number: pr.number,
                 body: '**Autonomous merge** completed after green **CI** and **Determinism** checks.',
               });
+              // Further pushes to a squash-merged branch are invisible to
+              // auto-merge (no open PR). Delete the head so leftovers do not
+              // look like an unmerged PR.
+              const headRef = pr.head && pr.head.ref;
+              if (headRef && headRef !== 'main') {
+                try {
+                  await github.rest.git.deleteRef({
+                    owner, repo, ref: `heads/${headRef}`,
+                  });
+                  core.info(`Deleted merged branch ${headRef}`);
+                } catch (delErr) {
+                  core.info('Branch delete skipped: ' + delErr.message);
+                }
+              }
             } catch (e) {
               core.warning('Merge failed: ' + e.message);
             }
