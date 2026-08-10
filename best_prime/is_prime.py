@@ -88,7 +88,13 @@ def _load_c_core():
     if not path:
         _c_core = False
         return _c_core
-    lib = ctypes.CDLL(path)
+    try:
+        lib = ctypes.CDLL(path)
+    except OSError:
+        # File exists but is the wrong ABI (e.g. a MinGW .so on Windows)
+        # or a dependency such as libgomp is missing.
+        _c_core = False
+        return _c_core
     lib.is_prime_u64_core.argtypes = [ctypes.c_uint64, ctypes.c_int]
     lib.is_prime_u64_core.restype = ctypes.c_int
     # Optional 65–128-bit full-trial entry (regenerated wheel_core).

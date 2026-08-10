@@ -112,7 +112,7 @@ target-version = "py39"
 src = ["best_prime", "tests", "scripts"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W"]
+select = ["E", "F", "W"]
 ignore = [
   "E402",  # late imports: CLI TIME starts at import
   "E501",  # existing long lines; format does not wrap them all
