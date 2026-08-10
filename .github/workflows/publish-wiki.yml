@@ -12,8 +12,14 @@ on:
       - "pyproject.toml"
       - ".github/workflows/publish-wiki.yml"
   workflow_dispatch:
+  # Auto-merge and Prime-of-the-day push with GITHUB_TOKEN, which does not
+  # start other `on: push` workflows. workflow_run is the supported hook.
+  workflow_run:
+    workflows: ["Auto-merge", "Prime of the day"]
+    types: [completed]
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -23,10 +29,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.decide.outputs.publish }}
+    steps:
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          WR_NAME: ${{ github.event.workflow_run.name }}
+          WR_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WR_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "workflow_run" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$WR_CONCLUSION" != "success" ]; then
+            echo "upstream $WR_NAME conclusion=$WR_CONCLUSION — skip"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$WR_NAME" = "Prime of the day" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$WR_NAME" = "Auto-merge" ]; then
+            if gh run view "$WR_ID" --repo "${{ github.repository }}" --log \
+                 | grep -q "Merged PR #"; then
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Auto-merge $WR_ID did not merge a PR — skip"
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          echo "publish=false" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: gate
+    if: needs.gate.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -77,6 +126,7 @@ jobs:
 
   deploy:
     needs: build
+    if: needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

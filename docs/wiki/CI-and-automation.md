@@ -9,7 +9,7 @@
 | **Issue agent** | issue opened | Keyword answers + restrictions briefing + labels |
 | **PR agent** | PR open/sync | Briefing, Copilot review request (best-effort), **auto-approve same-repo PRs** |
 | **Project autonomy** | issues / PRs | Label kanban without a human-only lane |
-| **Publish wiki** | push to `docs/wiki/**`, `docs/guide/**`, `mkdocs.yml` | Compile exhibit Markdown → HTML (KaTeX, lab) **and** MkDocs library guide at `/guide/`; deploy GitHub Pages |
+| **Publish wiki** | push to `docs/wiki/**` / `docs/guide/**` / `mkdocs.yml`; **workflow_run** after Auto-merge (only if it merged) or Prime of the day; manual dispatch | Compile exhibit Markdown → HTML (KaTeX, lab) **and** MkDocs library guide at `/guide/`; deploy GitHub Pages. Needed because `GITHUB_TOKEN` merges do not start `on: push` workflows. |
 | **Publish package** | release / manual | GHCR container (Packages section) |
 
 ## Local commands
