@@ -455,7 +455,7 @@ jobs:
           DATE=$(date -u +%F)
           TITLE="[Optimize] daily ${DATE}"
 
-          # Do not stack Copilot sessions.
+          # Do not stack Copilot sessions or leftover empty candidate PRs.
           OPEN=$(gh issue list --repo "${{ github.repository }}" \
             --label optimize/round --state open \
             --json number,assignees,title \
@@ -463,6 +463,14 @@ jobs:
           if [ -n "$OPEN" ]; then
             echo "Copilot already working on #${OPEN} — skip new assignment"
             gh issue comment "$ISSUE_LOG" --body "Copilot still assigned to #${OPEN}; skipped a new round today. [run](${RUN_URL})"
+            exit 0
+          fi
+          OPENPR=$(gh pr list --repo "${{ github.repository }}" --state open \
+            --label optimize/candidate --json number,headRefName \
+            --jq '.[0].number // empty')
+          if [ -n "$OPENPR" ]; then
+            echo "Open optimize/candidate PR #${OPENPR} — skip new Copilot assign"
+            gh issue comment "$ISSUE_LOG" --body "PR #${OPENPR} is still open as \`optimize/candidate\`; skipped a new Copilot round. [run](${RUN_URL})"
             exit 0
           fi
 

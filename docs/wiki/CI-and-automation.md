@@ -7,7 +7,7 @@
 | **Auto-merge** | CI / Determinism completed | Squash-merge **same-repo** PRs when tests + determinism (+ perf if present) are green |
 | **Prime of the day** | daily 12:00 UTC / manual | Deterministic date→`n` challenge via `lab()`; upserts issue labeled `prime-of-the-day` |
 | **Optimize** | daily 05:00 UTC / manual | Baseline on the **Optimization log** issue; hunt the compile-time catalog; open a dated **Optimization round** issue and assign **Copilot** (needs `COPILOT_ASSIGN_TOKEN`); catalog/Copilot PRs labeled `optimize/candidate` are examined (interleaved A/B + tests) and squash-merged only if still faster. Generic Auto-merge skips these PRs. |
-| **Optimize examine** | PR labeled `optimize/candidate` | Fresh-runner A/B vs `main`; merge only on a confirmed win. |
+| **Optimize examine** | `optimize/candidate`, `optimize/auto-*`, or `copilot/*` PRs | Fresh-runner A/B vs `main`; merge only on a confirmed win; **close** empty or losing PRs. |
 | **Copilot setup steps** | Copilot coding agent | Install gcc/OpenMP, `pip install -e ".[fast,test]"`, compile `wheel_core.so`. |
 | **Issue agent** | issue opened | Keyword answers + restrictions briefing + labels |
 | **PR agent** | PR open/sync | Briefing, Copilot review request (best-effort), **auto-approve same-repo PRs** |

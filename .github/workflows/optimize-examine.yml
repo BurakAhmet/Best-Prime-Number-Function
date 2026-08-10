@@ -1,5 +1,6 @@
 # Examine Optimize / Copilot candidate PRs on a fresh runner.
 # Merge only if interleaved A/B still beats main and tests pass.
+# Empty / docs-only PRs are closed (no engine delta).
 # Generic Auto-merge skips these PRs.
 name: Optimize examine
 
@@ -24,9 +25,17 @@ env:
 jobs:
   examine:
     name: A/B vs main and merge if faster
+    # Do not wait for optimize/candidate — Copilot PRs are unlabeled at open.
     if: >
       contains(join(github.event.pull_request.labels.*.name, ','), 'optimize/candidate')
       || startsWith(github.event.pull_request.head.ref, 'optimize/auto-')
+      || (startsWith(github.event.pull_request.head.ref, 'copilot/')
+          && (contains(github.event.pull_request.head.ref, 'optim')
+              || contains(github.event.pull_request.title, 'Optimize')
+              || contains(github.event.pull_request.body, '[Optimize]')))
+      || (contains(github.event.pull_request.user.login, 'copilot')
+          && (contains(github.event.pull_request.title, 'Optimize')
+              || contains(github.event.pull_request.body, '[Optimize]')))
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -35,27 +44,69 @@ jobs:
         with:
           path: cand
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Close if no engine delta
+        id: delta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git -C cand fetch --depth=1 origin "$BASE" || true
+          FILES=$(git -C cand diff --name-only "$BASE" HEAD || true)
+          echo "Changed files:"
+          echo "$FILES"
+          ENGINE=$(printf '%s\n' "$FILES" | grep -E '^(best_prime/|scripts/generate_wheel_core_c.py|is_prime_data/wheel_core.c|scripts/compile_wheel_core.sh)' || true)
+          if [ -z "$ENGINE" ]; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "**No engine delta** vs \`$BASE\` — closing."
+              echo
+              echo "Optimize PRs must change the generator / \`wheel_core.c\` / \`best_prime/\`."
+              echo "A reverted hunt should comment on the \`[Optimize]\` issue, not leave an empty PR."
+            } > /tmp/empty.md
+            gh pr close "$PR" --repo "${{ github.repository }}" --comment "$(cat /tmp/empty.md)" || true
+            # Close linked optimize/round issues so the next daily assign is not blocked.
+            echo "${{ github.event.pull_request.body }}" | grep -oE '#[0-9]+' | tr -d '#' | sort -u \
+              | while read -r n; do
+                  [ -z "$n" ] && continue
+                  labels=$(gh issue view "$n" --repo "${{ github.repository }}" --json labels --jq '[.labels[].name] | join(",")' || true)
+                  if echo "$labels" | grep -q 'optimize/round'; then
+                    gh issue close "$n" --repo "${{ github.repository }}" --reason "not planned" \
+                      --comment "Linked optimize PR #${PR} had no engine change. Round closed." || true
+                  fi
+                done
+            exit 0
+          fi
+          echo "empty=false" >> "$GITHUB_OUTPUT"
 
       - name: Checkout main (baseline engine)
+        if: steps.delta.outputs.empty != 'true'
         uses: actions/checkout@v4
         with:
           path: main_src
           ref: ${{ github.event.pull_request.base.sha }}
 
       - uses: actions/setup-python@v5
+        if: steps.delta.outputs.empty != 'true'
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: cand/pyproject.toml
 
       - name: Install build tools for OpenMP wheel core
+        if: steps.delta.outputs.empty != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends gcc libgomp1
 
-      - run: pip install -e "cand/[fast,test]"
+      - if: steps.delta.outputs.empty != 'true'
+        run: pip install -e "cand/[fast,test]"
 
       - name: Compile both wheel cores
+        if: steps.delta.outputs.empty != 'true'
         run: |
           bash main_src/scripts/compile_wheel_core.sh
           bash cand/scripts/compile_wheel_core.sh
@@ -64,6 +115,7 @@ jobs:
 
       - name: Interleaved A/B + e2e
         id: ab
+        if: steps.delta.outputs.empty != 'true'
         continue-on-error: true
         working-directory: cand
         run: |
@@ -77,6 +129,7 @@ jobs:
 
       - name: Tests + restrictions + determinism
         id: tests
+        if: steps.delta.outputs.empty != 'true'
         continue-on-error: true
         working-directory: cand
         run: |
@@ -86,14 +139,15 @@ jobs:
           python benchmarks/check_determinism.py --trials 2
 
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: steps.delta.outputs.empty != 'true'
         with:
           name: optimize-examine-pr-${{ github.event.pull_request.number }}
           path: |
             cand/optimize_examine.json
             cand/optimize_examine.md
 
-      - name: Comment and merge or leave
+      - name: Comment and merge or close
+        if: steps.delta.outputs.empty != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -118,7 +172,7 @@ jobs:
               --body "Optimize examine confirmed a same-machine win vs main. Tests green."
             echo "Merged optimize PR #${PR}"
           else
-            echo "Not merging PR #${PR} (examine=${AB} tests=${TS})"
-            gh pr comment "$PR" --repo "${{ github.repository }}" --body \
-              "Examine did **not** accept this as faster than \`main\` (A/B=${AB}, tests=${TS}). Generic Auto-merge will not land it. Leave it for inspection or close it."
+            gh pr close "$PR" --repo "${{ github.repository }}" --comment \
+              "Examine did **not** accept this as faster than \`main\` (A/B=${AB}, tests=${TS}). Closed; no merge."
+            echo "Closed optimize PR #${PR} (examine=${AB} tests=${TS})"
           fi
