@@ -191,6 +191,41 @@ def divisors_main(argv: list[str] | None = None) -> None:
     _print(str(n), " ".join(str(d) for d in vals), count=len(vals))
 
 
+def primality_certificate_main(argv: list[str] | None = None) -> None:
+    usage = "usage: primality-certificate [--serial] n"
+    pos, serial = _scan(argv if argv is not None else sys.argv[1:], usage, 1)
+    try:
+        n = _parse_n(pos[0])
+    except (TypeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    from .certificate import primality_certificate, verify_certificate
+
+    cert = primality_certificate(n, parallel=not serial)
+    ok = verify_certificate(cert)
+    kind = cert.get("kind") or cert.get("reason") or ("factor" if "factor" in cert else "?")
+    _print(str(n), kind, verified=ok, prime=cert.get("prime"))
+    raise SystemExit(0 if cert.get("prime") else 1)
+
+
+def next_primes_main(argv: list[str] | None = None) -> None:
+    usage = "usage: next-primes [--serial] n k"
+    pos, serial = _scan(argv if argv is not None else sys.argv[1:], usage, 2)
+    if len(pos) != 2:
+        print(usage, file=sys.stderr)
+        raise SystemExit(2)
+    try:
+        n = _parse_n(pos[0])
+        k = _parse_k_token(pos[1])
+    except (TypeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    from .next_prime import next_primes
+
+    vals = list(next_primes(n, k, parallel=not serial))
+    _print(str(n), " ".join(str(p) for p in vals), k=k)
+
+
 def is_perfect_power_main(argv: list[str] | None = None) -> None:
     usage = "usage: is-perfect-power n"
     pos, _ = _scan(argv if argv is not None else sys.argv[1:], usage, 1)

@@ -44,7 +44,10 @@ _RES_INVALID = 0xFFFF
 _PREFILTER_LIMIT = 1_021
 # Interval sieve: only when k is large enough to repay setup and √hi is cheap.
 _SIEVE_MIN_K = 8
-_SIEVE_ISQRT_MAX = 2_000_000
+# Interval sieve only while √(upper bound) stays at or below this.
+# Larger k / n fall back to a 30030-wheel + is_prime walk (still exact).
+NEXT_PRIME_SIEVE_ISQRT_MAX = 2_000_000
+_SIEVE_ISQRT_MAX = NEXT_PRIME_SIEVE_ISQRT_MAX
 
 _prefilter: tuple[int, ...] | None = None
 _res30030: array | None = None
@@ -155,6 +158,32 @@ def _next_after(n: int, k: int, parallel: bool) -> int:
     if got is not None:
         return got
     return _next_prime_wheel(n, k, parallel)
+
+
+def next_primes(n: int | str, k: int | None = None, *, parallel: bool = True):
+    """Yield primes strictly greater than ``n``.
+
+    If ``k`` is a positive int, stop after ``k`` primes. If ``k`` is
+    ``None``, the iterator is unbounded (caller must break). Large ``k``
+    uses an interval sieve only while ``√bound ≤ NEXT_PRIME_SIEVE_ISQRT_MAX``;
+    otherwise each candidate is a 30030-wheel number checked with
+    ``is_prime`` (exact, Θ(k · √p) in the worst case).
+    """
+    if k is not None:
+        k_int = _parse_k(k)
+        n_int = _parse_n(n)
+        # One interval/table call for a finite batch.
+        p = next_prime(n_int, 1, parallel=parallel)
+        yield p
+        for _ in range(k_int - 1):
+            p = next_prime(p, 1, parallel=parallel)
+            yield p
+        return
+    n_int = _parse_n(n)
+    p = n_int
+    while True:
+        p = next_prime(p, 1, parallel=parallel)
+        yield p
 
 
 def next_prime(n: int | str, k: int = 1, *, parallel: bool = True) -> int:

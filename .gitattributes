@@ -1,0 +1,8 @@
+# Generated / binary assets must not dominate GitHub language stats.
+is_prime_data/wheel_core.c linguist-generated=true
+is_prime_data/*.u8 linguist-generated=true
+is_prime_data/*.u16 linguist-generated=true
+is_prime_data/*.npy linguist-generated=true
+is_prime_data/*.so binary
+is_prime_data/*.dylib binary
+is_prime_data/*.dll binary

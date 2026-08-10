@@ -4,14 +4,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-08-10
+
 ### Added
-- GitHub **Optimize** workflow (`optimize.yml`) + `scripts/optimize_baseline.py`: daily baseline on a standing **Optimization log** issue, plus an **Optimization round** issue template. Trackable in Actions / Issues; engine changes still go through PRs.
-- Optimize **closed loop**: `scripts/optimize_hunt.py` searches a compile-time catalog (tile size / small-prime cutoff / OpenMP threshold), opens an `optimize/candidate` PR on a win, examines it with interleaved A/B + tests on a fresh runner, and squash-merges only if it is still faster. Generic Auto-merge skips these PRs.
-- Optimize assigns **Copilot** on a daily `[Optimize]` issue (real engine hunt). Requires repo secret `COPILOT_ASSIGN_TOKEN`. Copilot PRs get `optimize/candidate` and the same examine-and-merge-if-faster gate.
-- Optimize examine runs on `copilot/*` PRs even before they are labeled, **closes empty / docs-only PRs**, and closes a no-win instead of leaving it open.
+- PyPI Trusted Publishing + `cibuildwheel` (`.github/workflows/publish-pypi.yml`); sdist/wheels attach to GitHub Releases.
+- Cross-platform CI: Python 3.9–3.13 on Linux, plus macOS and Windows 3.12; **no-compiler** stdlib-fallback job; nightly `@pytest.mark.slow`.
+- `ruff`, `mypy`, `pytest-cov`, Dependabot (Actions + pip).
+- `is_prime` over lists / NumPy arrays; `next_primes` / `prev_primes` generators; documented `NEXT_PRIME_SIEVE_ISQRT_MAX` and hard `PRIME_COUNT_MAX_N = 2⁶⁴−1`.
+- Pratt `primality_certificate` / `verify_certificate` (+ `primality-certificate` CLI).
+- Deterministic **ECM** and **SIQS** after Brent–Pollard in `factorint`.
+- C header `include/best_prime.h`, `native/Makefile`, pkg-config template; Rust/Go notes in the guide.
+- `CITATION.cff`; comparison + FAQ pages; prime-of-the-day closes yesterday’s issue.
 
 ### Changed
-- Dropped root ``is_prime.py`` / ``next_prime.py`` shims. One implementation each, under ``best_prime/``. Clone CLI is ``python -m best_prime`` and ``python -m best_prime.next_prime``; after install use ``is-prime`` / ``next-prime``. Import only ``from best_prime import …``.
+- Native `.so` is no longer committed (`.gitignore`); wheel tables keep raw `.u8`/`.u16` only (`.npy` derived).
+- Dockerfile fails if `wheel_core.so` does not build.
+- README trimmed; one Security policy (root + `.github/` identical).
+- Package version **1.11.0**.
+- GitHub **Optimize** workflow closed loop (already on `main` after 1.10.0): daily baseline, catalog hunt, Copilot assign, examine-and-merge-if-faster.
+- Dropped root ``is_prime.py`` / ``next_prime.py`` shims (import only ``from best_prime import …``).
 
 ## [1.10.0] — 2026-08-10
 

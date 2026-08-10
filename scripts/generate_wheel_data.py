@@ -45,21 +45,12 @@ def main() -> None:
     w30 = build_steps((2, 3, 5, 7, 11, 13), 17)
     r30 = derive_res(w30, 30030, 17, np.uint16(0xFFFF), np.uint16)
     w96 = build_steps((2, 3, 5, 7, 11, 13, 17, 19), 23)
-    r96 = derive_res(w96, 9_699_690, 23, np.uint32(0xFFFFFFFF), np.uint32)
-    n = int(w96.size)
-    w2 = np.empty(n * 2, dtype=np.uint64)
-    w2[:n] = w96
-    w2[n:] = w96
-    np.save(OUT / "w30030_u8.npy", w30)
-    np.save(OUT / "res30030_u16.npy", r30)
-    np.save(OUT / "w9699690_u8.npy", w96)
-    np.save(OUT / "res9699690_u32.npy", r96)
-    np.save(OUT / "w9699690_u64x2.npy", w2)
+    # Raw bytes are the committed source of truth. .npy is optional/local.
     (OUT / "w30030_steps.u8").write_bytes(w30.tobytes())
     (OUT / "w9699690_steps.u8").write_bytes(w96.tobytes())
     (OUT / "res30030.u16").write_bytes(r30.tobytes())
-    print(f"Wrote precomputed tables to {OUT}")
-    for p in sorted(OUT.glob("*.npy")):
+    print(f"Wrote raw wheel tables to {OUT}")
+    for p in sorted(OUT.glob("*.u8")) + sorted(OUT.glob("*.u16")):
         print(f"  {p.name:22} {p.stat().st_size / 1024:8.1f} KiB")
 
 

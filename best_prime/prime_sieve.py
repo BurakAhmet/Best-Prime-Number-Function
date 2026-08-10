@@ -590,15 +590,18 @@ def prime_count(n: int | str) -> int:
     """π(n): number of primes ≤ n.
 
     ``n`` may be any natural number up to ``PRIME_COUNT_MAX_N`` (2⁶⁴−1).
-    Moderate n uses an odds-only sieve / Lucy–Hedgehog; larger n uses
-    memoized Meissel–Lehmer (correct for every 64-bit n; the hardest
-    sizes need a one-time prime list through ∼2³²).
+    This is a **hard ceiling**: Meissel–Lehmer here stores primes as
+    uint32 through 2³², so values above 64-bit are rejected rather than
+    silently approximated. Moderate n uses an odds-only sieve /
+    Lucy–Hedgehog; larger n uses memoized Meissel–Lehmer (the hardest
+    64-bit sizes need a one-time prime list through ∼2³²).
     """
     n_int = _parse_n(n)
     if n_int > PRIME_COUNT_MAX_N:
         raise ValueError(
-            f"prime_count(n) supports n <= {PRIME_COUNT_MAX_N} "
-            f"(got n={n_int})"
+            f"prime_count(n) supports n <= PRIME_COUNT_MAX_N = {PRIME_COUNT_MAX_N} "
+            f"(2**64-1); got n={n_int} ({n_int.bit_length()} bits). "
+            f"This is a hard documented ceiling, not an approximation."
         )
     if n_int < 2:
         return 0

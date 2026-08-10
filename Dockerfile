@@ -10,7 +10,8 @@ COPY best_prime ./best_prime
 COPY is_prime_data ./is_prime_data
 COPY scripts ./scripts
 
-RUN bash scripts/compile_wheel_core.sh || true \
+RUN bash scripts/compile_wheel_core.sh \
+    && test -f is_prime_data/wheel_core.so \
     && pip install --no-cache-dir .
 
 ENTRYPOINT ["is-prime"]

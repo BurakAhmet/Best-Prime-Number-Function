@@ -16,17 +16,55 @@ DATA = ROOT / "is_prime_data"
 SRC_C = DATA / "wheel_core.c"
 
 
+def _ensure_c_source() -> bool:
+    """Generate wheel_core.c when missing (scripts/generate_wheel_core_c.py)."""
+    if SRC_C.is_file():
+        return True
+    gen = ROOT / "scripts" / "generate_wheel_core_c.py"
+    if not gen.is_file():
+        return False
+    try:
+        subprocess.run([sys.executable, str(gen)], check=True, cwd=ROOT)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"is_prime: could not generate wheel_core.c ({exc})", file=sys.stderr)
+        return False
+    return SRC_C.is_file()
+
+
 def _compile_wheel_core(target_dir: Path) -> bool:
-    """Compile wheel_core.so into target_dir. Returns True on success."""
+    """Compile wheel_core.so/.dylib into target_dir. Returns True on success."""
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
+    if not _ensure_c_source():
+        print("is_prime: wheel_core.c not found; skipping native build", file=sys.stderr)
+        return False
     src = SRC_C if SRC_C.is_file() else target_dir / "wheel_core.c"
     if not src.is_file():
         print("is_prime: wheel_core.c not found; skipping native build", file=sys.stderr)
         return False
 
-    out = target_dir / "wheel_core.so"
-    cc = os.environ.get("CC", "gcc")
+    if sys.platform == "darwin":
+        ext = "dylib"
+        cc = os.environ.get("CC", "clang")
+    elif sys.platform == "win32":
+        ext = "dll"
+        cc = os.environ.get("CC", "gcc")
+    else:
+        ext = "so"
+        cc = os.environ.get("CC", "gcc")
+    out = target_dir / f"wheel_core.{ext}"
+    omp: list[str] = ["-fopenmp"]
+    if sys.platform == "darwin":
+        for prefix in ("/opt/homebrew/opt/libomp", "/usr/local/opt/libomp"):
+            if Path(prefix).is_dir():
+                omp = [
+                    "-Xpreprocessor",
+                    "-fopenmp",
+                    f"-I{prefix}/include",
+                    f"-L{prefix}/lib",
+                    "-lomp",
+                ]
+                break
     flag_sets = (
         ["-march=native", "-mtune=native"],
         ["-march=x86-64-v2"],
@@ -39,7 +77,7 @@ def _compile_wheel_core(target_dir: Path) -> bool:
             "-O3",
             "-fPIC",
             "-shared",
-            "-fopenmp",
+            *omp,
             *arch,
             "-funroll-loops",
             "-fomit-frame-pointer",
@@ -47,11 +85,18 @@ def _compile_wheel_core(target_dir: Path) -> bool:
             str(out),
             str(src),
             "-lm",
-            "-fopenmp",
+            *omp,
         ]
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
             print(f"is_prime: built native core -> {out}")
+            # ctypes loader also looks for wheel_core.so
+            so = target_dir / "wheel_core.so"
+            if out != so:
+                try:
+                    shutil.copy2(out, so)
+                except OSError:
+                    pass
             return True
         except FileNotFoundError as exc:
             last_err = exc

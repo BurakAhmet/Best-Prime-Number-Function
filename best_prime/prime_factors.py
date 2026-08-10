@@ -2,8 +2,9 @@
 Exact integer factorization.
 
 Small factors by 8-way 30-wheel trial (updates √n as it shrinks). Composite
-remainders split with Fermat (close factors) then deterministic Brent–Pollard
-(fixed c = 1,2,3,… — no RNG). Each prime factor is confirmed with is_prime.
+remainders split with Fermat (close factors), deterministic Brent–Pollard
+(fixed c = 1,2,3,… — no RNG), then deterministic ECM and SIQS for larger
+balanced composites. Each prime factor is confirmed with is_prime.
 """
 
 from __future__ import annotations
@@ -185,6 +186,20 @@ def _split(n: int) -> int:
     for c in range(1, 64):
         g = _brent(n, c)
         if 1 < g < n:
+            return g
+    # Medium / large balanced composites: ECM then SIQS (deterministic schedules).
+    bits = n.bit_length()
+    if bits >= 28:
+        from .factor_ecm import ecm_factor
+
+        g = ecm_factor(n)
+        if g is not None and 1 < g < n:
+            return g
+    if bits >= 28:
+        from .factor_siqs import siqs_factor
+
+        g = siqs_factor(n)
+        if g is not None and 1 < g < n:
             return g
     # Last resort: full 30-wheel trial (always finds a factor of a composite).
     out: list[int] = []

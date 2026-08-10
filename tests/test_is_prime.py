@@ -102,10 +102,14 @@ class TestEdgeCases:
         # int() accepts underscores; we inherit that behaviour
         assert is_prime("1_000_000_007") is True
 
-    @pytest.mark.parametrize("bad", [3.14, 2.0, None, [2], {2}, (2,), object()])
+    @pytest.mark.parametrize("bad", [3.14, 2.0, None, {2}, object()])
     def test_wrong_types_raise(self, bad):
         with pytest.raises(TypeError):
             is_prime(bad)  # type: ignore[arg-type]
+
+    def test_list_and_tuple_are_batch(self):
+        assert is_prime([2]) == [True]
+        assert is_prime((2,)) == [True]
 
     def test_bool_rejected(self):
         with pytest.raises(TypeError):

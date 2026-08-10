@@ -140,40 +140,38 @@ jobs:
               '<sub>Posted by **Prime of the day** workflow (fully autonomous).</sub>',
             ].join('\n');
 
-            const issues = await github.rest.issues.listForRepo({
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'prime-of-the-day',
+                color: '5319E7',
+                description: 'Autonomous daily prime challenge',
+              });
+            } catch (_) {}
+            // Close yesterday's (and any other open) prime-of-the-day issues.
+            const open = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
               labels: 'prime-of-the-day',
-              per_page: 5,
+              per_page: 20,
             });
-            let number;
-            if (issues.data.length) {
-              number = issues.data[0].number;
+            for (const issue of open.data) {
               await github.rest.issues.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: number,
-                title,
-                body,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'completed',
               });
-            } else {
-              try {
-                await github.rest.issues.createLabel({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  name: 'prime-of-the-day',
-                  color: '5319E7',
-                  description: 'Autonomous daily prime challenge',
-                });
-              } catch (_) {}
-              const created = await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title,
-                body,
-                labels: ['prime-of-the-day', 'agent/done', 'status/done', 'area/agents'],
-              });
-              number = created.data.number;
+              core.info(`Closed previous prime-of-the-day #${issue.number}`);
             }
-            core.info(`Prime of the day issue #${number}`);
+            const created = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['prime-of-the-day', 'agent/done', 'status/done', 'area/agents'],
+            });
+            core.info(`Prime of the day issue #${created.data.number}`);

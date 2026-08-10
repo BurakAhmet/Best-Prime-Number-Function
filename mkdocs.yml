@@ -108,6 +108,9 @@ nav:
       - Command line: cli.md
   - Reference:
       - API: api.md
+      - Comparison: compare.md
+      - FAQ: faq.md
+      - Bindings: bindings.md
   - Design:
       - Restrictions: restrictions.md
       - Engines: engines.md

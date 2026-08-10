@@ -4,6 +4,17 @@ Package name on disk: **`best-prime-number-function`**. Import the API as **`bes
 
 Requires **Python 3.9+**. The core install has **no required third-party dependencies**. OpenMP C is compiled at install time when `gcc` + OpenMP are present.
 
+## From PyPI
+
+```bash
+pip install best-prime-number-function
+pip install "best-prime-number-function[fast]"   # NumPy / Numba
+```
+
+Trusted Publishing is wired in `.github/workflows/publish-pypi.yml` (needs a
+PyPI pending publisher for this repo). Until the first successful publish,
+install from Git.
+
 ## From GitHub
 
 ```bash
@@ -67,10 +78,11 @@ On Linux after a successful compile, `lab(10**9 + 7)["path"]` is `u64_wheel_c`.
 | Platform | `wheel_core.so` (OpenMP C) | Fallback |
 |----------|----------------------------|----------|
 | **Linux x86_64** (CI, Docker) | Built in CI; `lab(n)["path"] == "u64_wheel_c"` is asserted | — |
-| **macOS / Windows / other** | Build locally if `gcc`/`clang` + OpenMP are available | Embedded 30030-wheel (stdlib) and/or **Numba** 9699690-wheel |
+| **macOS** | `brew install libomp` then `bash scripts/compile_wheel_core.sh` (clang) | Embedded 30030-wheel and/or **Numba** 9699690-wheel |
+| **Windows** | MinGW `gcc` + OpenMP if present | Same stdlib / Numba fallback (CI tests this path) |
 | **Pure Python** (no compiler, no Numba) | Unavailable | Stdlib paths only ($n \le 4\cdot10^{12}$ fully covered; harder 64-bit wants Numba or a local `.so`) |
 
-The committed `.so` is a Linux convenience artifact. **Source of truth** is `is_prime_data/wheel_core.c`, rebuilt in CI.
+The `.so` / `.dylib` is **not** committed. **Source of truth** is `scripts/generate_wheel_core_c.py` (emits `wheel_core.c`), rebuilt in CI and at install when a compiler is present. C header: `include/best_prime.h`. See [bindings](bindings.md).
 
 ## Build this guide locally
 

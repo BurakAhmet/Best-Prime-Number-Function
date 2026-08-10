@@ -21,9 +21,10 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 
 | Name | Meaning | Example |
 |------|---------|---------|
-| `__version__` | Installed package version | `"1.10.0"` |
+| `__version__` | Installed package version | `"1.11.0"` |
 | `DEFAULT_N` | CLI default / hardest 64-bit yardstick: largest prime $<2^{64}$ | `18446744073709551557` |
-| `PRIME_COUNT_MAX_N` | Max $n$ for `prime_count` | $2^{64}-1$ |
+| `PRIME_COUNT_MAX_N` | **Hard ceiling** for `prime_count` | $2^{64}-1$ |
+| `NEXT_PRIME_SIEVE_ISQRT_MAX` | Interval-sieve cap for next/prev | $2\cdot10^6$ |
 | `TOTIENT_RANGE_MAX` | Max $n$ for `totient_range` | $2\cdot10^{7}$ |
 
 ```python
@@ -36,17 +37,28 @@ assert is_prime(DEFAULT_N)  # wants wheel_core.so
 
 ## Primality
 
-### `is_prime(n, *, parallel=True) -> bool`
+### `is_prime(n, *, parallel=True) -> bool | list[bool]`
 
 `True` iff $n$ is prime. Fully deterministic: exact trial through practical $\sqrt{n}$, then AKS only for huge $n$.
 
 ```python
 is_prime(17)                       # True
 is_prime(100)                      # False
+is_prime([17, 18, 19])             # [True, False, True]
 is_prime("00017")                  # True
 is_prime(10**9 + 7)                # True
 is_prime(10**9 + 7, parallel=False)
 is_prime("100000000000000000039")  # True  (~10^20, u128 path)
+```
+
+### `primality_certificate(n) -> dict` / `verify_certificate(cert) -> bool`
+
+Pratt certificate for a prime (witness $g$ plus recursive certificates for the prime factors of $n-1$). Composites return a proper `factor`. No stochastic Miller–Rabin.
+
+```python
+c = primality_certificate(17)
+assert c["kind"] == "pratt" and verify_certificate(c)
+assert primality_certificate(91)["factor"] in (7, 13)
 ```
 
 ### `lab(n, *, parallel=True) -> dict`
@@ -73,7 +85,10 @@ The $k$-th prime **strictly greater than** $n$.
 next_prime(14)      # 17
 next_prime(14, 3)   # 23
 next_prime(100)     # 101
+list(next_primes(14, 3))  # [17, 19, 23]
 ```
+
+`next_primes` / `prev_primes` stream. Large $k$ uses an interval sieve only while $\sqrt{\text{bound}} \le$ `NEXT_PRIME_SIEVE_ISQRT_MAX`.
 
 ### `prev_prime(n, k=1, *, parallel=True) -> int`
 
