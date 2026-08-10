@@ -2,24 +2,28 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.10.0] — 2026-08-10
 
 ### Changed
-- **Package layout.** Implementations live in `best_prime/` (`is_prime`, `next_prime`, `prime_sieve`, `ntheory`, …). Root `is_prime.py` is a thin CLI / import shim so `python is_prime.py` and `from is_prime import is_prime` still work without loading the rest of the library into e2e `TIME`. Console scripts point at `best_prime.*`. Prefer `from best_prime import …`.
-- `best_prime` exports are **lazy** (PEP 562) so `from best_prime import is_prime` does not import sieves/ntheory.
-- CI / Determinism / potd install via `pip install -e ".[fast,test]"` (or `[fast]`). Dropped `requirements.txt`.
-- Wiki `Library.md` is a map; the full catalogue is the MkDocs [API page](https://burakahmet.github.io/Best-Prime-Number-Function/guide/api/).
+Hard-path OpenMP sieve (u64 and u128), same exact prime-only trial:
 
-### Removed
-- Unused hot-loop snapshots and the old in-process regression helper: `benchmarks/baseline.json`, `results.json`, `latest_run.txt`, `check_regression.py` (CI has used `scripts/check_e2e_regression.py` + `e2e_results.json` for a while).
-- Dockerfile no longer copies unused `tests/` / `benchmarks/`; it copies `best_prime/`.
+- **L1-tiled marking for $p<256$** — walk each 128 KiB segment as 16 KiB tiles so the hottest mark streams stay in L1. Larger sieve primes still do one pass (few stores; tile restart would dominate).
+- Mid-size $\sqrt{n}\le 2^{20}$ unchanged (precomputed 2-adic trial).
 
-### Added
-- **Standalone library guide** (MkDocs Material) at [`/guide/`](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) on the same GitHub Pages deploy as the exhibit lab (`/` stays the orrery). Pages: install, quick start, full API, CLI, restrictions, engines, performance.
-- Extra **`[docs]`** (`mkdocs-material`). `pip install -e ".[docs]"` then `mkdocs serve`.
-- Optional [`.readthedocs.yaml`](.readthedocs.yaml) for the same `mkdocs.yml`.
-- Exhibit top bar / sidebar link to the guide. `Documentation` URL in `pyproject.toml` now points at `/guide/`.
-- **Publish wiki** also runs after Auto-merge actually merges (and after Prime of the day): `GITHUB_TOKEN` pushes do not start `on: push` workflows, which left `/guide/` at 404 until a manual dispatch.
+Tried same session and **not taken:** 8-way mark unroll (noise); 32-bit `__builtin_umul_overflow` (wrong width); extra $31\cdot37\cdot41$ presieve / 16-way trial (still F13); tiling *all* primes (already rejected).
+
+### Performance (indicative vs 1.9.0 / 1.8.1 engine, 12 OpenMP threads, Zen 2)
+Interleaved same-process A/B against the previous `.so`:
+
+| Case | Δ best-of |
+|------|----------:|
+| $10^9+7\times 10^9+9$ | ~**10%** faster |
+| M61 | ~**8–14%** faster |
+| Near $2^{63}$ | ~**6–10%** faster |
+| Largest prime $<2^{64}$ | ~**6–7%** faster |
+| Default mid-size e2e suite | unchanged class (still precomputed-prime path) |
+
+Also in this release (already on `main` after 1.9.0): package layout under `best_prime/`, MkDocs `/guide/`, Pages publish after auto-merge.
 
 ## [1.9.0] — 2026-08-10
 

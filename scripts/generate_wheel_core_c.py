@@ -8,6 +8,7 @@ Emits a compact OpenMP C engine:
     (Newton inv64 from a 16-bit table; exact: odd p | n iff (n*inv)*p < 2^64)
   * memcpy presieve of 7·11·13·17 plus AVX2/scalar OR of 19·23·29
   * contiguous per-thread ranges with persisted uint32 byte-index marks (no per-segment DIV)
+  * small primes (p<256) marked in 16 KiB tiles (L1) ; larger primes still one pass
   * DELTA[64] extract: one table lookup from ctzll instead of (byte,residue) math
   * uint64 ctzll extract of unset wheel-30 bits (8 bytes / iteration)
   * same sieve model for u128 full trial (128-bit DIV; wrap-mul is 64-bit)
@@ -371,11 +372,33 @@ static uint32_t *init_nextg(int k_mark0, int np, uint64_t origin) {
 static inline void mark_segment(uint8_t *seg, uint32_t nbytes, uint32_t g0,
                                 uint64_t hi, int k_mark0, int np, uint32_t *nextg) {
     if (!nextg) return;
-    for (int k = k_mark0; k < np; k++) {
-        uint32_t p = PRE_P[k];
-        uint64_t p2 = (uint64_t)p * (uint64_t)p;
-        if (p2 > hi) break;
+    /* Primes that can still mark this segment. */
+    int k_hi = k_mark0;
+    while (k_hi < np && (uint64_t)PRE_P[k_hi] * (uint64_t)PRE_P[k_hi] <= hi)
+        k_hi++;
+    /* Dense small primes: walk 16 KiB tiles so the working set stays in L1.
+     * Large primes keep a single pass (few stores; tile restart would dominate). */
+    int k_small = k_mark0;
+    while (k_small < k_hi && PRE_P[k_small] < 256u) k_small++;
+    const uint32_t TILE = 16384u;
+    if (k_small > k_mark0) {
+        for (uint32_t off = 0; off < nbytes; off += TILE) {
+            uint32_t ntile = nbytes - off;
+            if (ntile > TILE) ntile = TILE;
+            uint8_t *ts = seg + off;
+            uint32_t g0t = g0 + off;
+            for (int k = k_mark0; k < k_small; k++) {
+                int slot = (k - k_mark0) * 8;
+                uint32_t p = PRE_P[k];
+                for (int ri = 0; ri < 8; ri++)
+                    nextg[slot + ri] = w30_mark_from_g(
+                        ts, ntile, g0t, nextg[slot + ri], p, ri);
+            }
+        }
+    }
+    for (int k = k_small; k < k_hi; k++) {
         int slot = (k - k_mark0) * 8;
+        uint32_t p = PRE_P[k];
         for (int ri = 0; ri < 8; ri++)
             nextg[slot + ri] = w30_mark_from_g(
                 seg, nbytes, g0, nextg[slot + ri], p, ri);

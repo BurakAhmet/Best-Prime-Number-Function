@@ -21,7 +21,7 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 
 | Name | Meaning | Example |
 |------|---------|---------|
-| `__version__` | Installed package version | `"1.9.0"` |
+| `__version__` | Installed package version | `"1.10.0"` |
 | `DEFAULT_N` | CLI default / hardest 64-bit yardstick: largest prime $<2^{64}$ | `18446744073709551557` |
 | `PRIME_COUNT_MAX_N` | Max $n$ for `prime_count` | $2^{64}-1$ |
 | `TOTIENT_RANGE_MAX` | Max $n$ for `totient_range` | $2\cdot10^{7}$ |

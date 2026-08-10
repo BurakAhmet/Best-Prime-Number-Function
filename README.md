@@ -359,9 +359,9 @@ Indicative **end-to-end CLI `TIME`** on a dev machine (`benchmarks/compare_e2e.p
 | Small prime | 97 | ~0.4 ms |
 | $10^9+7$ | 1000000007 | ~2–3 ms |
 | 12-digit prime | 999999999989 | ~2–4 ms (sample: `2806562 ns` / `2.806562 ms`) |
-| Near $2^{63}$ prime | 9223372036854775783 | ~0.19–0.22 s |
-| Largest prime $<2^{64}$ | 18446744073709551557 | ~0.28–0.31 s (sample: `289827924 ns` / `289.828 ms`) |
-| Mersenne M61 | $2^{61}-1$ | ~0.10–0.12 s |
+| Near $2^{63}$ prime | 9223372036854775783 | ~0.16–0.20 s |
+| Largest prime $<2^{64}$ | 18446744073709551557 | ~0.23–0.28 s |
+| Mersenne M61 | $2^{61}-1$ | ~0.09–0.11 s |
 
 In-process hot-loop comparisons (warm engines) live in [`benchmarks/compare_speed.py`](benchmarks/compare_speed.py). End-to-end CLI timing: [`benchmarks/compare_e2e.py`](benchmarks/compare_e2e.py). More context: [`benchmarks/README.md`](benchmarks/README.md), [Hall of fame](docs/wiki/Hall-of-fame.md).
 
