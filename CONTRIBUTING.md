@@ -35,7 +35,7 @@ OMP_NUM_THREADS=2 python3 benchmarks/compare_e2e.py --json /tmp/e2e.json
 python3 scripts/check_e2e_regression.py \
   --baseline benchmarks/e2e_results.json --candidate /tmp/e2e.json
 # library smoke:
-python3 -c "from best_prime import is_prime, next_prime; assert is_prime(17); assert next_prime(14)==17"
+python3 -c "from best_prime import is_prime, next_prime; assert is_prime(17); assert next_prime(14, 3)==23"
 python3 examples/basic_usage.py
 ```
 

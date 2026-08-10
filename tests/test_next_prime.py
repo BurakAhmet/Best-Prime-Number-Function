@@ -48,10 +48,12 @@ def naive_is_prime(n: int) -> bool:
     return True
 
 
-def naive_next_prime(n: int) -> int:
-    cand = n + 1
-    while not naive_is_prime(cand):
+def naive_next_prime(n: int, k: int = 1) -> int:
+    cand = n
+    for _ in range(k):
         cand += 1
+        while not naive_is_prime(cand):
+            cand += 1
     return cand
 
 
@@ -111,6 +113,44 @@ class TestEdgeCases:
         import is_prime as ip
 
         assert ip.next_prime(14) == 17
+        assert ip.next_prime(14, 3) == 23
+
+    @pytest.mark.parametrize(
+        "n,k,expect",
+        [
+            (0, 1, 2),
+            (0, 5, 11),
+            (14, 1, 17),
+            (14, 2, 19),
+            (14, 3, 23),
+            (96, 1, 97),
+            (90, 1, 97),
+            (90, 2, 101),
+            (1, 6, 13),
+        ],
+    )
+    def test_kth_known_pairs(self, n, k, expect):
+        assert next_prime(n, k) == expect
+        assert next_prime(n, k=k) == expect
+
+    def test_k_default_is_one(self):
+        assert next_prime(14, 1) == next_prime(14)
+
+    @pytest.mark.parametrize("bad", [0, -1, -17])
+    def test_k_non_positive_raises(self, bad):
+        with pytest.raises(ValueError):
+            next_prime(14, bad)
+
+    def test_k_bool_rejected(self):
+        with pytest.raises(TypeError):
+            next_prime(14, True)  # type: ignore[arg-type]
+        with pytest.raises(TypeError):
+            next_prime(14, False)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("bad", [1.5, "3", None, 3.0])
+    def test_k_wrong_type_raises(self, bad):
+        with pytest.raises(TypeError):
+            next_prime(14, bad)  # type: ignore[arg-type]
 
 
 class TestExhaustiveSmall:
@@ -133,6 +173,26 @@ class TestExhaustiveSmall:
         assert tbl[-1] == _TABLE_LIMIT
         assert tbl[-1] > _SMALL_LIMIT
         assert next_prime(_SMALL_LIMIT - 1) == 10007
+
+    def test_kth_from_zero_matches_table(self):
+        tbl = _get_small_table()
+        for k, p in enumerate(tbl[:80], start=1):
+            assert next_prime(0, k) == p
+            assert next_prime(1, k) == p
+
+    def test_kth_matches_naive_small(self):
+        for n in range(0, 80):
+            for k in range(1, 8):
+                assert next_prime(n, k) == naive_next_prime(n, k), (n, k)
+
+    def test_interval_sieve_large_k(self):
+        # k >= 8 and n >= 10^4 uses the interval sieve (past the tiny table).
+        assert next_prime(0, 25) == 97
+        assert next_prime(0, 168) == 997
+        assert next_prime(10_000, 8) == naive_next_prime(10_000, 8)
+        assert next_prime(10_000, 40) == naive_next_prime(10_000, 40)
+        # Past the last tabulated prime (π(10007) = 1229).
+        assert next_prime(0, 1230) == naive_next_prime(0, 1230)
 
 
 class TestWheel:
@@ -167,6 +227,19 @@ class TestMidSize:
         for n in (10_007, 10**6, P10_9_7, P10_9_7 - 1, P12_DIGIT):
             assert next_prime(n, parallel=True) == next_prime(n, parallel=False)
 
+    def test_kth_after_1e9_twin(self):
+        assert next_prime(P10_9_7, 1) == P10_9_9
+        p2 = next_prime(P10_9_7, 2)
+        assert p2 > P10_9_9
+        assert is_prime(p2) is True
+        assert next_prime(P10_9_9) == p2
+        for m in range(P10_9_9 + 1, p2):
+            assert is_prime(m) is False
+
+    def test_serial_equals_parallel_kth(self):
+        for n, k in ((10_007, 5), (P10_9_7, 3)):
+            assert next_prime(n, k, parallel=True) == next_prime(n, k, parallel=False)
+
 
 class TestProperties:
     @settings(max_examples=200, **_HYP)
@@ -187,6 +260,14 @@ class TestProperties:
     @given(st.integers(min_value=10_000, max_value=2_000_000))
     def test_serial_equals_parallel_mid_band(self, n: int):
         assert next_prime(n, parallel=True) == next_prime(n, parallel=False)
+
+    @settings(max_examples=80, **_HYP)
+    @given(st.integers(min_value=0, max_value=500), st.integers(min_value=1, max_value=12))
+    def test_kth_is_prime_and_minimal(self, n: int, k: int):
+        p = next_prime(n, k)
+        assert is_prime(p) is True
+        assert next_prime(n, k - 1) < p if k > 1 else p > n
+        assert naive_next_prime(n, k) == p
 
 
 class TestCli:
@@ -230,3 +311,14 @@ class TestCli:
         r = self._run("--help")
         assert r.returncode == 0
         assert "next-prime" in r.stdout
+        assert "[k]" in r.stdout
+
+    def test_kth_positional(self):
+        r = self._run("14", "3")
+        assert r.returncode == 0, r.stderr
+        assert "RESULT:  23" in r.stdout
+        assert "K:       3" in r.stdout
+
+    def test_k_zero_exits_two(self):
+        r = self._run("14", "0")
+        assert r.returncode == 2

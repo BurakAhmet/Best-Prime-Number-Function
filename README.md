@@ -56,7 +56,7 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 | Symbol | Role |
 |--------|------|
 | `is_prime(n, *, parallel=True) -> bool` | `True` iff `n` is prime. Fully deterministic. |
-| `next_prime(n, *, parallel=True) -> int` | Smallest prime **strictly greater than** `n`. Same engines / restrictions. |
+| `next_prime(n, k=1, *, parallel=True) -> int` | The `k`-th prime **strictly greater than** `n`. Same engines / restrictions. |
 | `lab(n, *, parallel=True) -> dict` | Same check plus diagnostics (`path`, `isqrt`, timings, `note`). |
 | `__version__` | Installed package version (`best_prime` only). |
 
@@ -70,6 +70,7 @@ from best_prime import is_prime, lab, next_prime
 is_prime(17)                              # True
 is_prime(100)                             # False
 next_prime(14)                            # 17
+next_prime(14, 3)                         # 23   (3rd prime after 14)
 next_prime(10**9 + 7)                     # 1000000009
 is_prime(18446744073709551557)            # True  (largest prime < 2^64; wants wheel_core.so)
 is_prime(9223372036854775783)             # True  (hard 64-bit; wants wheel_core.so)
@@ -107,6 +108,7 @@ is-prime 18446744073709551557
 best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 next-prime 100                 # 101 (smallest prime > 100)
+next-prime 14 3                # 23  (3rd prime after 14)
 ```
 
 `is-prime` with no argument defaults to the largest prime $<2^{64}$: `18446744073709551557` (hardest 64-bit yardstick). Near $2^{63}$ (`9223372036854775783`) remains a documented mid-hard specimen. `next-prime` requires `n` (it does **not** default to that 64-bit prime — the successor is 65-bit).

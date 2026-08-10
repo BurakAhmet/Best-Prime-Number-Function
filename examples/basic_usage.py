@@ -18,6 +18,7 @@ def main() -> None:
 
     for n in (0, 14, 96, 10**9 + 7):
         print(f"  next_prime({n!r:18}) -> {next_prime(n)}")
+    print(f"  next_prime(14, 3)        -> {next_prime(14, 3)}")
 
     info = lab(10**9 + 7)
     print(

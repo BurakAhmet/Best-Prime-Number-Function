@@ -11,6 +11,8 @@ Example
 True
 >>> next_prime(14)
 17
+>>> next_prime(14, 3)
+23
 >>> lab(97)["path"]
 'python_small'
 """

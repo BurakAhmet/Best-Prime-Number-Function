@@ -22,14 +22,15 @@ Legacy `W30030` / `RES_TO_WI` load lazily for tests. Build the C core with `bash
    - Else stdlib **9699690-wheel** full trial in Python.
 2. For still-larger $n$: **30030-wheel** trial up to $\min(10^8,\lfloor\sqrt{n}\rfloor)$, then **AKS** if needed (Kronecker poly mul; correct, still slow for huge primes).
 
-## `next_prime(n)`
+## `next_prime(n, k=1)`
 
-Smallest prime **strictly greater than** `n` (same input contract and restrictions as `is_prime`). Not a new primality engine:
+The `k`-th prime **strictly greater than** `n` (same input contract and restrictions as `is_prime`). Not a new primality engine:
 
 1. \(n \lt 10^4\): one local Eratosthenes table through \(10\,007\) + bisect (no NumPy/Numba).
-2. Else: walk the **30030-wheel**, drop candidates with a factor \(17\ldots1021\), then call `is_prime` (OpenMP C / stdlib wheel / Numba / AKS).
+2. Large `k` with practical \(\sqrt{\text{bound}}\) (\(\le 2\cdot10^6\)): our own interval sieve.
+3. Else: walk the **30030-wheel**, drop candidates with a factor \(17\ldots1021\), then call `is_prime` (OpenMP C / stdlib wheel / Numba / AKS).
 
-Console script: `next-prime 100`. Source: [`next_prime.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/next_prime.py).
+Console script: `next-prime 100` · `next-prime 14 3`. Source: [`next_prime.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/next_prime.py).
 
 ## Related
 

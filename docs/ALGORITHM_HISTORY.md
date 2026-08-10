@@ -441,7 +441,7 @@ Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes 
 
 ## API addition — v1.6.0 (2026-08-10): `next_prime`
 
-**Not an engine change.** New module [`next_prime.py`](../next_prime.py) returns the least prime $> n$ under the same restrictions: tiny table + **30030-wheel** candidates + a 17…1021 prefilter, then the existing `is_prime` dispatch (OpenMP / wheel / AKS). No Miller–Rabin, no prime libraries, no new `lab()` path.
+**Not an engine change.** New module [`next_prime.py`](../next_prime.py) returns the `k`-th prime $> n$ (`k=1` default) under the same restrictions: tiny table, interval sieve for large `k`, or **30030-wheel** candidates + a 17…1021 prefilter, then the existing `is_prime` dispatch (OpenMP / wheel / AKS). No Miller–Rabin, no prime libraries, no new `lab()` path.
 
 ---
 

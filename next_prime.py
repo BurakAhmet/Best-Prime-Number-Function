@@ -1,9 +1,10 @@
 """
-Smallest prime strictly greater than n.
+k-th prime strictly greater than n.
 
-Candidate generation is deterministic: a tiny prime table for small n, then
-the project's 30030-wheel (coprime to 2·3·5·7·11·13) plus a short prefilter
-of our own small primes. Exact primality is always delegated to ``is_prime``
+Candidate generation is deterministic: a tiny prime table for small n, an
+interval sieve when k is large and √bound is practical, otherwise the
+project's 30030-wheel (coprime to 2·3·5·7·11·13) plus a short prefilter of
+our own small primes. Exact primality is always delegated to ``is_prime``
 (OpenMP C / stdlib wheel / Numba / AKS) — no Miller–Rabin, no prime libraries.
 
 End-to-end CLI ``TIME`` starts at import (``t0``) and stops after the answer.
@@ -36,10 +37,14 @@ _RES_INVALID = 0xFFFF
 _TABLE_LIMIT = 10_007
 # Prefilter primes (already past the wheel primes) before calling is_prime.
 _PREFILTER_LIMIT = 1_021
+# Interval sieve: only when k is large enough to repay setup and √hi is cheap.
+_SIEVE_MIN_K = 8
+_SIEVE_ISQRT_MAX = 2_000_000
 
 _small_table: tuple[int, ...] | None = None
 _prefilter: tuple[int, ...] | None = None
 _res30030: array | None = None
+_base_cache: tuple[int, tuple[int, ...]] = (0, ())
 
 
 def _sieve_primes_upto(limit: int) -> tuple[int, ...]:
@@ -72,6 +77,18 @@ def _get_prefilter() -> tuple[int, ...]:
     return _prefilter
 
 
+def _primes_upto_cached(limit: int) -> tuple[int, ...]:
+    global _base_cache
+    cached_lim, cached = _base_cache
+    if cached_lim >= limit:
+        if cached_lim == limit:
+            return cached
+        return tuple(p for p in cached if p <= limit)
+    primes = _sieve_primes_upto(limit)
+    _base_cache = (limit, primes)
+    return primes
+
+
 def _get_res_30030() -> array:
     """Residue → 30030-wheel index (0xFFFF if gcd(r, 30030) ≠ 1)."""
     global _res30030
@@ -84,13 +101,12 @@ def _get_res_30030() -> array:
     return _res30030
 
 
-def _next_prime_table(n: int) -> int:
-    tbl = _get_small_table()
-    i = bisect_right(tbl, n)
-    if i < len(tbl):
-        return tbl[i]
-    # n is at least the last tabulated prime; caller should use the wheel.
-    return _next_prime_wheel(n, True)
+def _parse_k(k: int) -> int:
+    if isinstance(k, bool) or not isinstance(k, int):
+        raise TypeError("k must be a positive int")
+    if k < 1:
+        raise ValueError("k must be a positive integer (k >= 1)")
+    return k
 
 
 def _align_wheel30030(cand: int) -> tuple[int, int]:
@@ -106,12 +122,68 @@ def _align_wheel30030(cand: int) -> tuple[int, int]:
     return cand, int(res[r])
 
 
-def _next_prime_wheel(n: int, parallel: bool) -> int:
+def _span_guess(n: int, k: int) -> int:
+    """Overestimate of the distance to the k-th prime after n."""
+    ln = math.log(max(n, 2))
+    lnk = math.log(max(k, 2))
+    span = int(k * (ln + lnk + 4)) + 32
+    if n < 20 and k >= 6:
+        # Dusart-style p_k < k (ln k + ln ln k) plus slack; hi must reach p_k.
+        pk = int(k * (lnk + math.log(lnk) + 2)) + 16
+        span = max(span, pk - n)
+    return max(span, 48)
+
+
+def _primes_in_range(lo: int, hi: int) -> list[int]:
+    """Primes p with lo ≤ p < hi. Requires lo ≥ 2."""
+    if hi <= lo:
+        return []
+    limit = math.isqrt(hi - 1)
+    base = _primes_upto_cached(limit)
+    width = hi - lo
+    mark = bytearray(b"\x01") * width
+    for p in base:
+        start = ((lo + p - 1) // p) * p
+        pp = p * p
+        if start < pp:
+            start = pp
+        if start >= hi:
+            continue
+        off = start - lo
+        mark[off:width:p] = b"\x00" * (((width - 1 - off) // p) + 1)
+    return [lo + i for i, bit in enumerate(mark) if bit]
+
+
+def _try_interval(n: int, k: int) -> int | None:
+    """k-th prime > n via a segmented sieve, or None if the bound is too hard."""
+    if k < _SIEVE_MIN_K:
+        return None
+    span = _span_guess(n, k)
+    lo = max(n + 1, 2)
+    hi = lo + span
+    if math.isqrt(max(hi - 1, 1)) > _SIEVE_ISQRT_MAX:
+        return None
+    collected: list[int] = []
+    start = lo
+    for _ in range(12):
+        if math.isqrt(max(hi - 1, 1)) > _SIEVE_ISQRT_MAX:
+            break
+        collected.extend(_primes_in_range(start, hi))
+        if len(collected) >= k:
+            return collected[k - 1]
+        extra = max(span, hi - max(n, 1))
+        start = hi
+        hi += extra
+    return None
+
+
+def _next_prime_wheel(n: int, k: int, parallel: bool) -> int:
     steps = _get_steps_30030()
     nW = len(steps)
     cand, wi = _align_wheel30030(n + 1)
     pre = _get_prefilter()
-    # n ≥ _SMALL_LIMIT ⇒ cand > _PREFILTER_LIMIT, so cand % p == 0 ⇒ composite.
+    # When n ≥ _SMALL_LIMIT, cand > _PREFILTER_LIMIT, so cand % p == 0 ⇒ composite.
+    found = 0
     while True:
         lim = math.isqrt(cand)
         composite = False
@@ -124,28 +196,46 @@ def _next_prime_wheel(n: int, parallel: bool) -> int:
                 composite = True
                 break
         if not composite and (proven or is_prime(cand, parallel=parallel)):
-            return cand
+            found += 1
+            if found == k:
+                return cand
         cand += steps[wi]
         wi += 1
         if wi == nW:
             wi = 0
 
 
-def next_prime(n: int | str, *, parallel: bool = True) -> int:
-    """Return the smallest prime strictly greater than ``n``.
+def _next_after(n: int, k: int, parallel: bool) -> int:
+    got = _try_interval(n, k)
+    if got is not None:
+        return got
+    return _next_prime_wheel(n, k, parallel)
 
-    Fully deterministic. Accepts the same ``n`` as ``is_prime`` (natural
-    ``int`` or decimal ``str``). ``parallel`` is forwarded to ``is_prime``
-    and never changes the result.
+
+def next_prime(n: int | str, k: int = 1, *, parallel: bool = True) -> int:
+    """Return the ``k``-th prime strictly greater than ``n``.
+
+    ``k=1`` (default) is the usual successor. Fully deterministic. Accepts
+    the same ``n`` as ``is_prime`` (natural ``int`` or decimal ``str``).
+    ``k`` must be a positive ``int``. ``parallel`` is forwarded to
+    ``is_prime`` and never changes the result.
     """
     n_int = _parse_n(n)
+    k_int = _parse_k(k)
     if n_int < _SMALL_LIMIT:
-        return _next_prime_table(n_int)
-    return _next_prime_wheel(n_int, parallel)
+        tbl = _get_small_table()
+        i = bisect_right(tbl, n_int)
+        j = i + k_int - 1
+        if j < len(tbl):
+            return tbl[j]
+        remaining = k_int - (len(tbl) - i)
+        return _next_after(tbl[-1], remaining, parallel)
+    return _next_after(n_int, k_int, parallel)
 
 
-def _print_result(arg: str, value: int, threads: int) -> None:
+def _print_result(arg: str, k: int, value: int, threads: int) -> None:
     print(f"TEST:    {arg} ({len(arg)} chars)")
+    print(f"K:       {k}")
     print(f"THREADS: {threads}")
     print(f"RESULT:  {value}")
     dt = time.perf_counter_ns() - t0
@@ -165,8 +255,8 @@ def _main(argv: list[str]) -> int:
     for a in argv:
         if a in {"-h", "--help"}:
             print(
-                "usage: next-prime [--serial] n\n"
-                "Smallest prime strictly greater than n (deterministic)."
+                "usage: next-prime [--serial] n [k]\n"
+                "k-th prime strictly greater than n (deterministic; k defaults to 1)."
             )
             return 0
         if a == "--serial":
@@ -176,8 +266,8 @@ def _main(argv: list[str]) -> int:
             return 2
         else:
             positional.append(a)
-    if not positional:
-        print("usage: next-prime [--serial] n", file=sys.stderr)
+    if not positional or len(positional) > 2:
+        print("usage: next-prime [--serial] n [k]", file=sys.stderr)
         return 2
     arg = positional[0]
     try:
@@ -185,8 +275,20 @@ def _main(argv: list[str]) -> int:
     except (TypeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    k = 1
+    if len(positional) > 1:
+        raw = positional[1].strip()
+        digits = raw[1:] if raw.startswith("+") else raw
+        if not digits.isdigit():
+            print(f"invalid k: {positional[1]!r}", file=sys.stderr)
+            return 2
+        try:
+            k = _parse_k(int(digits))
+        except (TypeError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
     parallel = not serial
-    value = next_prime(n, parallel=parallel)
+    value = next_prime(n, k, parallel=parallel)
     from is_prime import _thread_count
 
     threads = (
@@ -194,7 +296,7 @@ def _main(argv: list[str]) -> int:
         if (parallel and n >= _SMALL_LIMIT and _load_c_core())
         else 1
     )
-    _print_result(str(n), value, threads)
+    _print_result(str(n), k, value, threads)
     return 0
 
 
