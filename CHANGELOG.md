@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 - Extra **`[docs]`** (`mkdocs-material`). `pip install -e ".[docs]"` then `mkdocs serve`.
 - Optional [`.readthedocs.yaml`](.readthedocs.yaml) for the same `mkdocs.yml`.
 - Exhibit top bar / sidebar link to the guide. `Documentation` URL in `pyproject.toml` now points at `/guide/`.
+- **Publish wiki** also runs after Auto-merge actually merges (and after Prime of the day): `GITHUB_TOKEN` pushes do not start `on: push` workflows, which left `/guide/` at 404 until a manual dispatch.
 
 ## [1.9.0] — 2026-08-10
 
