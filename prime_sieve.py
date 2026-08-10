@@ -9,16 +9,46 @@ Miller–Rabin, no prime libraries.
 from __future__ import annotations
 
 import math
+import sys
+from array import array
 from bisect import bisect_right
+
+# φ(x,a) recurses once per prime index; 64-bit uses a = π(2^16) = 6542.
+if sys.getrecursionlimit() < 20_000:
+    sys.setrecursionlimit(20_000)
 
 from is_prime import _parse_n
 
 # Tiny table used by next/prev_prime (first prime above 10^4).
 _TABLE_LIMIT = 10_007
-# Full odds-only sieve is the winner below this (Lucy has setup cost).
-_SIEVE_PI_MAX = 2_000_000
-# Lucy–Hedgehog needs O(√n) memory; refuse to allocate more than this.
-_LUCY_MAX_V = 5_000_000  # n ≤ 25e12
+# Odds-only count sieve wins E2E below this (Lucy has Θ(√n) tables).
+_SIEVE_PI_MAX = 20_000_000
+# Lucy–Hedgehog uses two int64 arrays of length √n.
+# 5e7 × 8 × 2 ≈ 800 MiB → n ≤ 2.5e15. Not a cap on n itself at 5e6.
+_LUCY_MAX_V = 50_000_000
+# Lucy tables stop at √n = 5e7 (n ≤ 2.5e15). Larger n uses Meissel–Lehmer
+# (including every 64-bit n, e.g. 18446744073709551557).
+PRIME_COUNT_MAX_N = (1 << 64) - 1
+_ML_PRIME_MAX = 1 << 32  # primes stored as uint32 through 2^32
+# π(2^k) from OEIS A007053 (Oliveira e Silva); seeds ML memo + tests.
+_PI_POW2 = {
+    0: 0, 1: 1, 2: 2, 3: 4, 4: 6, 5: 11, 6: 18, 7: 31, 8: 54, 9: 97,
+    10: 172, 11: 309, 12: 564, 13: 1028, 14: 1900, 15: 3512, 16: 6542,
+    17: 12251, 18: 23000, 19: 43390, 20: 82025, 21: 155611, 22: 295947,
+    23: 564163, 24: 1077871, 25: 2063689, 26: 3957809, 27: 7603553,
+    28: 14630843, 29: 28192750, 30: 54400028, 31: 105097565,
+    32: 203280221, 33: 393615806, 34: 762939111, 35: 1480206279,
+    36: 2874398515, 37: 5586502348, 38: 10866266172, 39: 21151907950,
+    40: 41203088796, 41: 80316571436, 42: 156661034233, 43: 305761713237,
+    44: 597116381732, 45: 1166746786182, 46: 2280998753949,
+    47: 4461632979717, 48: 8731188863470, 49: 17094432576778,
+    50: 33483379603407, 51: 65612899915304, 52: 128625503610475,
+    53: 252252704148404, 54: 494890204904784, 55: 971269945245201,
+    56: 1906879381028850, 57: 3745011184713964, 58: 7357400267843990,
+    59: 14458792895301660, 60: 28423094496953330, 61: 55890484045084135,
+    62: 109932807585469973, 63: 216289611853439384,
+    64: 425656284035217743,
+}
 # Segmented sieve window (bytes of odds ≈ this).
 _SEG_ODDS = 262_144  # 256 KiB → 512 Ki odd numbers → span 524_288
 
@@ -205,12 +235,17 @@ def _seg_odds(lo: int, hi: int, base: tuple[int, ...]) -> list[int]:
     return [lo + (i << 1) for i, bit in enumerate(mark) if bit]
 
 
-def _lucy_python(n: int) -> int:
+def _lucy_tables(n: int):
+    """Compact int64 Lucy tables (8 bytes/entry, not Python ints)."""
     v = math.isqrt(n)
-    smalls = [i - 1 for i in range(v + 1)]
-    larges = [0] * (v + 1)
-    for i in range(1, v + 1):
-        larges[i] = n // i - 1
+    # smalls[i] = i-1 initially; range(-1, v) is -1,0,...,v-1.
+    smalls = array("q", range(-1, v))
+    larges = array("q", ((n // i - 1) if i else 0 for i in range(v + 1)))
+    return v, smalls, larges
+
+
+def _lucy_python(n: int) -> int:
+    v, smalls, larges = _lucy_tables(n)
     for p in range(2, v + 1):
         if smalls[p - 1] == smalls[p]:
             continue
@@ -227,7 +262,7 @@ def _lucy_python(n: int) -> int:
         if p2 <= v:
             for i in range(v, p2 - 1, -1):
                 smalls[i] -= smalls[i // p] - pc
-    return larges[1]
+    return int(larges[1])
 
 
 def _get_lucy_kernel():
@@ -281,17 +316,214 @@ def _get_lucy_kernel():
 
 def _prime_count_large(n: int) -> int:
     v = math.isqrt(n)
-    if v > _LUCY_MAX_V:
-        raise ValueError(
-            f"prime_count(n) needs O(sqrt(n)) memory; n is too large "
-            f"(sqrt(n)={v}, max {_LUCY_MAX_V})"
-        )
-    # Numba pays off once √n is large; skip it below ~1e8 (import/JIT).
-    if n >= 100_000_000 and n.bit_length() <= 63:
+    if v <= _LUCY_MAX_V:
+        if n >= 10_000_000 and n.bit_length() <= 63:
+            kern = _get_lucy_kernel()
+            if kern:
+                return int(kern(n))
+        return _lucy_python(n)
+    return _pi_ml(n, force_lehmer=True)
+
+
+def _icbrt(n: int) -> int:
+    if n < 8:
+        return 1 if n else 0
+    x = 1 << ((n.bit_length() + 2) // 3)
+    while True:
+        y = (2 * x + n // (x * x)) // 3
+        if y >= x:
+            break
+        x = y
+    while x * x * x > n:
+        x -= 1
+    while (x + 1) * (x + 1) * (x + 1) <= n:
+        x += 1
+    return x
+
+
+# Meissel–Lehmer state.
+_ml_primes: tuple[int, ...] | array = ()
+_ml_plim = -1
+_phi_memo: dict[tuple[int, int], int] = {}
+_uint32_sieve_kernel = None
+
+
+def _ml_init_memo() -> dict[int, int]:
+    d = {0: 0, 1: 0}
+    for k, v in _PI_POW2.items():
+        d[1 << k] = v
+    return d
+
+
+_pi_memo: dict[int, int] = _ml_init_memo()
+
+
+def _get_uint32_sieve_kernel():
+    """Cached Numba bit-sieve; do not rebuild the njit wrapper per call."""
+    global _uint32_sieve_kernel
+    if _uint32_sieve_kernel is not None:
+        return _uint32_sieve_kernel
+    try:
+        import numpy as np
+        from numba import njit
+    except ImportError:
+        _uint32_sieve_kernel = False
+        return _uint32_sieve_kernel
+
+    @njit(cache=True)
+    def _fill(limit_):
+        nbits = (limit_ + 1) >> 1
+        nwords = (nbits + 63) >> 6
+        bits = np.empty(nwords, dtype=np.uint64)
+        ones = np.uint64(0xFFFFFFFFFFFFFFFF)
+        for w in range(nwords):
+            bits[w] = ones
+        bits[0] &= ~np.uint64(1)  # 1 is not prime
+        r = int(limit_ ** 0.5)
+        hi = (r + 1) >> 1
+        for i in range(1, hi):
+            if (bits[i >> 6] >> np.uint64(i & 63)) & np.uint64(1):
+                p = (i << 1) + 1
+                start = (p * p) >> 1
+                step = p
+                for j in range(start, nbits, step):
+                    bits[j >> 6] &= ~(np.uint64(1) << np.uint64(j & 63))
+        cnt = 1  # 2
+        for i in range(1, nbits):
+            if 2 * i + 1 > limit_:
+                break
+            if (bits[i >> 6] >> np.uint64(i & 63)) & np.uint64(1):
+                cnt += 1
+        out = np.empty(cnt, dtype=np.uint32)
+        out[0] = 2
+        k = 1
+        for i in range(1, nbits):
+            p = 2 * i + 1
+            if p > limit_:
+                break
+            if (bits[i >> 6] >> np.uint64(i & 63)) & np.uint64(1):
+                out[k] = p
+                k += 1
+        return out
+
+    _uint32_sieve_kernel = _fill
+    return _uint32_sieve_kernel
+
+
+def _sieve_uint32_primes(limit: int):
+    """Primes ≤ limit as compact uint32 (array), for the ML prime list."""
+    if limit <= _SIEVE_PI_MAX * 5:
+        return _primes_upto_cached(limit)
+    kern = _get_uint32_sieve_kernel()
+    if not kern:
+        return _primes_upto_cached(limit)
+    arr = kern(int(limit))
+    return array("I", arr)
+
+
+def _ensure_ml_primes(limit: int) -> None:
+    """Primes ≤ min(limit, 2^32) for the ML prime list."""
+    global _ml_primes, _ml_plim
+    if limit < 2:
+        limit = 2
+    if limit > _ML_PRIME_MAX:
+        limit = _ML_PRIME_MAX
+    if limit <= _ml_plim:
+        return
+    if limit <= _SIEVE_PI_MAX * 5:
+        _ml_primes = _primes_upto_cached(limit)
+    else:
+        _ml_primes = _sieve_uint32_primes(limit)
+    _ml_plim = limit
+
+
+def _pi_list(x: int) -> int:
+    if x < 2:
+        return 0
+    return bisect_right(_ml_primes, x)
+
+
+def _phi(x: int, a: int) -> int:
+    """#{k ≤ x : every prime factor of k is > p_a}. φ(x, 0) = x."""
+    if x < 1:
+        return 0
+    if a <= 0:
+        return x
+    while a > 0 and _ml_primes[a - 1] > x:
+        a -= 1
+        if a == 0:
+            return x
+    if a == 1:
+        return (x + 1) // 2
+    key = (x, a)
+    hit = _phi_memo.get(key)
+    if hit is not None:
+        return hit
+    pa = int(_ml_primes[a - 1])
+    if a < len(_ml_primes) and x < int(_ml_primes[a]) * int(_ml_primes[a]):
+        r = _pi_ml(x) - a + 1
+        _phi_memo[key] = r
+        return r
+    r = _phi(x, a - 1) - _phi(x // pa, a - 1)
+    _phi_memo[key] = r
+    return r
+
+
+def _lucy_or_sieve_pi(n: int) -> int:
+    """π(n) when √n fits the Lucy tables (or smaller sieve)."""
+    if n < 2:
+        return 0
+    if n <= _SIEVE_PI_MAX:
+        return _count_sieve(n)
+    if n >= 10_000_000 and n.bit_length() <= 63:
         kern = _get_lucy_kernel()
         if kern:
             return int(kern(n))
     return _lucy_python(n)
+
+
+def _pi_ml(n: int, *, force_lehmer: bool = False) -> int:
+    """Memoized π(n): Lucy when √n fits, else Lehmer; tests may force Lehmer."""
+    if n < 2:
+        return 0
+    hit = _pi_memo.get(n)
+    if hit is not None:
+        return hit
+    v = math.isqrt(n)
+    if not force_lehmer and v <= _LUCY_MAX_V:
+        r = _lucy_or_sieve_pi(n)
+        _pi_memo[n] = r
+        return r
+    _ensure_ml_primes(v)
+    if n <= _ml_plim:
+        r = _pi_list(n)
+        _pi_memo[n] = r
+        return r
+    a = _pi_ml(math.isqrt(v))
+    b = _pi_ml(v)
+    c = _pi_ml(_icbrt(n))
+    res = _phi(n, a) + (b + a - 2) * (b - a + 1) // 2
+    # Classic Lehmer P2/P3. Subcalls use Lucy whenever √w fits.
+    # 64-bit n needs primes through ~2^32 (generated once).
+    for idx in range(a + 1, b + 1):
+        p = int(_ml_primes[idx - 1])
+        w = n // p
+        res -= _pi_ml(w)
+        if idx <= c:
+            bi = _pi_ml(math.isqrt(w))
+            for j in range(idx, bi + 1):
+                res -= _pi_ml(w // int(_ml_primes[j - 1])) - (j - 1)
+    _pi_memo[n] = res
+    return res
+
+
+def _reset_ml_state() -> None:
+    """Test helper: drop Lehmer memos (does not drop the Lucy/Numba kernels)."""
+    global _ml_primes, _ml_plim, _pi_memo
+    _ml_primes = ()
+    _ml_plim = -1
+    _phi_memo.clear()
+    _pi_memo = _ml_init_memo()
 
 
 def primes(n: int | str) -> list[int]:
@@ -317,8 +549,19 @@ def primerange(low: int | str, high: int | str) -> list[int]:
 
 
 def prime_count(n: int | str) -> int:
-    """π(n): number of primes ≤ n."""
+    """π(n): number of primes ≤ n.
+
+    ``n`` may be any natural number up to ``PRIME_COUNT_MAX_N`` (2⁶⁴−1).
+    Moderate n uses an odds-only sieve / Lucy–Hedgehog; larger n uses
+    memoized Meissel–Lehmer (correct for every 64-bit n; the hardest
+    sizes need a one-time prime list through ∼2³²).
+    """
     n_int = _parse_n(n)
+    if n_int > PRIME_COUNT_MAX_N:
+        raise ValueError(
+            f"prime_count(n) supports n <= {PRIME_COUNT_MAX_N} "
+            f"(got n={n_int})"
+        )
     if n_int < 2:
         return 0
     if n_int <= _primes_cache_lim:

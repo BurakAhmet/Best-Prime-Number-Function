@@ -7,7 +7,14 @@ import math
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from prime_sieve import nth_prime, prime_count, primerange, primes
+from prime_sieve import (
+    PRIME_COUNT_MAX_N,
+    _LUCY_MAX_V,
+    nth_prime,
+    prime_count,
+    primerange,
+    primes,
+)
 from tests.numbers import SMALL_PRIMES
 
 _HYP = dict(
@@ -29,6 +36,7 @@ PI = {
     10_000: 1229,
     100_000: 9592,
     1_000_000: 78_498,
+    5_000_000: 348_513,
     10_000_000: 664_579,
     100_000_000: 5_761_455,
 }
@@ -87,6 +95,44 @@ class TestPrimeCount:
             c = prime_count(n)
             assert c >= last
             last = c
+
+    def test_five_million_is_not_a_cap_on_n(self):
+        assert prime_count(5_000_000) == 348_513
+        assert PRIME_COUNT_MAX_N == (1 << 64) - 1
+        assert _LUCY_MAX_V >= 5_000_000
+
+    def test_over_max_raises_with_n_bound(self):
+        with pytest.raises(ValueError, match="supports n <="):
+            prime_count(PRIME_COUNT_MAX_N + 1)
+
+    def test_pow2_table(self):
+        from prime_sieve import _PI_POW2
+
+        assert prime_count(1 << 10) == _PI_POW2[10]
+        assert prime_count(1 << 20) == _PI_POW2[20]
+        # 2^32 still fits Lucy (√n = 2^16); checks the OEIS seed table.
+        assert prime_count(1 << 32) == _PI_POW2[32]
+
+    def test_lucy_12_digit(self):
+        # √(10^12) = 1e6 < Lucy cap — this is Lucy, not Meissel–Lehmer.
+        assert prime_count(10**12) == 37_607_912_018
+
+    def test_meissel_lehmer_matches_known(self):
+        """Force the Lehmer loops on sizes Lucy would normally take."""
+        from prime_sieve import _pi_ml, _reset_ml_state
+
+        known = {
+            10_000: 1_229,
+            100_000: 9_592,
+            1_000_000: 78_498,
+            10_000_000: 664_579,
+            (1 << 20): 82_025,
+        }
+        for n, expect in known.items():
+            _reset_ml_state()
+            assert _pi_ml(n, force_lehmer=True) == expect
+            # Public API (Lucy/sieve) still agrees.
+            assert prime_count(n) == expect
 
 
 class TestNthPrime:

@@ -2,6 +2,51 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.8.2] — 2026-08-10
+
+### Added
+- **`prime_count(n)`** now covers every 64-bit `n` (`PRIME_COUNT_MAX_N = 2⁶⁴−1`):
+  - odds-only sieve / Lucy–Hedgehog while $\sqrt{n}\le 5\cdot10^7$ ($n\le 2.5\cdot10^{15}$)
+  - memoized **Meissel–Lehmer** beyond that (subproblems still use Lucy when they fit)
+- Public `PRIME_COUNT_MAX_N` on `best_prime`. `n > 2⁶⁴−1` raises `ValueError`.
+- Tests actually run the Lehmer loops (forced on $10^4\ldots10^7$ / $2^{20}$) instead of only Lucy-sized $10^{12}$.
+
+### Fixed
+- Unfinished Meissel–Lehmer work: Numba 32-bit sieve kernel is cached (was rebuilt every call); prime list stored as compact `array('I')` when large.
+
+## [1.8.1] — 2026-08-10
+
+### Changed
+Hard-path OpenMP sieve (u64 and u128):
+
+- Persist **uint32 global byte indexes** instead of 64-bit `m` (no `(m-base)/30` DIV per mark stream per segment; half the persist storage).
+- **`DELTA[64]` extract** — `ctzll` → candidate with one table lookup (`(tz>>3)*30 + WR30[tz&7]`).
+
+Same exact prime-only trial. 16-way trial / extra 31·37·41 OR / 64 KiB segments still not taken.
+
+### Performance (indicative vs 1.8.0, 12 OpenMP threads, LTO)
+- M61 / $10^9$ semiprime: ~**7–15%** faster in-process.
+- Largest prime $<2^{64}$ / near $2^{63}$: ~**5–12%** faster best-of runs.
+- Default mid-size e2e suite: unchanged or slightly faster (same precomputed-prime path).
+
+## [1.8.0] — 2026-08-10
+
+### Changed
+Hard 64-bit / practical u128 OpenMP path (`wheel_core.c`):
+
+- **INV16** — lift $p^{-1}\bmod 2^{16}$ with **two** Newton steps (was three from 8-bit `INV8`) on sieved-prime wrap-mul trial.
+- **Presieve $19\cdot23\cdot29$** — sequential AVX2/scalar OR of a 12673-byte wheel-30 pattern on top of the existing $7\cdot11\cdot13\cdot17$ memcpy tile. Marking starts at $p\ge 31$.
+- **Contiguous per-thread segments + persisted mark positions** — each thread owns a consecutive run of segments and walks the 8 residue streams forward (one first-$m$ DIV per prime, no per-segment DIV).
+- **128 KiB segments** on the hard path (persist made 256 KiB unnecessary).
+- Cached `inv30` and 32-bit DIV for first-mark / pattern build. Same exact prime-only trial; no Miller–Rabin.
+
+### Performance (indicative vs 1.7.0 / 1.4.4 engine, 12 OpenMP threads, Zen 2)
+- Largest prime $<2^{64}$: ~**336 ms → ~287 ms** in-process (~**13–15%**); e2e ~310 ms class.
+- Near $2^{63}$ / M61: ~**10–15%** faster in-process.
+- Default mid-size e2e suite: unchanged class (still precomputed-prime trial).
+
+Tried same session and **not taken**: 16-way trial (hurt the default $n$); extra $31\cdot37\cdot41$ OR pattern (helped M61, slightly hurt max 64-bit); 512 KiB segments.
+
 ## [1.7.0] — 2026-08-10
 
 ### Added
@@ -9,7 +54,7 @@ Deterministic library APIs on top of the existing engines (no new primality shor
 
 - **`prev_prime(n, k=1)`** — k-th prime strictly below `n` (table / interval sieve / backward 30030-wheel).
 - **`nth_prime(k)`** — $p_k$; odds-only sieve or segmented sieve from a Dusart bound.
-- **`prime_count(n)`** — $\pi(n)$; sieve below $2\cdot10^6$, Lucy–Hedgehog (optional Numba) above.
+- **`prime_count(n)`** — $\pi(n)$; odds-only sieve below $2\cdot10^7$, Lucy–Hedgehog (compact int64 + Numba) up to $n\le 2.5\cdot10^{15}$ (`PRIME_COUNT_MAX_N`). The former $5\cdot10^6$ figure was the Lucy *√n* table cap, not max $n$.
 - **`primes(n)`**, **`primerange(a, b)`** — cached odds-only Eratosthenes / segmented interval sieve.
 - **`prime_factors(n)`**, **`factorint(n)`** — 30-wheel trial, Fermat for close factors, deterministic Brent–Pollard (fixed $c=1,2,\ldots$), then `is_prime` on pieces.
 - **`is_perfect_power(n)`**, **`is_prime_power(n)`** — Newton integer $k$-th roots; only prime exponents.
