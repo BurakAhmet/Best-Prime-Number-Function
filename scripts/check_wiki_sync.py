@@ -47,6 +47,16 @@ CHECKS = [
             r"2305843009213693951|M61|2\^\{61\}",
         ],
     ),
+    (
+        "Library.md",
+        [
+            r"totient",
+            r"primorial",
+            r"primerange",
+            r"No stochastic Miller",
+            r"docs/wiki/Library",
+        ],
+    ),
 ]
 
 

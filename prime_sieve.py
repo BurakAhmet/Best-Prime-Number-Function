@@ -11,7 +11,8 @@ from __future__ import annotations
 import math
 import sys
 from array import array
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
+from collections.abc import Iterator
 
 # φ(x,a) recurses once per prime index; 64-bit uses a = π(2^16) = 6542.
 if sys.getrecursionlimit() < 20_000:
@@ -527,25 +528,62 @@ def _reset_ml_state() -> None:
 
 
 def primes(n: int | str) -> list[int]:
-    """All primes ≤ n, ascending. Empty for n < 2."""
+    """All primes ≤ n, ascending. Empty for n < 2.
+
+    Uses the shared cache when ``n`` is moderate; otherwise drains a
+    segmented ``primerange`` so we do not double-sieve.
+    """
     n_int = _parse_n(n)
     if n_int < 2:
         return []
-    return list(_primes_upto_cached(n_int))
+    if n_int <= max(_primes_cache_lim, _SIEVE_PI_MAX):
+        return list(_primes_upto_cached(n_int))
+    return list(primerange(2, n_int + 1))
 
 
-def primerange(low: int | str, high: int | str) -> list[int]:
-    """Primes p with low ≤ p < high (Python range convention)."""
+def primerange(low: int | str, high: int | str) -> Iterator[int]:
+    """Primes ``p`` with ``low ≤ p < high`` (half-open, like ``range``).
+
+    Yields one prime at a time (sympy-compatible). Materialize with
+    ``list(primerange(a, b))`` when you need a list. Walks the prime cache
+    when it already covers the interval; otherwise sieves in 256 KiB
+    segments so a long range never holds every prime at once.
+    """
     lo = _parse_n(low)
     hi = _parse_n(high)
     if hi <= lo or hi <= 2:
-        return []
+        return
     if lo < 2:
         lo = 2
-    # Whole prefix: reuse the growing cache (no second sieve).
-    if lo == 2 and hi - 1 <= max(_primes_cache_lim, _SIEVE_PI_MAX):
-        return list(_primes_upto_cached(hi - 1))
-    return _primes_in_range(lo, hi)
+    # Cache already covers [2, hi).
+    if hi - 1 <= _primes_cache_lim:
+        ps = _primes_cache
+        i = bisect_left(ps, lo)
+        end = bisect_left(ps, hi)
+        for j in range(i, end):
+            yield ps[j]
+        return
+    # Small prefix: one odds-only sieve, then yield from the tuple.
+    if lo == 2 and hi - 1 <= _SIEVE_PI_MAX:
+        yield from _primes_upto_cached(hi - 1)
+        return
+    # Segmented sieve; yield each window so peak RAM stays O(segment).
+    if lo <= 2 < hi:
+        yield 2
+        lo = 3
+    if (lo & 1) == 0:
+        lo += 1
+    span = _SEG_ODDS << 1
+    start = lo
+    while start < hi:
+        seg_hi = start + span
+        if seg_hi > hi:
+            seg_hi = hi
+        need = math.isqrt(seg_hi - 1) if seg_hi > 1 else 2
+        base = _primes_upto_cached(need)
+        for p in _seg_odds(start, seg_hi, base):
+            yield p
+        start = seg_hi
 
 
 def prime_count(n: int | str) -> int:
@@ -571,12 +609,31 @@ def prime_count(n: int | str) -> int:
     return _prime_count_large(n_int)
 
 
+def _nth_prime_pi_search(k: int) -> int:
+    """Smallest n with π(n) ≥ k, i.e. p_k. log₂(p_k) calls to prime_count."""
+    ln = math.log(k)
+    lnl = math.log(ln)
+    lo = max(2, int(k * (ln + lnl - 1.0)) - 2)
+    hi = _nth_prime_upper(k)
+    # Guarantee π(hi) ≥ k (float slack on the Dusart-style bound).
+    while prime_count(hi) < k:
+        hi += (hi >> 2) + 32
+    while lo < hi:
+        mid = lo + ((hi - lo) >> 1)
+        if prime_count(mid) < k:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
 def nth_prime(k: int) -> int:
     """The k-th prime (1-based): nth_prime(1) == 2."""
     k_int = _parse_k(k)
     if k_int <= 5:
         return (2, 3, 5, 7, 11)[k_int - 1]
     bound = _nth_prime_upper(k_int)
-    if bound <= _SIEVE_PI_MAX * 5:
+    # A full sieve to p_k also fills the shared cache; worth it while cheap.
+    if bound <= _SIEVE_PI_MAX:
         return _nth_prime_sieve(k_int)
-    return _nth_prime_segmented(k_int)
+    return _nth_prime_pi_search(k_int)

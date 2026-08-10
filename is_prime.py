@@ -921,6 +921,15 @@ _LAZY_API = {
     "factorint": ("prime_factors", "factorint"),
     "is_perfect_power": ("prime_power", "is_perfect_power"),
     "is_prime_power": ("prime_power", "is_prime_power"),
+    "totient": ("ntheory", "totient"),
+    "euler_phi": ("ntheory", "euler_phi"),
+    "primorial": ("ntheory", "primorial"),
+    "divisors": ("ntheory", "divisors"),
+    "divisor_count": ("ntheory", "divisor_count"),
+    "divisor_sum": ("ntheory", "divisor_sum"),
+    "gcd": ("ntheory", "gcd"),
+    "modinv": ("ntheory", "modinv"),
+    "jacobi": ("ntheory", "jacobi"),
 }
 
 

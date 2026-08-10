@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.9.0] — 2026-08-10
+
+### Added
+Library arithmetic on top of existing exact `is_prime` / `factorint` (still no Miller–Rabin):
+
+- **`primerange(a, b)`** is now a **generator** (sympy-compatible). Peak RAM for a long range is one 256 KiB sieve window, not the full prime list. `list(primerange(a, b))` materializes. `primes(n)` is still a list.
+- **`totient` / `euler_phi`**, **`totient_range`** (linear sieve, `≤ 2·10⁷`), **`carmichael_lambda`**
+- **`divisors`**, **`divisor_count`**, **`divisor_sum(n, k=1)`**
+- **`primorial(n, *, nth=False)`** — product tree (not a left fold) for large products
+- **`omega` / `bigomega` / `radical` / `is_squarefree` / `is_semiprime` / `is_carmichael`**
+- **`gcd` / `egcd` / `modinv` / `crt` / `jacobi`**
+- Console scripts: `totient`, `primorial`, `divisors`
+- **`nth_prime(k)`** for large $k$ uses $\log p_k$ calls to `prime_count` (binary search) instead of sieving every prime up to $p_k$
+- Optional extra **`[fast]`** (`numpy` + `numba`); core install has no required third-party deps. OpenMP C still builds when `gcc` is present.
+
+New module: [`ntheory.py`](ntheory.py). Import from `best_prime`.
+
+**Docs:** [Library reference](docs/wiki/Library.md) explains every public function with examples. Runnable tour: [`examples/library_tour.py`](examples/library_tour.py).
+
 ## [1.8.2] — 2026-08-10
 
 ### Added

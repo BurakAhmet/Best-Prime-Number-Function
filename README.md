@@ -31,10 +31,13 @@
 # dependency from GitHub (no clone required)
 pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
 
+# optional: NumPy/Numba fallbacks + faster Lucy π (OpenMP C still needs gcc)
+pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git#egg=best-prime-number-function[fast]"
+
 # or editable install while hacking on this repo
 git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
 cd Best-Prime-Number-Function
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 Package name on disk: **`best-prime-number-function`**. Import the API as **`best_prime`** (or the implementation module `is_prime` — same functions).
@@ -61,9 +64,15 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 | `nth_prime(k) -> int` | The `k`-th prime (`nth_prime(1) == 2`). |
 | `prime_count(n) -> int` | $\pi(n)$: number of primes $\le n$ (every 64-bit $n$; Lucy then Meissel–Lehmer). |
 | `primes(n) -> list[int]` | All primes $\le n$. |
-| `primerange(a, b) -> list[int]` | Primes $p$ with $a \le p \lt b$. |
+| `primerange(a, b) -> Iterator[int]` | Primes $p$ with $a \le p \lt b$ (generator; `list(...)` to materialize). |
 | `prime_factors(n) -> list[int]` | Prime factors with multiplicity, ascending. |
 | `factorint(n) -> dict[int, int]` | Prime $\to$ exponent. |
+| `totient(n)` / `euler_phi(n)` | Euler $\varphi(n)$. |
+| `totient_range(n)` | $[\varphi(0),\ldots,\varphi(n)]$ via a linear sieve ($n\le 2\cdot10^7$). |
+| `primorial(n, *, nth=False)` | Product of primes $\le n$, or of the first $n$ primes if `nth`. |
+| `divisors(n)` / `divisor_count(n)` / `divisor_sum(n, k=1)` | Positive divisors, $d(n)$, $\sigma_k(n)$. |
+| `omega` / `bigomega` / `radical` / `is_squarefree` | Prime-omega, $\Omega$, rad, square-free. |
+| `gcd` / `egcd` / `modinv` / `crt` / `jacobi` | Exact arithmetic helpers. |
 | `is_perfect_power(n) -> bool` | $n=a^b$ with $a>1$, $b>1$. |
 | `is_prime_power(n) -> bool` | $n=p^k$ for prime $p$, $k\ge 1$ (primes count). |
 | `lab(n, *, parallel=True) -> dict` | Same check plus diagnostics (`path`, `isqrt`, timings, `note`). |
@@ -75,9 +84,9 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 
 ```python
 from best_prime import (
-    factorint, is_perfect_power, is_prime, is_prime_power, lab,
-    next_prime, nth_prime, prev_prime, prime_count, prime_factors,
-    primerange, primes,
+    divisor_count, factorint, is_perfect_power, is_prime, is_prime_power,
+    lab, next_prime, nth_prime, prev_prime, prime_count, prime_factors,
+    primerange, primes, primorial, totient,
 )
 
 is_prime(17)                              # True
@@ -88,9 +97,12 @@ prev_prime(14)                            # 13
 nth_prime(5)                              # 11
 prime_count(10)                           # 4
 primes(10)                                # [2, 3, 5, 7]
-primerange(10, 20)                        # [11, 13, 17, 19]
+list(primerange(10, 20))                  # [11, 13, 17, 19]
 prime_factors(360)                        # [2, 2, 2, 3, 3, 5]
 factorint(360)                            # {2: 3, 3: 2, 5: 1}
+totient(10)                               # 4
+primorial(7)                              # 210
+divisor_count(12)                         # 6
 is_perfect_power(36)                      # True
 is_prime_power(36)                        # False
 next_prime(10**9 + 7)                     # 1000000009
@@ -105,7 +117,7 @@ info = lab(10**9 + 7)
 # info["elapsed_ms"] (check only), info["e2e_ms"] (since process start), info["note"]
 ```
 
-Runnable sample: [`examples/basic_usage.py`](examples/basic_usage.py).
+**Full library reference** (every function, with examples): [`docs/wiki/Library.md`](docs/wiki/Library.md). Runnable tours: [`examples/basic_usage.py`](examples/basic_usage.py) · [`examples/library_tour.py`](examples/library_tour.py).
 
 ### What to expect for performance
 
@@ -138,6 +150,9 @@ prime-count 10                 # 4
 primes 10                      # 2 3 5 7
 primerange 10 20               # 11 13 17 19
 prime-factors 360              # 2 2 2 3 3 5
+totient 10                     # 4
+primorial 7                    # 210
+divisors 12                    # 1 2 3 4 6 12
 is-prime-power 8               # yes (exit 0)
 is-perfect-power 36            # yes (exit 0)
 ```
@@ -395,7 +410,8 @@ Think of four layers. Only the first is the product.
 Best-Prime-Number-Function/
 ├── is_prime.py                 # is_prime / lab + CLI
 ├── next_prime.py / prev_prime.py
-├── prime_sieve.py              # π(n), nth_prime, primes, primerange
+├── prime_sieve.py              # π(n), nth_prime, primes, primerange (generator)
+├── ntheory.py                  # totient, primorial, divisors, jacobi, CRT
 ├── prime_factors.py / prime_power.py
 ├── is_prime_data/              # wheels, wheel_core.c / .so
 ├── tests/

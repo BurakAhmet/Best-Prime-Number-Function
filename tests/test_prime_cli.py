@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from prime_cli import (
+    divisors_main,
     is_perfect_power_main,
     is_prime_power_main,
     nth_prime_main,
@@ -13,6 +14,8 @@ from prime_cli import (
     prime_factors_main,
     primerange_main,
     primes_main,
+    primorial_main,
+    totient_main,
 )
 
 
@@ -87,6 +90,22 @@ class TestPrimeCli:
         code, out = _run(is_perfect_power_main, "36")
         assert code == 0
         assert "RESULT:  yes" in out
+
+    def test_totient(self):
+        code, out = _run(totient_main, "10")
+        assert code == 0
+        assert "RESULT:  4" in out
+
+    def test_primorial(self):
+        code, out = _run(primorial_main, "7")
+        assert code == 0
+        assert "RESULT:  210" in out
+
+    def test_divisors(self):
+        code, out = _run(divisors_main, "12")
+        assert code == 0
+        assert "RESULT:  1 2 3 4 6 12" in out
+        assert "COUNT:   6" in out
 
     def test_missing_args_exit_two(self):
         with pytest.raises(SystemExit) as ei:

@@ -30,13 +30,14 @@ All of these reuse **our** sieves / `is_prime`. No external prime engine.
 |-----|-----|
 | `next_prime(n, k=1)` | Table / interval sieve / forward 30030-wheel + `is_prime` |
 | `prev_prime(n, k=1)` | Same, walking backward |
-| `nth_prime(k)` | Odds-only or segmented sieve up to a Dusart bound on $p_k$ |
+| `nth_prime(k)` | Sieve while $p_k$ is moderate; else $\log p_k$ `prime_count` probes |
 | `prime_count(n)` | Sieve for $n\le 2\cdot10^7$; Lucy–Hedgehog (Numba when $n\ge10^7$) up to $n\le 2.5\cdot10^{15}$; **Meissel–Lehmer** through $2^{64}-1$ |
-| `primes(n)` / `primerange(a,b)` | Cached odds-only Eratosthenes; segmented for interior ranges |
+| `primes(n)` / `primerange(a,b)` | Cached odds-only Eratosthenes; **`primerange` yields** (segmented windows, no full list) |
+| `totient` / `primorial` / `divisors` | From `factorint`; `totient_range` is a linear sieve; primorial uses a product tree |
 | `prime_factors` / `factorint` | 30-wheel trial, Fermat, deterministic Brent–Pollard, then `is_prime` |
 | `is_perfect_power` / `is_prime_power` | Newton $k$-th roots; prime exponents only |
 
-Console script: `next-prime 100` · `next-prime 14 3`.
+Console scripts: `next-prime 100` · `totient 10` · `primorial 7`.
 
 ## Related
 

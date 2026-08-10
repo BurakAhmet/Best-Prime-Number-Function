@@ -59,7 +59,7 @@ ALERT_RE = re.compile(
     re.MULTILINE,
 )
 WIKI_LINK_RE = re.compile(
-    r"\[([^\]]+)\]\((Home|Project-restrictions|Algorithm-overview|"
+    r"\[([^\]]+)\]\((Home|Library|Project-restrictions|Algorithm-overview|"
     r"CI-and-automation|Agent-briefing|Contributing|Benchmarks|Hall-of-fame)"
     r"((?:\.md)?)(#[^)]*)?\)"
 )
@@ -75,6 +75,7 @@ ALERT_META = {
 
 NAV_FALLBACK = [
     ("Home", "index.html"),
+    ("Library reference", "Library.html"),
     ("Project restrictions", "Project-restrictions.html"),
     ("Algorithm overview", "Algorithm-overview.html"),
     ("Algorithm history", "Algorithm-history.html"),
