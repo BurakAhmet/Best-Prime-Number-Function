@@ -17,6 +17,21 @@ from prime_sieve import (
 )
 from tests.numbers import SMALL_PRIMES
 
+
+def _is_prime_naive(n: int) -> bool:
+    if n < 2:
+        return False
+    if n < 4:
+        return True
+    if (n & 1) == 0:
+        return False
+    i = 3
+    while i * i <= n:
+        if n % i == 0:
+            return False
+        i += 2
+    return True
+
 _HYP = dict(
     deadline=None,
     derandomize=True,
@@ -62,21 +77,33 @@ class TestPrimes:
 
 class TestPrimerange:
     def test_half_open(self):
-        assert primerange(10, 20) == [11, 13, 17, 19]
-        assert primerange(2, 3) == [2]
-        assert primerange(2, 2) == []
-        assert primerange(0, 2) == []
-        assert primerange(14, 17) == []
+        assert list(primerange(10, 20)) == [11, 13, 17, 19]
+        assert list(primerange(2, 3)) == [2]
+        assert list(primerange(2, 2)) == []
+        assert list(primerange(0, 2)) == []
+        assert list(primerange(14, 17)) == []
+
+    def test_is_iterator(self):
+        it = primerange(10, 20)
+        assert next(it) == 11
+        assert list(it) == [13, 17, 19]
 
     def test_low_clamped(self):
-        assert primerange(0, 10) == [2, 3, 5, 7]
-        assert primerange(1, 11) == [2, 3, 5, 7]
+        assert list(primerange(0, 10)) == [2, 3, 5, 7]
+        assert list(primerange(1, 11)) == [2, 3, 5, 7]
 
     def test_string(self):
-        assert primerange("10", "20") == [11, 13, 17, 19]
+        assert list(primerange("10", "20")) == [11, 13, 17, 19]
 
     def test_matches_primes_prefix(self):
-        assert primerange(2, 1001) == primes(1000)
+        assert list(primerange(2, 1001)) == primes(1000)
+
+    def test_segmented_matches_sieve(self):
+        # Force the segmented path (above cache / small-sieve prefix).
+        lo, hi = 10_000_003, 10_000_200
+        got = list(primerange(lo, hi))
+        naive = [p for p in range(lo, hi) if _is_prime_naive(p)]
+        assert got == naive
 
 
 class TestPrimeCount:
@@ -141,6 +168,16 @@ class TestNthPrime:
 
     def test_project_euler_7(self):
         assert nth_prime(10_001) == 104_743
+
+    def test_pi_search_path(self):
+        from prime_sieve import _nth_prime_pi_search
+
+        assert _nth_prime_pi_search(10_001) == 104_743
+        assert _nth_prime_pi_search(100_000) == 1_299_709
+        # p_1_500_000 ≈ 2.39e7 sits above the full-sieve cutoff.
+        p = nth_prime(1_500_000)
+        assert p == 23_879_519
+        assert prime_count(p) == 1_500_000
 
     def test_matches_small_list(self):
         for k, p in enumerate(SMALL_PRIMES, start=1):

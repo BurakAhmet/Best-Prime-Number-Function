@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "best-prime-number-function"
-version = "1.8.2"
-description = "Fully deterministic primality, next/prev prime, pi(n), and factoring (OpenMP C / Numba / AKS)"
+version = "1.9.0"
+description = "Fully deterministic primality, π(n), factoring, and arithmetic (OpenMP C / Numba / AKS)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -36,16 +36,22 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Mathematics",
   "Typing :: Typed",
 ]
-dependencies = [
-  "numpy>=1.22",
-  "numba>=0.56",
-]
+dependencies = []
 
 [project.optional-dependencies]
 # Native OpenMP core is built automatically when gcc+OpenMP are available.
-# These extras are for development and full CI.
+# NumPy/Numba are optional: hard 64-bit / Lucy π without a compiler still
+# benefit from `[fast]`. Pure install uses stdlib wheels + Python Lucy.
+fast = ["numpy>=1.22", "numba>=0.56"]
 test = ["pytest>=7.0", "hypothesis>=6.0"]
-dev = ["pytest>=7.0", "hypothesis>=6.0", "build", "wheel"]
+dev = [
+  "pytest>=7.0",
+  "hypothesis>=6.0",
+  "build",
+  "wheel",
+  "numpy>=1.22",
+  "numba>=0.56",
+]
 
 [project.urls]
 Homepage = "https://github.com/BurakAhmet/Best-Prime-Number-Function"
@@ -66,6 +72,9 @@ primerange = "prime_cli:primerange_main"
 prime-factors = "prime_cli:prime_factors_main"
 is-prime-power = "prime_cli:is_prime_power_main"
 is-perfect-power = "prime_cli:is_perfect_power_main"
+totient = "prime_cli:totient_main"
+primorial = "prime_cli:primorial_main"
+divisors = "prime_cli:divisors_main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -84,6 +93,7 @@ py-modules = [
   "prime_factors",
   "prime_power",
   "prime_cli",
+  "ntheory",
 ]
 include-package-data = true
 

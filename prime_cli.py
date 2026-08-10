@@ -15,6 +15,7 @@ from next_prime import _looks_like_int_token, _parse_k, next_prime  # noqa: E402
 from prev_prime import prev_prime  # noqa: E402
 from prime_factors import prime_factors  # noqa: E402
 from prime_power import is_perfect_power, is_prime_power  # noqa: E402
+from ntheory import divisors, primorial, totient  # noqa: E402
 from prime_sieve import nth_prime, prime_count, primerange, primes  # noqa: E402
 
 
@@ -127,7 +128,7 @@ def primerange_main(argv: list[str] | None = None) -> None:
     except (TypeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
-    vals = primerange(lo, hi)
+    vals = list(primerange(lo, hi))
     _print(f"{lo} {hi}", " ".join(str(p) for p in vals), count=len(vals))
 
 
@@ -154,6 +155,40 @@ def is_prime_power_main(argv: list[str] | None = None) -> None:
     ok = is_prime_power(n, parallel=not serial)
     _print(str(n), "yes" if ok else "no")
     raise SystemExit(0 if ok else 1)
+
+
+def totient_main(argv: list[str] | None = None) -> None:
+    usage = "usage: totient n"
+    pos, serial = _scan(argv if argv is not None else sys.argv[1:], usage, 1)
+    try:
+        n = _parse_n(pos[0])
+    except (TypeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    _print(str(n), totient(n, parallel=not serial))
+
+
+def primorial_main(argv: list[str] | None = None) -> None:
+    usage = "usage: primorial n"
+    pos, _ = _scan(argv if argv is not None else sys.argv[1:], usage, 1)
+    try:
+        n = _parse_n(pos[0])
+    except (TypeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    _print(str(n), primorial(n))
+
+
+def divisors_main(argv: list[str] | None = None) -> None:
+    usage = "usage: divisors [--serial] n"
+    pos, serial = _scan(argv if argv is not None else sys.argv[1:], usage, 1)
+    try:
+        n = _parse_n(pos[0])
+    except (TypeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    vals = divisors(n, parallel=not serial)
+    _print(str(n), " ".join(str(d) for d in vals), count=len(vals))
 
 
 def is_perfect_power_main(argv: list[str] | None = None) -> None:

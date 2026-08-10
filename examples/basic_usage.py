@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from best_prime import (  # noqa: E402
     __version__,
+    divisor_count,
     factorint,
     is_perfect_power,
     is_prime,
@@ -22,6 +23,8 @@ from best_prime import (  # noqa: E402
     prime_factors,
     primerange,
     primes,
+    primorial,
+    totient,
 )
 
 
@@ -37,7 +40,10 @@ def main() -> None:
     print(f"  nth_prime(5)             -> {nth_prime(5)}")
     print(f"  prime_count(10)          -> {prime_count(10)}")
     print(f"  primes(10)               -> {primes(10)}")
-    print(f"  primerange(10, 20)       -> {primerange(10, 20)}")
+    print(f"  list(primerange(10, 20)) -> {list(primerange(10, 20))}")
+    print(f"  totient(10)              -> {totient(10)}")
+    print(f"  primorial(7)             -> {primorial(7)}")
+    print(f"  divisor_count(12)        -> {divisor_count(12)}")
     print(f"  prime_factors(360)       -> {prime_factors(360)}")
     print(f"  factorint(360)           -> {factorint(360)}")
     print(f"  is_perfect_power(36)     -> {is_perfect_power(36)}")

@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.8.2** (`pyproject.toml`; `prime_count` to $2^{64}-1$ via Meissel–Lehmer) |
+| **Current package version** | **1.9.0** (`pyproject.toml`; totient / primorial / divisor APIs) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -63,7 +63,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-10  v1.7.0   API: prev/nth/π/range/factor/prime-power
 2026-08-10  v1.8.0   INV16 + 19·23·29 OR presieve + persisted contiguous marks
 2026-08-10  v1.8.1   uint32 nextg persist + DELTA[64] extract
-2026-08-10  v1.8.2   prime_count Meissel–Lehmer through 2^64−1  ← current
+2026-08-10  v1.8.2   prime_count Meissel–Lehmer through 2^64−1
+2026-08-10  v1.9.0   totient / primorial / divisors; primerange generator  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -540,7 +541,8 @@ Lucy–Hedgehog allows $n\le 2.5\cdot10^{15}$ ($\sqrt{n}\le 5\cdot10^7$, compact
 | **1.7.0** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy $n\le 2.5\cdot10^{15}$; Pollard only after trial, never as primality |
 | **1.8.0** | + **INV16**, **19·23·29 OR presieve**, **persist + contiguous segs**, 128 KiB | same persist u128 | same | Yes | Hard 64-bit ~10–15% (max $<2^{64}$ ~287 ms in-process) | Extra BSS (~INV16/inv30 cache); 16-way / PS3 rejected |
 | **1.8.1** | + **uint32 nextg**, **DELTA extract** | same | same | Yes | Hard 64-bit another ~6–15% | `limit/30` must fit `uint32` |
-| **1.8.2 (now)** | same | same | same | Yes | **`prime_count` to $2^{64}-1$** (Lucy then Meissel–Lehmer) | Hardest 64-bit $\pi(n)$ needs primes $\le 2^{32}$ once |
+| **1.8.2** | same | same | same | Yes | **`prime_count` to $2^{64}-1$** (Lucy then Meissel–Lehmer) | Hardest 64-bit $\pi(n)$ needs primes $\le 2^{32}$ once |
+| **1.9.0 (now)** | same | same | same | Yes | **`primerange` generator**; totient / primorial / divisors / Jacobi / CRT | Product-tree primorial; linear-sieve `totient_range` |
 
 ---
 
@@ -589,7 +591,8 @@ Recorded so agents and humans do not “rediscover” them:
 | `is_prime.py` | Dispatch + Python/Numba/AKS engines |
 | `next_prime.py` | Successor prime (wheel candidates + `is_prime`) |
 | `prev_prime.py` | Predecessor prime |
-| `prime_sieve.py` | Odds-only / segmented sieve, $\pi(n)$, $p_k$, ranges |
+| `prime_sieve.py` | Odds-only / segmented sieve, $\pi(n)$, $p_k$, generator `primerange` |
+| `ntheory.py` | totient, primorial, divisors, Jacobi, CRT |
 | `prime_factors.py` | Trial + Fermat + deterministic Brent |
 | `prime_power.py` | Perfect powers / prime powers |
 | `is_prime_data/wheel_core.c` | OpenMP u64/u128 engines (generated + hand-tuned sections) |
@@ -604,4 +607,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.8.2** (`prime_count` Meissel–Lehmer through $2^{64}-1$). Extend forward; do not delete past eras.*
+*Last updated for package **1.9.0** (ntheory APIs + generator `primerange`). Extend forward; do not delete past eras.*
