@@ -79,6 +79,51 @@ jobs:
               core.warning('Could not request Copilot review (may be unavailable): ' + e.message);
             }
 
+      - name: Label Copilot / Optimize PRs for examine
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const login = (pr.user.login || '').toLowerCase();
+            const text = `${pr.title}\n${pr.body || ''}`;
+            const head = (pr.head && pr.head.ref) || '';
+            let optimize = /\[optimize\]|auto-optimize|optimization hunt|optimize this/i.test(text)
+              || head.startsWith('optimize/');
+            if (!optimize) {
+              const refs = [...text.matchAll(/#(\d+)/g)].map(m => Number(m[1]));
+              for (const n of refs.slice(0, 8)) {
+                try {
+                  const { data: iss } = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: n,
+                  });
+                  const names = (iss.labels || []).map(l => (typeof l === 'string' ? l : l.name));
+                  if (names.includes('optimize/round') || names.includes('optimize/log')
+                      || /^\[Optimize\]/i.test(iss.title || '')) {
+                    optimize = true;
+                    break;
+                  }
+                } catch (_) { /* ignore */ }
+              }
+            }
+            if (!optimize && /copilot/.test(login) && /perf|prime|wheel|sieve/i.test(text)) {
+              optimize = true;
+            }
+            if (optimize) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  labels: ['optimize/candidate', 'performance'],
+                });
+                core.notice(`Labeled PR #${pr.number} optimize/candidate`);
+              } catch (e) {
+                core.warning('Could not label optimize/candidate: ' + e.message);
+              }
+            }
+
       - name: Auto-approve same-repo PRs
         if: >
           github.event.pull_request.head.repo.full_name == github.repository &&

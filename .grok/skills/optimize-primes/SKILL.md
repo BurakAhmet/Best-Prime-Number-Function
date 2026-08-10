@@ -81,14 +81,16 @@ Then:
 
 1. Baseline comment on the standing Optimization log issue.
 2. `python3 scripts/optimize_hunt.py hunt` over the compile-time catalog.
-3. On a win: apply knobs, open `optimize/auto-*` PR (`optimize/candidate`).
-4. Fresh runner examines (interleaved A/B + tests) and squash-merges **only**
-   if it is still faster. Generic Auto-merge skips these PRs.
+3. On a catalog win: apply knobs, open `optimize/auto-*` PR (`optimize/candidate`).
+4. Open `[Optimize] daily YYYY-MM-DD` and assign **Copilot** (secret
+   `COPILOT_ASSIGN_TOKEN`) for a *real* engine idea beyond the catalog.
+5. `optimize-examine.yml` A/B’s `optimize/candidate` PRs (catalog or Copilot)
+   and squash-merges **only** if still faster. Generic Auto-merge skips them.
 
-When you hunt locally, skip catalog knobs that the workflow already rejected
-in the latest #34 comment. Prefer ideas that are **not** TILE_BYTES /
-TILE_P_MAX / PARALLEL_SEG_MIN unless you have a reason the GHA 2-thread
-catalog would miss (e.g. 12-thread-only).
+When you hunt locally, skip catalog knobs and skip whatever Copilot already
+tried on the open `optimize/round` issue. Prefer ideas that are **not**
+TILE_BYTES / TILE_P_MAX / PARALLEL_SEG_MIN unless you have a reason the
+GHA 2-thread catalog would miss (e.g. 12-thread-only).
 
 ## No win
 
