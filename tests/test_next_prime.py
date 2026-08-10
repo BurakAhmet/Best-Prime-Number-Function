@@ -289,6 +289,22 @@ class TestCli:
         assert "RESULT:  101" in r.stdout
         assert "TIME:" in r.stdout
 
+    def test_root_shim_script(self):
+        env = os.environ.copy()
+        env.setdefault("OMP_NUM_THREADS", "2")
+        r = subprocess.run(
+            [sys.executable, str(ROOT / "next_prime.py"), "14"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30.0,
+            env=env,
+            check=False,
+        )
+        assert r.returncode == 0, r.stderr
+        assert "RESULT:  17" in r.stdout
+        assert "TIME:" in r.stdout
+
     def test_serial_flag(self):
         r = self._run("--serial", "96")
         assert r.returncode == 0, r.stderr

@@ -562,6 +562,7 @@ python3 scripts/check_restrictions.py
 pytest -q -m "not slow"
 OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
 python3 is_prime.py --lab 97
+python3 next_prime.py 14
 python3 -m best_prime.next_prime 14
 ```
 
