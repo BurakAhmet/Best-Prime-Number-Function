@@ -56,6 +56,7 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 | Symbol | Role |
 |--------|------|
 | `is_prime(n, *, parallel=True) -> bool` | `True` iff `n` is prime. Fully deterministic. |
+| `next_prime(n, *, parallel=True) -> int` | Smallest prime **strictly greater than** `n`. Same engines / restrictions. |
 | `lab(n, *, parallel=True) -> dict` | Same check plus diagnostics (`path`, `isqrt`, timings, `note`). |
 | `__version__` | Installed package version (`best_prime` only). |
 
@@ -64,10 +65,12 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 **`parallel`:** only affects multi-threaded OpenMP / Numba engines on large enough $\sqrt{n}$. Result never depends on it — serial and parallel must agree.
 
 ```python
-from best_prime import is_prime, lab
+from best_prime import is_prime, lab, next_prime
 
 is_prime(17)                              # True
 is_prime(100)                             # False
+next_prime(14)                            # 17
+next_prime(10**9 + 7)                     # 1000000009
 is_prime(18446744073709551557)            # True  (largest prime < 2^64; wants wheel_core.so)
 is_prime(9223372036854775783)             # True  (hard 64-bit; wants wheel_core.so)
 is_prime("100000000000000000039")         # True  (~10^20; u128 OpenMP path)
@@ -103,9 +106,10 @@ is-prime 97
 is-prime 18446744073709551557
 best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
+next-prime 100                 # 101 (smallest prime > 100)
 ```
 
-No argument defaults to the largest prime $<2^{64}$: `18446744073709551557` (hardest 64-bit yardstick). Near $2^{63}$ (`9223372036854775783`) remains a documented mid-hard specimen.
+`is-prime` with no argument defaults to the largest prime $<2^{64}$: `18446744073709551557` (hardest 64-bit yardstick). Near $2^{63}$ (`9223372036854775783`) remains a documented mid-hard specimen. `next-prime` requires `n` (it does **not** default to that 64-bit prime — the successor is 65-bit).
 
 | Exit code | Meaning |
 |-----------|---------|
@@ -326,6 +330,7 @@ Think of four layers. Only the first is the product.
 +--------------------------------------------------------------------------+
 |  1. CORE                                                                 |
 |     is_prime.py          is_prime() / lab() / CLI                        |
+|     next_prime.py        next_prime() / next-prime CLI                   |
 |     is_prime_data/       precomputed wheels + optional wheel_core.so     |
 |     Rules: deterministic, no stochastic MR, no prime libs as engine      |
 +--------------------------------------------------------------------------+
@@ -354,7 +359,8 @@ Think of four layers. Only the first is the product.
 
 ```text
 Best-Prime-Number-Function/
-├── is_prime.py                 # API + CLI
+├── is_prime.py                 # is_prime / lab + CLI
+├── next_prime.py               # next_prime + next-prime CLI
 ├── is_prime_data/              # wheels, wheel_core.c / .so
 ├── tests/
 ├── benchmarks/                 # compare_speed, compare_e2e, determinism
@@ -506,6 +512,7 @@ python3 scripts/check_restrictions.py
 pytest -q -m "not slow"
 OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
 python3 is_prime.py --lab 97
+python3 next_prime.py 14
 ```
 
 Open an issue before large designs if you are unsure about the restrictions.

@@ -3,7 +3,7 @@
 When you (a coding or triage agent) work on this repository:
 
 1. **Read** [Project restrictions](Project-restrictions) and `.github/copilot-instructions.md` in the main repo.
-2. **Never** introduce stochastic Miller–Rabin or prime-library engines.
+2. **Never** introduce stochastic Miller–Rabin or prime-library engines. `next_prime` must keep using `is_prime` (or the same trial/AKS model).
 3. **Keep determinism** — serial and parallel paths must agree on results.
 4. **Add tests** for behaviour changes; use `@pytest.mark.slow` for multi-second 64-bit primes.
 5. **Run** before claiming success:

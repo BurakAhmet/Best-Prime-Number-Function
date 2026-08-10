@@ -910,6 +910,11 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
 
 
 def __getattr__(name: str):
+    if name == "next_prime":
+        from next_prime import next_prime as _next_prime
+
+        globals()["next_prime"] = _next_prime
+        return _next_prime
     if name in {"W30030", "RES_TO_WI", "W_WHEEL"}:
         np = _numpy()
         mapping = {

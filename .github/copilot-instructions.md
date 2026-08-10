@@ -31,6 +31,7 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 ## Project layout
 
 - `is_prime.py` — library + CLI
+- `next_prime.py` — `next_prime()` (30030-wheel candidates + `is_prime`); keep the same restrictions
 - `tests/` — pytest suite
 - `benchmarks/` — primitive vs optimized speed, regression, determinism checks
 - `.github/workflows/` — CI, determinism, issue/PR agents
