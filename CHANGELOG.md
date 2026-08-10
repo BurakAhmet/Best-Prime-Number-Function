@@ -9,7 +9,7 @@ Deterministic library APIs on top of the existing engines (no new primality shor
 
 - **`prev_prime(n, k=1)`** — k-th prime strictly below `n` (table / interval sieve / backward 30030-wheel).
 - **`nth_prime(k)`** — $p_k$; odds-only sieve or segmented sieve from a Dusart bound.
-- **`prime_count(n)`** — $\pi(n)$; sieve below $2\cdot10^6$, Lucy–Hedgehog (optional Numba) above.
+- **`prime_count(n)`** — $\pi(n)$; odds-only sieve below $2\cdot10^7$, Lucy–Hedgehog (compact int64 + Numba) up to $n\le 2.5\cdot10^{15}$ (`PRIME_COUNT_MAX_N`). The former $5\cdot10^6$ figure was the Lucy *√n* table cap, not max $n$.
 - **`primes(n)`**, **`primerange(a, b)`** — cached odds-only Eratosthenes / segmented interval sieve.
 - **`prime_factors(n)`**, **`factorint(n)`** — 30-wheel trial, Fermat for close factors, deterministic Brent–Pollard (fixed $c=1,2,\ldots$), then `is_prime` on pieces.
 - **`is_perfect_power(n)`**, **`is_prime_power(n)`** — Newton integer $k$-th roots; only prime exponents.

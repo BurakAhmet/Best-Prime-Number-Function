@@ -7,7 +7,14 @@ import math
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from prime_sieve import nth_prime, prime_count, primerange, primes
+from prime_sieve import (
+    PRIME_COUNT_MAX_N,
+    _LUCY_MAX_V,
+    nth_prime,
+    prime_count,
+    primerange,
+    primes,
+)
 from tests.numbers import SMALL_PRIMES
 
 _HYP = dict(
@@ -29,6 +36,7 @@ PI = {
     10_000: 1229,
     100_000: 9592,
     1_000_000: 78_498,
+    5_000_000: 348_513,
     10_000_000: 664_579,
     100_000_000: 5_761_455,
 }
@@ -87,6 +95,18 @@ class TestPrimeCount:
             c = prime_count(n)
             assert c >= last
             last = c
+
+    def test_five_million_is_not_a_cap_on_n(self):
+        # 5e6 used to be the Lucy √n memory knob, not max n.
+        assert prime_count(5_000_000) == 348_513
+        assert 5_000_000 < PRIME_COUNT_MAX_N
+        assert _LUCY_MAX_V >= 5_000_000
+        assert PRIME_COUNT_MAX_N == _LUCY_MAX_V * _LUCY_MAX_V
+
+    def test_over_max_raises_with_n_bound(self):
+        huge = PRIME_COUNT_MAX_N + 2 * _LUCY_MAX_V + 2  # isqrt > _LUCY_MAX_V
+        with pytest.raises(ValueError, match="supports n <="):
+            prime_count(huge)
 
 
 class TestNthPrime:

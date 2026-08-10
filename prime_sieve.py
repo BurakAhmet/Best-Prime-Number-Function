@@ -15,10 +15,12 @@ from is_prime import _parse_n
 
 # Tiny table used by next/prev_prime (first prime above 10^4).
 _TABLE_LIMIT = 10_007
-# Full odds-only sieve is the winner below this (Lucy has setup cost).
-_SIEVE_PI_MAX = 2_000_000
-# Lucy–Hedgehog needs O(√n) memory; refuse to allocate more than this.
-_LUCY_MAX_V = 5_000_000  # n ≤ 25e12
+# Odds-only count sieve wins E2E below this (Lucy has Θ(√n) tables).
+_SIEVE_PI_MAX = 20_000_000
+# Lucy–Hedgehog uses two int64 arrays of length √n.
+# 5e7 × 8 × 2 ≈ 800 MiB → n ≤ 2.5e15. Not a cap on n itself at 5e6.
+_LUCY_MAX_V = 50_000_000
+PRIME_COUNT_MAX_N = _LUCY_MAX_V * _LUCY_MAX_V
 # Segmented sieve window (bytes of odds ≈ this).
 _SEG_ODDS = 262_144  # 256 KiB → 512 Ki odd numbers → span 524_288
 
@@ -205,12 +207,19 @@ def _seg_odds(lo: int, hi: int, base: tuple[int, ...]) -> list[int]:
     return [lo + (i << 1) for i, bit in enumerate(mark) if bit]
 
 
-def _lucy_python(n: int) -> int:
+def _lucy_tables(n: int):
+    """Compact int64 Lucy tables (8 bytes/entry, not Python ints)."""
+    from array import array
+
     v = math.isqrt(n)
-    smalls = [i - 1 for i in range(v + 1)]
-    larges = [0] * (v + 1)
-    for i in range(1, v + 1):
-        larges[i] = n // i - 1
+    # smalls[i] = i-1 initially; range(-1, v) is -1,0,...,v-1.
+    smalls = array("q", range(-1, v))
+    larges = array("q", ((n // i - 1) if i else 0 for i in range(v + 1)))
+    return v, smalls, larges
+
+
+def _lucy_python(n: int) -> int:
+    v, smalls, larges = _lucy_tables(n)
     for p in range(2, v + 1):
         if smalls[p - 1] == smalls[p]:
             continue
@@ -227,7 +236,7 @@ def _lucy_python(n: int) -> int:
         if p2 <= v:
             for i in range(v, p2 - 1, -1):
                 smalls[i] -= smalls[i // p] - pc
-    return larges[1]
+    return int(larges[1])
 
 
 def _get_lucy_kernel():
@@ -283,11 +292,12 @@ def _prime_count_large(n: int) -> int:
     v = math.isqrt(n)
     if v > _LUCY_MAX_V:
         raise ValueError(
-            f"prime_count(n) needs O(sqrt(n)) memory; n is too large "
-            f"(sqrt(n)={v}, max {_LUCY_MAX_V})"
+            f"prime_count(n) supports n <= {PRIME_COUNT_MAX_N} "
+            f"(needs two int64 arrays of length isqrt(n); "
+            f"got n={n}, isqrt={v}, max isqrt={_LUCY_MAX_V})"
         )
-    # Numba pays off once √n is large; skip it below ~1e8 (import/JIT).
-    if n >= 100_000_000 and n.bit_length() <= 63:
+    # Numba: compact tables + compiled loops. Worth it once n is mid-size.
+    if n >= 10_000_000 and n.bit_length() <= 63:
         kern = _get_lucy_kernel()
         if kern:
             return int(kern(n))
@@ -317,7 +327,12 @@ def primerange(low: int | str, high: int | str) -> list[int]:
 
 
 def prime_count(n: int | str) -> int:
-    """π(n): number of primes ≤ n."""
+    """π(n): number of primes ≤ n.
+
+    ``n`` may be far larger than 5×10⁶. The old 5×10⁶ figure was the
+    Lucy–Hedgehog *√n* table cap, not a cap on ``n``. Current limit:
+    ``n <= PRIME_COUNT_MAX_N`` (2.5×10¹⁵).
+    """
     n_int = _parse_n(n)
     if n_int < 2:
         return 0

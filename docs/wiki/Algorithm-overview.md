@@ -31,7 +31,7 @@ All of these reuse **our** sieves / `is_prime`. No external prime engine.
 | `next_prime(n, k=1)` | Table / interval sieve / forward 30030-wheel + `is_prime` |
 | `prev_prime(n, k=1)` | Same, walking backward |
 | `nth_prime(k)` | Odds-only or segmented sieve up to a Dusart bound on $p_k$ |
-| `prime_count(n)` | Sieve for $n\le 2\cdot10^6$; Lucy–Hedgehog (Numba when $n\ge10^8$) above |
+| `prime_count(n)` | Sieve for $n\le 2\cdot10^7$; Lucy–Hedgehog (Numba when $n\ge10^7$) up to $n\le 2.5\cdot10^{15}$ |
 | `primes(n)` / `primerange(a,b)` | Cached odds-only Eratosthenes; segmented for interior ranges |
 | `prime_factors` / `factorint` | 30-wheel trial, Fermat, deterministic Brent–Pollard, then `is_prime` |
 | `is_perfect_power` / `is_prime_power` | Newton $k$-th roots; prime exponents only |

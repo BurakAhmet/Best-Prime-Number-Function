@@ -454,7 +454,7 @@ Still not an `is_prime` engine change. Shared [`prime_sieve.py`](../prime_sieve.
 - `prime_factors` / `factorint` — 30-wheel + Fermat + **deterministic** Brent–Pollard (fixed $c$, no RNG), then `is_prime`
 - `is_perfect_power` / `is_prime_power` — Newton $k$-th roots
 
-Lucy–Hedgehog refuses $n$ with $\sqrt{n}>5\cdot10^6$ (memory). Brent is **not** a primality test; leftover cofactors are proved with `is_prime`.
+Lucy–Hedgehog allows $n\le 2.5\cdot10^{15}$ ($\sqrt{n}\le 5\cdot10^7$, compact int64 tables). Brent is **not** a primality test; leftover cofactors are proved with `is_prime`.
 
 ---
 
@@ -477,8 +477,7 @@ Lucy–Hedgehog refuses $n$ with $\sqrt{n}>5\cdot10^6$ (memory). Brent is **not*
 | **1.4.4** | + **uint64 ctzll** sieve extract | same | AKS | Yes | Hard 64-bit ~20–26% more (default $n$ ~280 ms) | Word tail + aliasing |
 | **1.5.0** | same 64-bit | same u128 | **wheel→Kronecker AKS** | Yes | Huge composites with $p\le10^8$ instant; AKS usable on 4-digit $n$ | Huge primes still AKS-slow |
 | **1.6.0** | same | same | same | Yes | **`next_prime` API** (wheel candidates + `is_prime`) | Successor search still $\sim$gap $\times$ one prime check |
-| **1.7.0 (now)** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy memory cap; Pollard only after trial, never as primality |
-| **1.7.0 (now)** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy memory cap; Pollard only after trial + not as primality |
+| **1.7.0 (now)** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy $n\le 2.5\cdot10^{15}$; Pollard only after trial, never as primality |
 
 ---
 

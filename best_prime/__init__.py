@@ -34,7 +34,7 @@ from next_prime import next_prime
 from prev_prime import prev_prime
 from prime_factors import factorint, prime_factors
 from prime_power import is_perfect_power, is_prime_power
-from prime_sieve import nth_prime, prime_count, primerange, primes
+from prime_sieve import PRIME_COUNT_MAX_N, nth_prime, prime_count, primerange, primes
 
 __all__ = [
     "DEFAULT_N",
