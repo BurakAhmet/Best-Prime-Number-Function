@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.7.0** (`pyproject.toml`; `is_prime` engines still v1.5.0) |
+| **Current package version** | **1.8.2** (`pyproject.toml`; `prime_count` to $2^{64}-1$ via Meissel–Lehmer) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -60,7 +60,10 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-08  v1.4.4   uint64 ctzll extract of wheel-30 bits
 2026-08-08  v1.5.0   Huge-n: wheel pre-AKS + Kronecker AKS
 2026-08-10  v1.6.0   API: next_prime (30030-wheel candidates + existing is_prime)
-2026-08-10  v1.7.0   API: prev/nth/π/range/factor/prime-power  ← current
+2026-08-10  v1.7.0   API: prev/nth/π/range/factor/prime-power
+2026-08-10  v1.8.0   INV16 + 19·23·29 OR presieve + persisted contiguous marks
+2026-08-10  v1.8.1   uint32 nextg persist + DELTA[64] extract
+2026-08-10  v1.8.2   prime_count Meissel–Lehmer through 2^64−1  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -409,7 +412,7 @@ Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes 
 
 ---
 
-## Era 13 — v1.5.0 (2026-08-08): **Current** — huge-n wheel pre-AKS + Kronecker AKS
+## Era 13 — v1.5.0 (2026-08-08): huge-n wheel pre-AKS + Kronecker AKS
 
 **Problem.** Naive AKS used $O(r^2)$ Python nested loops for $(\mathbb{Z}/n\mathbb{Z})[X]/(X^r-1)$ multiplication. Direct `_aks_is_prime(10^9+7)` did not finish in minutes. Pre-AKS scan was an odd loop to $5\cdot10^7$ (~25 M mods).
 
@@ -454,7 +457,64 @@ Still not an `is_prime` engine change. Shared [`prime_sieve.py`](../prime_sieve.
 - `prime_factors` / `factorint` — 30-wheel + Fermat + **deterministic** Brent–Pollard (fixed $c$, no RNG), then `is_prime`
 - `is_perfect_power` / `is_prime_power` — Newton $k$-th roots
 
-Lucy–Hedgehog refuses $n$ with $\sqrt{n}>5\cdot10^6$ (memory). Brent is **not** a primality test; leftover cofactors are proved with `is_prime`.
+Lucy–Hedgehog allows $n\le 2.5\cdot10^{15}$ ($\sqrt{n}\le 5\cdot10^7$, compact int64 tables). **v1.8.2:** larger $n$ (every 64-bit integer) uses memoized Meissel–Lehmer; leftover cofactors in `factorint` are still proved with `is_prime`. Brent is **not** a primality test.
+
+---
+
+## Era 14 — v1.8.0 (2026-08-10): INV16 + extra presieve + persisted marks
+
+**Design (64-bit / practical u128 hard path).** Mid-size $\sqrt{n}\le 2^{20}$ is unchanged (precomputed 2-adic trial). For larger $\sqrt{n}$:
+
+- **INV16** (64 KiB, built once): $p^{-1}\bmod 2^{16}$ from `INV8` + one lift; two Newton steps to 64-bit. Same wrap-mul identity; ~1/3 fewer inverse muls than INV8+3 steps.
+- **Second presieve** $19\cdot23\cdot29$ (12673 bytes), AVX2/scalar word OR after the $7\cdot11\cdot13\cdot17$ memcpy tile. Sequential fill replaces three hottest remaining mark streams. Factors $\le 29$ remain covered by `trial_pre` / start skip.
+- **Contiguous thread partitions** of the segment list + **persisted next-$m$** per (prime, residue). First-mark uses 32-bit DIV when it fits; later segments only add $30p$. Interleaved `tid` stride is gone (it forced a DIV every segment).
+- Hard-path segment size **128 KiB** (persist made 256 KiB unnecessary).
+- `inv30` cached once in BSS. u128 full trial uses the same sieve/persist layout (still 128-bit `%` for trial).
+
+**Tried same session and rejected:** 16-way wrap-mul (hurt the default $n$); $31\cdot37\cdot41$ third OR pattern (helped M61, slightly slower on $\lfloor\sqrt{n}\rfloor=2^{32}-1$); 512 KiB segments; raising `PRE_MAX`.
+
+**Performance vs 1.4.4 / 1.7.0 engine (same machine, 12 OpenMP threads, LTO).**
+
+| Case | 1.7.0 LTO | 1.8.0 LTO | Δ |
+|------|------:|------:|--:|
+| 12-digit (warm) | ~0.021 ms | ~0.021 ms | — |
+| $10^9+7\times10^9+9$ | ~62 ms | ~55 ms | ~12% |
+| M61 | ~115 ms | ~105 ms | ~9% |
+| near $2^{63}$ | ~233 ms | ~202 ms | ~13% |
+| largest $<2^{64}$ | ~336 ms | ~287–292 ms | ~13% |
+| Default e2e suite | — | unchanged class | — |
+
+| | |
+|--|--|
+| **Advantages** | Same exact prime-only model; less Newton work; fewer strided marks; no per-segment DIV |
+| **Disadvantages** | ~400 KiB extra BSS (INV16 + `inv30` cache + PS2); contiguous ranges do slightly more work on *tiny* sieved factors (all $p\le 2^{20}$ already caught by `trial_pre`) |
+| **Still true** | Stochastic / range-limited MR is out of product policy as the engine |
+
+---
+
+## Era 15 — v1.8.1 (2026-08-10): **Current** — uint32 nextg + DELTA extract
+
+**Design (hard path only).** Mid-size $\sqrt{n}\le 2^{20}$ unchanged.
+
+- Persist **global wheel-30 byte indexes** (`uint32 nextg`, $m/30$) instead of 64-bit values. Mark start is `bi = nextg - base/30` (subtract, no DIV). Half the persist RAM (fits better next to a 128 KiB segment).
+- Extract: `DELTA[tz] = (tz>>3)\cdot 30 + \mathrm{WR30}[tz\&7]` so each `ctzll` is one table add, not a shift/mask/two-lookup.
+- Index-form marking (F11-safe). Same wheel-30 + INV16 trial.
+
+**Tried same session and rejected:** 31/37/41 tiny OR presieves (hurt default $n$); 64 KiB segments; 8-way mark unroll for $p<256$; 16-way trial (still).
+
+**Performance vs 1.8.0 (same machine, 12 threads, LTO).**
+
+| Case | 1.8.0 | 1.8.1 | Δ |
+|------|------:|------:|--:|
+| $10^9+7\times10^9+9$ | ~64 ms | ~52 ms | ~15% |
+| M61 | ~117 ms | ~108 ms | ~7% |
+| near $2^{63}$ | ~219 ms | ~207 ms | ~6% |
+| largest $<2^{64}$ | ~323 ms | ~285 ms | ~12% |
+
+| | |
+|--|--|
+| **Advantages** | Same primes; fewer DIVs; cheaper extract; smaller persist working set |
+| **Disadvantages** | `nextg` assumes $\mathrm{limit}/30 < 2^{32}$ (true for u64 and for u128 full-trial $\sqrt{n}\le 2.5\cdot10^{10}$) |
 
 ---
 
@@ -477,8 +537,10 @@ Lucy–Hedgehog refuses $n$ with $\sqrt{n}>5\cdot10^6$ (memory). Brent is **not*
 | **1.4.4** | + **uint64 ctzll** sieve extract | same | AKS | Yes | Hard 64-bit ~20–26% more (default $n$ ~280 ms) | Word tail + aliasing |
 | **1.5.0** | same 64-bit | same u128 | **wheel→Kronecker AKS** | Yes | Huge composites with $p\le10^8$ instant; AKS usable on 4-digit $n$ | Huge primes still AKS-slow |
 | **1.6.0** | same | same | same | Yes | **`next_prime` API** (wheel candidates + `is_prime`) | Successor search still $\sim$gap $\times$ one prime check |
-| **1.7.0 (now)** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy memory cap; Pollard only after trial, never as primality |
-| **1.7.0 (now)** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy memory cap; Pollard only after trial + not as primality |
+| **1.7.0** | same | same | same | Yes | prev / $p_k$ / $\pi(n)$ / factor / prime-power | Lucy $n\le 2.5\cdot10^{15}$; Pollard only after trial, never as primality |
+| **1.8.0** | + **INV16**, **19·23·29 OR presieve**, **persist + contiguous segs**, 128 KiB | same persist u128 | same | Yes | Hard 64-bit ~10–15% (max $<2^{64}$ ~287 ms in-process) | Extra BSS (~INV16/inv30 cache); 16-way / PS3 rejected |
+| **1.8.1** | + **uint32 nextg**, **DELTA extract** | same | same | Yes | Hard 64-bit another ~6–15% | `limit/30` must fit `uint32` |
+| **1.8.2 (now)** | same | same | same | Yes | **`prime_count` to $2^{64}-1$** (Lucy then Meissel–Lehmer) | Hardest 64-bit $\pi(n)$ needs primes $\le 2^{32}$ once |
 
 ---
 
@@ -500,6 +562,7 @@ Recorded so agents and humans do not “rediscover” them:
 | **F10** | Parallel OpenMP segmented sieve on **mid-size** $\sqrt{n}$ (e.g. 12-digit) | More threads *slower* (fork + tiny segments); e2e 12-digit ~2–3× worse at 12 vs 2 threads | Serial precomputed trial for $\sqrt{n}\le 2^{20}$; OpenMP only if $\sqrt{n}\ge 10^7$ |
 | **F11** | Unrolled sieve marking with `s += 4*step` and `(size_t)(e-s) > 3*step` | When `s` passes `e`, `e-s` wraps; **heap overflow / SEGV** | Index form `for (bi = …; bi < nbytes; bi += st)` or require `e-s >= 4*st` **and** `s < e` |
 | **F12** | Wheel-210 (48 residues) as a drop-in denser sieve | 48 mark streams overtook the ~14% fewer candidates; slower than wheel-30 here | Prefer wheel-30 (8 bits / 30) unless marking is heavily optimized |
+| **F13** | 16-way wrap-mul trial / extra $31\cdot37\cdot41$ OR presieve | Helped M61; **hurt** the default $\lfloor\sqrt{n}\rfloor=2^{32}-1$ yardstick | Keep 8-way INV16; second presieve stops at $19\cdot23\cdot29$ |
 
 ---
 
@@ -541,4 +604,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.7.0** (enumeration / factor / power APIs; `is_prime` engines unchanged from 1.5.0). Extend forward; do not delete past eras.*
+*Last updated for package **1.8.2** (`prime_count` Meissel–Lehmer through $2^{64}-1$). Extend forward; do not delete past eras.*

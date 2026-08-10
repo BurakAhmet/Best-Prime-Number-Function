@@ -8,7 +8,7 @@ CLI **`TIME` is end-to-end** (import → answer). Engines are tiered to minimize
 2. If `is_prime_data/wheel_core.so` is present: **OpenMP C** (preferred on Linux CI), with:
    - small-prime precheck (through a few hundred),
    - **precomputed odd primes** $\le 2^{20}$ and exact **2-adic inverse** trial when $\lfloor\sqrt{n}\rfloor \le 1\,048\,576$ (wrap-mul divisibility; no wheel `DIV`),
-   - **wheel-30 segmented sieve + memcpy presieve** ($7\cdot11\cdot13\cdot17$) **+ uint64 `ctzll` extract + 8-way 2-adic prime-only trial** when $\lfloor\sqrt{n}\rfloor$ is larger (1 byte / 30 numbers; wrap-mul, no `DIV`; OpenMP only when $\lfloor\sqrt{n}\rfloor \ge 10^7$),
+   - **wheel-30 segmented sieve + memcpy presieve** ($7\cdot11\cdot13\cdot17$) **+ OR presieve** ($19\cdot23\cdot29$) **+ persisted uint32 byte-index marks + `DELTA[64]`/`ctzll` extract + 8-way 2-adic** (INV16, two Newton steps) when $\lfloor\sqrt{n}\rfloor$ is larger (1 byte / 30 numbers; wrap-mul, no `DIV`; OpenMP only when $\lfloor\sqrt{n}\rfloor \ge 10^7$; 128 KiB segments),
    - integer `isqrt` and early abort when a factor is found.
 3. Else if $n \le 4\cdot10^{12}$: **embedded 30030-wheel** (stdlib only, zlib-compressed steps in `is_prime.py`).
 4. Else: lazy **Numba** `9699690`-wheel with optional `prange` when $\lfloor\sqrt{n}\rfloor \ge 50\,000$.
@@ -31,7 +31,7 @@ All of these reuse **our** sieves / `is_prime`. No external prime engine.
 | `next_prime(n, k=1)` | Table / interval sieve / forward 30030-wheel + `is_prime` |
 | `prev_prime(n, k=1)` | Same, walking backward |
 | `nth_prime(k)` | Odds-only or segmented sieve up to a Dusart bound on $p_k$ |
-| `prime_count(n)` | Sieve for $n\le 2\cdot10^6$; Lucy–Hedgehog (Numba when $n\ge10^8$) above |
+| `prime_count(n)` | Sieve for $n\le 2\cdot10^7$; Lucy–Hedgehog (Numba when $n\ge10^7$) up to $n\le 2.5\cdot10^{15}$; **Meissel–Lehmer** through $2^{64}-1$ |
 | `primes(n)` / `primerange(a,b)` | Cached odds-only Eratosthenes; segmented for interior ranges |
 | `prime_factors` / `factorint` | 30-wheel trial, Fermat, deterministic Brent–Pollard, then `is_prime` |
 | `is_perfect_power` / `is_prime_power` | Newton $k$-th roots; prime exponents only |

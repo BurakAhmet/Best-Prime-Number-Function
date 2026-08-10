@@ -6,8 +6,9 @@ so import, table load, JIT, and the check all count. Heavy dependencies
 (NumPy/Numba) and large tables load lazily only on hard paths that need them.
 
 Tiered engines: tiny Python loop; 64-bit OpenMP C (precomputed-prime trial +
-segmented sieve) with stdlib/Numba wheel fallbacks; practical multi-limb
-(≤128-bit) OpenMP u128 or stdlib full trial; AKS only for huge n.
+wheel-30 segmented sieve with persisted marks) with stdlib/Numba wheel
+fallbacks; practical multi-limb (≤128-bit) OpenMP u128 or stdlib full trial;
+AKS only for huge n.
 
 Restrictions: deterministic; no stochastic Miller–Rabin; no prime libraries.
 """

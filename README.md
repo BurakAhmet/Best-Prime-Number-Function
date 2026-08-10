@@ -59,7 +59,7 @@ export OMP_NUM_THREADS=$(nproc)   # also read as NUMBA_NUM_THREADS on the Numba 
 | `next_prime(n, k=1, *, parallel=True) -> int` | The `k`-th prime **strictly greater than** `n`. |
 | `prev_prime(n, k=1, *, parallel=True) -> int` | The `k`-th prime **strictly less than** `n` (errors if fewer than `k` exist). |
 | `nth_prime(k) -> int` | The `k`-th prime (`nth_prime(1) == 2`). |
-| `prime_count(n) -> int` | $\pi(n)$: number of primes $\le n$. |
+| `prime_count(n) -> int` | $\pi(n)$: number of primes $\le n$ (every 64-bit $n$; Lucy then Meissel–Lehmer). |
 | `primes(n) -> list[int]` | All primes $\le n$. |
 | `primerange(a, b) -> list[int]` | Primes $p$ with $a \le p \lt b$. |
 | `prime_factors(n) -> list[int]` | Prime factors with multiplicity, ascending. |
@@ -156,7 +156,7 @@ is-perfect-power 36            # yes (exit 0)
 TEST:    18446744073709551557 (20 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    280800000 ns  (280.800000 ms)
+TIME:    289827924 ns  (289.827924 ms)
 ```
 
 Example for the mid-size 12-digit prime (precomputed-prime C path):
@@ -165,7 +165,7 @@ Example for the mid-size 12-digit prime (precomputed-prime C path):
 TEST:    999999999989 (12 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    2422000 ns  (2.422000 ms)
+TIME:    2806562 ns  (2.806562 ms)
 ```
 
 ### Developer loop
@@ -339,9 +339,9 @@ Indicative **end-to-end CLI `TIME`** on a dev machine (`benchmarks/compare_e2e.p
 |------|-----:|-----------------------:|
 | Small prime | 97 | ~0.4 ms |
 | $10^9+7$ | 1000000007 | ~2–3 ms |
-| 12-digit prime | 999999999989 | ~2–4 ms (sample: `2421823 ns` / `2.421823 ms`) |
+| 12-digit prime | 999999999989 | ~2–4 ms (sample: `2806562 ns` / `2.806562 ms`) |
 | Near $2^{63}$ prime | 9223372036854775783 | ~0.19–0.22 s |
-| Largest prime $<2^{64}$ | 18446744073709551557 | ~0.28–0.32 s (sample: `280800000 ns` / `280.800 ms`) |
+| Largest prime $<2^{64}$ | 18446744073709551557 | ~0.28–0.31 s (sample: `289827924 ns` / `289.828 ms`) |
 | Mersenne M61 | $2^{61}-1$ | ~0.10–0.12 s |
 
 In-process hot-loop comparisons (warm engines) live in [`benchmarks/compare_speed.py`](benchmarks/compare_speed.py). End-to-end CLI timing: [`benchmarks/compare_e2e.py`](benchmarks/compare_e2e.py). More context: [`benchmarks/README.md`](benchmarks/README.md), [Hall of fame](docs/wiki/Hall-of-fame.md).

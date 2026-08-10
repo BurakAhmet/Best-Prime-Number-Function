@@ -219,7 +219,7 @@ class TestTwoAdicDivisibilityTheorem:
                 assert fits is (n % p == 0)
 
     def test_segmented_path_factors_above_pre_max(self):
-        # Primes just above 2^20 → wheel-30 sieve + 2-adic trial (not PRE table).
+        # Primes just above 2^20 → wheel-30 sieve + persist/presieve + 2-adic trial.
         ps = [1_048_583, 1_048_601, 1_048_609, 3_000_017, 3_000_029]
         for p in ps:
             assert is_prime(p) is True
