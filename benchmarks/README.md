@@ -13,29 +13,12 @@ This directory measures **wall-clock time** for deterministic algorithms on the 
 
 Both are **deterministic** (no Miller–Rabin / randomness). The gap is engineering (wheel + JIT + threads), not a weaker correctness model on the 64-bit path.
 
-### Optional: vs Miller–Rabin (`compare_miller_rabin.py`)
-
-**Benchmark only** — MR is not the library engine. Compares:
-
-| Label | Meaning |
-|-------|---------|
-| **repo** | This project’s `is_prime` (full trial / OpenMP / AKS policy) |
-| **mr64** | Deterministic MR with a fixed witness set **complete for all `n < 2^64`** |
-| **mr_prob** | Fixed small bases (usual “fast MR” cost; not a universal proof) |
-
-```bash
-OMP_NUM_THREADS=$(nproc) python3 benchmarks/compare_miller_rabin.py
-OMP_NUM_THREADS=$(nproc) python3 benchmarks/compare_miller_rabin.py --include-big
-```
-
-On hard 64-bit primes, deterministic MR is typically **orders of magnitude** faster than full wheel trial (different complexity: modexps vs $\sim\sqrt{n}$ trial work). Answers matched on the script’s labeled suite.
-
 ## Run the benchmark
 
 From the repository root:
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[fast]"
 
 # Default suite (up to ~12-digit primes; both methods timed)
 NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py
@@ -47,7 +30,7 @@ NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py --include-hard
 NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py --include-hard --primitive-hard
 
 # JSON output
-python benchmarks/compare_speed.py --json benchmarks/results.json
+python benchmarks/compare_speed.py --json /tmp/speed.json
 ```
 
 ## Sample results
@@ -101,9 +84,10 @@ On **hard** 64-bit primes, the primitive loop would perform on the order of $10^
 
 | File | Role |
 |------|------|
-| `compare_speed.py` | Runnable benchmark |
-| `results.json` | Optional last JSON dump (if generated) |
-| `latest_run.txt` | Optional captured console output (if generated) |
+| `compare_e2e.py` | Primary metric: end-to-end CLI `TIME` |
+| `compare_speed.py` | Warm in-process hot loop (secondary) |
+| `check_determinism.py` | Serial == parallel, repeatable answers |
+| `e2e_results.json` | Committed e2e snapshot (CI baseline) |
 | `README.md` | This page |
 
 Regenerate tables after meaningful code changes and paste updates here if you publish numbers.

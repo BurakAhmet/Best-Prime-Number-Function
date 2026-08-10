@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import math
 
-from is_prime import _parse_n, is_prime
-from prime_sieve import _primes_upto_cached
+from .is_prime import _parse_n, is_prime
+from .prime_sieve import _primes_upto_cached
 
 
 def _iroot(n: int, k: int) -> int:

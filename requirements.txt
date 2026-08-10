@@ -1,4 +1,0 @@
-numpy>=1.22
-numba>=0.56
-pytest>=7.0
-hypothesis>=6.0

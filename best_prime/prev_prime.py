@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import math
 
-from is_prime import _parse_n, is_prime
-from next_prime import (
+from .is_prime import _parse_n, is_prime
+from .next_prime import (
     _RES_INVALID,
     _W30030,
     _get_prefilter,
@@ -18,7 +18,7 @@ from next_prime import (
     _get_steps_30030,
     _span_guess,
 )
-from prime_sieve import _SIEVE_PI_MAX, _parse_k, _primes_in_range, _primes_upto_cached
+from .prime_sieve import _SIEVE_PI_MAX, _parse_k, _primes_in_range, _primes_upto_cached
 
 _SMALL_PREV = (13, 11, 7, 5, 3, 2)
 

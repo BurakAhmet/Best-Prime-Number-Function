@@ -12,9 +12,9 @@ import math
 from array import array
 from typing import Sequence
 
-from is_prime import _parse_n
-from prime_factors import factorint
-from prime_sieve import _nth_prime_upper, _parse_k, _primes_upto_cached, primerange
+from .is_prime import _parse_n
+from .prime_factors import factorint
+from .prime_sieve import _nth_prime_upper, _parse_k, _primes_upto_cached, primerange
 
 # Linear-sieve totient_range: uint32 table, 4 bytes × (n+1). 20e6 → ~80 MiB.
 TOTIENT_RANGE_MAX = 20_000_000

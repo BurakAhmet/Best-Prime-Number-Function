@@ -21,7 +21,7 @@ from bisect import bisect_right
 
 t0 = time.perf_counter_ns()
 
-from is_prime import (  # noqa: E402
+from .is_prime import (  # noqa: E402
     _DATA_DIR,
     _SMALL_LIMIT,
     _get_steps_30030,
@@ -29,7 +29,7 @@ from is_prime import (  # noqa: E402
     _parse_n,
     is_prime,
 )
-from prime_sieve import (  # noqa: E402
+from .prime_sieve import (  # noqa: E402
     _TABLE_LIMIT,
     _parse_k,
     _primes_in_range,
@@ -234,7 +234,7 @@ def _main(argv: list[str]) -> int:
             return 2
     parallel = not serial
     value = next_prime(n, k, parallel=parallel)
-    from is_prime import _thread_count
+    from .is_prime import _thread_count
 
     threads = (
         _thread_count

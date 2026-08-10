@@ -588,13 +588,13 @@ Recorded so agents and humans do not “rediscover” them:
 
 | Path | Role |
 |------|------|
-| `is_prime.py` | Dispatch + Python/Numba/AKS engines |
-| `next_prime.py` | Successor prime (wheel candidates + `is_prime`) |
-| `prev_prime.py` | Predecessor prime |
-| `prime_sieve.py` | Odds-only / segmented sieve, $\pi(n)$, $p_k$, generator `primerange` |
-| `ntheory.py` | totient, primorial, divisors, Jacobi, CRT |
-| `prime_factors.py` | Trial + Fermat + deterministic Brent |
-| `prime_power.py` | Perfect powers / prime powers |
+| `best_prime/is_prime.py` | Dispatch + Python/Numba/AKS engines |
+| `best_prime/next_prime.py` | Successor prime (wheel candidates + `is_prime`) |
+| `best_prime/prev_prime.py` | Predecessor prime |
+| `best_prime/prime_sieve.py` | Odds-only / segmented sieve, $\pi(n)$, $p_k$, generator `primerange` |
+| `best_prime/ntheory.py` | totient, primorial, divisors, Jacobi, CRT |
+| `best_prime/prime_factors.py` | Trial + Fermat + deterministic Brent |
+| `best_prime/prime_power.py` | Perfect powers / prime powers |
 | `is_prime_data/wheel_core.c` | OpenMP u64/u128 engines (generated + hand-tuned sections) |
 | `scripts/generate_wheel_core_c.py` | C generator |
 | `scripts/generate_wheel_data.py` | Wheel tables |

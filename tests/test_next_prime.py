@@ -13,7 +13,7 @@ from hypothesis import HealthCheck, given, settings, strategies as st
 
 from best_prime import next_prime as best_prime_next_prime
 from is_prime import _SMALL_LIMIT, is_prime
-from next_prime import (
+from best_prime.next_prime import (
     _TABLE_LIMIT,
     _W30030,
     _align_wheel30030,
@@ -25,7 +25,6 @@ from next_prime import (
 from tests.numbers import P10_9_7, P10_9_9, P12_DIGIT, SMALL_PRIMES
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "next_prime.py"
 
 _HYP = dict(
     deadline=None,
@@ -275,7 +274,7 @@ class TestCli:
         env = os.environ.copy()
         env.setdefault("OMP_NUM_THREADS", "2")
         return subprocess.run(
-            [sys.executable, str(SCRIPT), *args],
+            [sys.executable, "-m", "best_prime.next_prime", *args],
             cwd=ROOT,
             capture_output=True,
             text=True,

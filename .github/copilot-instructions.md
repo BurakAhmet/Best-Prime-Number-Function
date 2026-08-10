@@ -30,10 +30,12 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 
 ## Project layout
 
-- `is_prime.py` — library + CLI
-- `next_prime.py` / `prev_prime.py` / `prime_sieve.py` / `prime_factors.py` / `prime_power.py` — same restrictions
+- `best_prime/` — library package (`is_prime`, `next_prime`, `prime_sieve`, `ntheory`, …)
+- `is_prime.py` — thin CLI / import compatibility shim
+- `is_prime_data/` — wheel tables + OpenMP `wheel_core.c` / `.so`
 - `tests/` — pytest suite
-- `benchmarks/` — primitive vs optimized speed, regression, determinism checks
+- `benchmarks/` — e2e CLI TIME, in-process speed, determinism checks
+- `docs/guide/` — MkDocs library docs (Pages `/guide/`)
 - `.github/workflows/` — CI, determinism, issue/PR agents
 
 - On Linux CI after `compile_wheel_core.sh`, `lab(n)['path']` must be `u64_wheel_c` for 64-bit n above the tiny threshold; practical multi-limb sizes (e.g. ~10^20) should use `u128_wheel_c` when the `.so` exports `is_prime_u128_core`.

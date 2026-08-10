@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from prime_cli import (
+from best_prime.prime_cli import (
     divisors_main,
     is_perfect_power_main,
     is_prime_power_main,

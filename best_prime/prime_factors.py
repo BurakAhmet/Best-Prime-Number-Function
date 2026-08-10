@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 
-from is_prime import _parse_n, is_prime
+from .is_prime import _parse_n, is_prime
 
 # 30-wheel steps starting at 7 (residues 1,7,11,13,17,19,23,29).
 _W30 = (4, 2, 4, 2, 4, 6, 2, 6)

@@ -10,13 +10,13 @@ import time
 
 t0 = time.perf_counter_ns()
 
-from is_prime import _parse_n  # noqa: E402
-from next_prime import _looks_like_int_token, _parse_k, next_prime  # noqa: E402
-from prev_prime import prev_prime  # noqa: E402
-from prime_factors import prime_factors  # noqa: E402
-from prime_power import is_perfect_power, is_prime_power  # noqa: E402
-from ntheory import divisors, primorial, totient  # noqa: E402
-from prime_sieve import nth_prime, prime_count, primerange, primes  # noqa: E402
+from .is_prime import _parse_n  # noqa: E402
+from .next_prime import _looks_like_int_token, _parse_k, next_prime  # noqa: E402
+from .prev_prime import prev_prime  # noqa: E402
+from .prime_factors import prime_factors  # noqa: E402
+from .prime_power import is_perfect_power, is_prime_power  # noqa: E402
+from .ntheory import divisors, primorial, totient  # noqa: E402
+from .prime_sieve import nth_prime, prime_count, primerange, primes  # noqa: E402
 
 
 def _print(test: str, result: object, **fields: object) -> None:

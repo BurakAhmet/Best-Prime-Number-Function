@@ -9,7 +9,7 @@ Optimized = is_prime() from this package (tiered wheel (stdlib, OpenMP .so, Numb
 
 Usage:
   NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py
-  python benchmarks/compare_speed.py --json benchmarks/results.json
+  python benchmarks/compare_speed.py --json /tmp/speed.json
 """
 
 from __future__ import annotations

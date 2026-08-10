@@ -7,7 +7,7 @@ import math
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from prime_sieve import (
+from best_prime.prime_sieve import (
     PRIME_COUNT_MAX_N,
     _LUCY_MAX_V,
     nth_prime,
@@ -133,7 +133,7 @@ class TestPrimeCount:
             prime_count(PRIME_COUNT_MAX_N + 1)
 
     def test_pow2_table(self):
-        from prime_sieve import _PI_POW2
+        from best_prime.prime_sieve import _PI_POW2
 
         assert prime_count(1 << 10) == _PI_POW2[10]
         assert prime_count(1 << 20) == _PI_POW2[20]
@@ -146,7 +146,7 @@ class TestPrimeCount:
 
     def test_meissel_lehmer_matches_known(self):
         """Force the Lehmer loops on sizes Lucy would normally take."""
-        from prime_sieve import _pi_ml, _reset_ml_state
+        from best_prime.prime_sieve import _pi_ml, _reset_ml_state
 
         known = {
             10_000: 1_229,
@@ -170,7 +170,7 @@ class TestNthPrime:
         assert nth_prime(10_001) == 104_743
 
     def test_pi_search_path(self):
-        from prime_sieve import _nth_prime_pi_search
+        from best_prime.prime_sieve import _nth_prime_pi_search
 
         assert _nth_prime_pi_search(10_001) == 104_743
         assert _nth_prime_pi_search(100_000) == 1_299_709

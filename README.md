@@ -337,7 +337,7 @@ Let $N = n$ when discussing bit size, and write $L = \lfloor\sqrt{n}\rfloor$. Ar
 
 **Composite early exit:** if the least prime factor is $p$, work is roughly $\Theta(p)$ (or $\Theta(\varphi(W)/W \cdot p)$ on a wheel), so smooth composites are much cheaper than the prime worst case.
 
-**Contrast (not used in the library):** deterministic Miller–Rabin for a fixed 64-bit witness set is $\Theta(k \cdot M(\log n)\cdot\log n)$ for $k$ modular exponentiations — much faster for hard 64-bit primes, but that is a different correctness model than “full trial / AKS for every natural number.” See `benchmarks/compare_miller_rabin.py`.
+**Contrast (not used in the library):** deterministic Miller–Rabin for a fixed 64-bit witness set is $\Theta(k \cdot M(\log n)\cdot\log n)$ for $k$ modular exponentiations — much faster for hard 64-bit primes, but that is a different correctness model than “full trial / AKS for every natural number.”
 
 ### Build the optional C core
 
@@ -381,9 +381,8 @@ Think of four layers. Only the first is the product.
 ```text
 +--------------------------------------------------------------------------+
 |  1. CORE                                                                 |
-|     is_prime.py          is_prime() / lab() / CLI                        |
-|     next_prime.py / prev_prime.py / prime_sieve.py                       |
-|     prime_factors.py / prime_power.py                                    |
+|     best_prime/          public API + engines (is_prime, sieve, ntheory) |
+|     is_prime.py          thin CLI / import shim                          |
 |     is_prime_data/       precomputed wheels + optional wheel_core.so     |
 |     Rules: deterministic, no stochastic MR, no prime libs as engine      |
 +--------------------------------------------------------------------------+
@@ -412,26 +411,19 @@ Think of four layers. Only the first is the product.
 
 ```text
 Best-Prime-Number-Function/
-├── is_prime.py                 # is_prime / lab + CLI
-├── next_prime.py / prev_prime.py
-├── prime_sieve.py              # π(n), nth_prime, primes, primerange (generator)
-├── ntheory.py                  # totient, primorial, divisors, jacobi, CRT
-├── prime_factors.py / prime_power.py
+├── best_prime/                 # library package (is_prime, sieve, ntheory, …)
+├── is_prime.py                 # CLI / import compatibility shim
 ├── is_prime_data/              # wheels, wheel_core.c / .so
 ├── tests/
 ├── benchmarks/                 # compare_speed, compare_e2e, determinism
-├── scripts/
-│   ├── check_restrictions.py
-│   ├── compile_wheel_core.sh
-│   ├── generate_wheel_data.py
-│   ├── write_attestation.py
-│   └── design_github_project.py
+├── scripts/                    # linters, C/table generators, attest
+├── examples/
 ├── mkdocs.yml                  # library guide (Pages /guide/)
 ├── docs/guide/                 # MkDocs pages
 ├── docs/wiki/                  # exhibit lab + wiki
 ├── .github/workflows/
 ├── Dockerfile
-├── pyproject.toml / requirements.txt
+├── pyproject.toml
 ├── CONTRIBUTING.md
 └── README.md
 ```
@@ -564,13 +556,13 @@ docker run --rm ghcr.io/burakahmet/best-prime-number-function:1.4.1 17
 Contributions are welcome when they respect the [design restrictions](#design-restrictions). See [CONTRIBUTING.md](CONTRIBUTING.md), the [Code of Conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md) for private vulnerability reports.
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 bash scripts/compile_wheel_core.sh
 python3 scripts/check_restrictions.py
 pytest -q -m "not slow"
 OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
 python3 is_prime.py --lab 97
-python3 next_prime.py 14
+python3 -m best_prime.next_prime 14
 ```
 
 Open an issue before large designs if you are unsure about the restrictions.
