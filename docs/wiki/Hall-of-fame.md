@@ -19,7 +19,7 @@ Reproduce:
 
 ```bash
 bash scripts/compile_wheel_core.sh
-OMP_NUM_THREADS=$(nproc) python is_prime.py --lab 18446744073709551557
+OMP_NUM_THREADS=$(nproc) python -m best_prime --lab 18446744073709551557
 OMP_NUM_THREADS=$(nproc) python benchmarks/compare_e2e.py --include-hard
 ```
 

@@ -30,8 +30,7 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 
 ## Project layout
 
-- `best_prime/` — library package (`is_prime`, `next_prime`, `prime_sieve`, `ntheory`, …)
-- `is_prime.py` — thin CLI / import compatibility shim
+- `best_prime/` — library package (`is_prime`, `next_prime`, `prime_sieve`, `ntheory`, …); CLI is `python -m best_prime`
 - `is_prime_data/` — wheel tables + OpenMP `wheel_core.c` / `.so`
 - `tests/` — pytest suite
 - `benchmarks/` — e2e CLI TIME, in-process speed, determinism checks

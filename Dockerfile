@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY pyproject.toml setup.py README.md LICENSE MANIFEST.in is_prime.py ./
+COPY pyproject.toml setup.py README.md LICENSE MANIFEST.in ./
 COPY best_prime ./best_prime
 COPY is_prime_data ./is_prime_data
 COPY scripts ./scripts

@@ -1,6 +1,6 @@
 # Command line
 
-After `pip install`, the same programs as `python is_prime.py` / the library modules are on `PATH`.
+After `pip install`, the same programs as `python -m best_prime` / `python -m best_prime.next_prime` are on `PATH`.
 
 ```bash
 is-prime 97

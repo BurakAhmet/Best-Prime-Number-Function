@@ -25,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from is_prime import is_prime  # noqa: E402
+from best_prime.is_prime import is_prime  # noqa: E402
 
 
 def primitive_is_prime(n: int) -> bool:

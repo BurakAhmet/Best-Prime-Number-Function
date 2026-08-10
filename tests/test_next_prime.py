@@ -12,7 +12,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
 from best_prime import next_prime as best_prime_next_prime
-from is_prime import _SMALL_LIMIT, is_prime
+from best_prime.is_prime import _SMALL_LIMIT, is_prime
 from best_prime.next_prime import (
     _TABLE_LIMIT,
     _W30030,
@@ -109,7 +109,7 @@ class TestEdgeCases:
         assert best_prime_next_prime(14) == 17
 
     def test_lazy_export_from_is_prime(self):
-        import is_prime as ip
+        import best_prime.is_prime as ip
 
         assert ip.next_prime(14) == 17
         assert ip.next_prime(14, 3) == 23
@@ -287,22 +287,6 @@ class TestCli:
         r = self._run("100")
         assert r.returncode == 0, r.stderr
         assert "RESULT:  101" in r.stdout
-        assert "TIME:" in r.stdout
-
-    def test_root_shim_script(self):
-        env = os.environ.copy()
-        env.setdefault("OMP_NUM_THREADS", "2")
-        r = subprocess.run(
-            [sys.executable, str(ROOT / "next_prime.py"), "14"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            timeout=30.0,
-            env=env,
-            check=False,
-        )
-        assert r.returncode == 0, r.stderr
-        assert "RESULT:  17" in r.stdout
         assert "TIME:" in r.stdout
 
     def test_serial_flag(self):

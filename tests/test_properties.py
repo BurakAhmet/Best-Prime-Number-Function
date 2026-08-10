@@ -9,7 +9,7 @@ import sys
 from hypothesis import HealthCheck, given, settings, strategies as st
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from is_prime import is_prime  # noqa: E402
+from best_prime.is_prime import is_prime  # noqa: E402
 
 
 def naive_is_prime(n: int) -> bool:

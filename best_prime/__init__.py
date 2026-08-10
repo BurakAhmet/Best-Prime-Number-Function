@@ -2,7 +2,7 @@
 best-prime-number-function — fully deterministic primality testing.
 
 Public import path. Implementations live in sibling modules; they load lazily
-so ``python is_prime.py`` / ``from best_prime import is_prime`` do not pull
+so ``python -m best_prime`` / ``from best_prime import is_prime`` do not pull
 ntheory, sieves, and factoring into the end-to-end CLI ``TIME``.
 
 Example

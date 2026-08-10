@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-from is_prime import (
+from best_prime.is_prime import (
     _aks_is_prime,
     _is_perfect_power,
     _poly_mul_mod,

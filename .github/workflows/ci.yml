@@ -67,7 +67,7 @@ jobs:
       - name: Assert C engine on Linux
         run: |
           python - <<'PY'
-          from is_prime import lab, _load_c_core
+          from best_prime.is_prime import lab, _load_c_core
           assert _load_c_core(), "wheel_core.so missing after compile_wheel_core.sh"
           info = lab(1_000_000_007)
           assert info["path"] == "u64_wheel_c", info
@@ -78,13 +78,13 @@ jobs:
 
       - name: Smoke CLI
         run: |
-          python -c "from is_prime import is_prime; assert is_prime(17) and not is_prime(0) and not is_prime(1)"
-          python is_prime.py 97
-          if python is_prime.py 100; then
+          python -c "from best_prime import is_prime; assert is_prime(17) and not is_prime(0) and not is_prime(1)"
+          python -m best_prime 97
+          if python -m best_prime 100; then
             echo "expected exit code 1 for composite 100" >&2
             exit 1
           fi
-          python is_prime.py 1000000007 | tee /tmp/cli_out.txt
+          python -m best_prime 1000000007 | tee /tmp/cli_out.txt
           grep -q 'RESULT:  prime' /tmp/cli_out.txt
 
   performance:
@@ -192,7 +192,7 @@ jobs:
           python3 scripts/check_wiki_sync.py
           pytest -q -m "not slow"
           python - <<'PY'
-          from is_prime import lab
+          from best_prime import lab
           info = lab(1_000_000_007)
           assert info["path"] == "u64_wheel_c", info
           open("engine_sample.json", "w").write(

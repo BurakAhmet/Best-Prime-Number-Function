@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from is_prime import (  # noqa: E402
+from best_prime.is_prime import (  # noqa: E402
     DEFAULT_N,
     RES_TO_WI,
     RES_WHEEL,

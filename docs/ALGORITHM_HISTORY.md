@@ -33,7 +33,7 @@ These bound every algorithm below; “faster” ideas that violate them are out 
 
 | Metric | Script / surface | Includes |
 |--------|------------------|----------|
-| **E2E CLI `TIME`** | `python is_prime.py …` / `benchmarks/compare_e2e.py` | Import, table load, native load/JIT, check |
+| **E2E CLI `TIME`** | `python -m best_prime …` / `benchmarks/compare_e2e.py` | Import, table load, native load/JIT, check |
 | **Hot-loop ms** | `lab(n)["elapsed_ms"]`, `compare_speed.py` | Check only, after warm-up |
 | **`lab(n)["path"]`** | API | Which engine ran (`python_small`, `python_wheel`, `u64_wheel_c`, …) |
 

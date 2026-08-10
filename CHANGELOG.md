@@ -4,8 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Fixed
-- Restored root ``next_prime.py`` as a CLI / import shim (same pattern as ``is_prime.py``). ``python3 next_prime.py 14`` works again; running ``best_prime/next_prime.py`` directly still cannot, because that file uses package-relative imports.
+### Changed
+- Dropped root ``is_prime.py`` / ``next_prime.py`` shims. One implementation each, under ``best_prime/``. Clone CLI is ``python -m best_prime`` and ``python -m best_prime.next_prime``; after install use ``is-prime`` / ``next-prime``. Import only ``from best_prime import …``.
 
 ## [1.10.0] — 2026-08-10
 

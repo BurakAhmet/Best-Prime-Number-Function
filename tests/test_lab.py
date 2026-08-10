@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-from is_prime import _load_c_core, is_prime, lab
+from best_prime.is_prime import _load_c_core, is_prime, lab
 from tests.numbers import (
     LARGEST_PRIME_LT_2_64,
     P10_20,

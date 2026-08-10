@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end CLI TIME benchmark (matches is_prime.py t0→result metric)."""
+"""End-to-end CLI TIME benchmark (matches ``python -m best_prime`` t0→result)."""
 from __future__ import annotations
 
 import argparse
@@ -29,7 +29,7 @@ HARD_CASES = [
 
 
 def run_once(n: int, serial: bool = False) -> tuple[bool, float]:
-    cmd = [sys.executable, str(ROOT / "is_prime.py"), str(n)]
+    cmd = [sys.executable, "-m", "best_prime", str(n)]
     if serial:
         cmd.append("--serial")
     out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)

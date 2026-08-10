@@ -21,7 +21,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
 @pytest.fixture(scope="session")
 def c_core_available() -> bool:
-    from is_prime import _load_c_core
+    from best_prime.is_prime import _load_c_core
 
     return bool(_load_c_core())
 
