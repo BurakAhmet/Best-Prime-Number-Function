@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.5.0** (`pyproject.toml`) |
+| **Current package version** | **1.6.0** (`pyproject.toml`; engines still v1.5.0 + `next_prime` API) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -58,7 +58,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-08  v1.4.2   8-way 2-adic wrap-mul trial of sieved primes (no DIV)
 2026-08-08  v1.4.3   memcpy presieve 7·11·13·17 + 32-bit mark starts; CLI default = max 64-bit prime
 2026-08-08  v1.4.4   uint64 ctzll extract of wheel-30 bits
-2026-08-08  v1.5.0   Huge-n: wheel pre-AKS + Kronecker AKS  ← current
+2026-08-08  v1.5.0   Huge-n: wheel pre-AKS + Kronecker AKS
+2026-08-10  v1.6.0   API: next_prime (30030-wheel candidates + existing is_prime)  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -438,6 +439,12 @@ Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes 
 
 ---
 
+## API addition — v1.6.0 (2026-08-10): `next_prime`
+
+**Not an engine change.** New module [`next_prime.py`](../next_prime.py) returns the least prime $> n$ under the same restrictions: tiny table + **30030-wheel** candidates + a 17…1021 prefilter, then the existing `is_prime` dispatch (OpenMP / wheel / AKS). No Miller–Rabin, no prime libraries, no new `lab()` path.
+
+---
+
 ## Summary comparison
 
 | Era | 64-bit engine (best case) | Big-int practical | Big-int huge | E2E focus | Main win | Main cost / risk |
@@ -455,7 +462,8 @@ Tried same session and **rejected**: 8/16/32 KiB cache tiles (mark-all-primes 
 | **1.4.2** | + **2-adic wrap-mul** trial of sieved primes | same | AKS | Yes | Hard 64-bit ~15–17% more (M61 / $2^{63}$) | Newton cost if inverse not reused |
 | **1.4.3** | + **memcpy presieve** $7{..}17$ + 32-bit mark starts | same | AKS | Yes | Hard 64-bit ~5–9% more (max $<2^{64}$ ~7%) | Pattern wrap must stay exact |
 | **1.4.4** | + **uint64 ctzll** sieve extract | same | AKS | Yes | Hard 64-bit ~20–26% more (default $n$ ~280 ms) | Word tail + aliasing |
-| **1.5.0 (now)** | same 64-bit | same u128 | **wheel→Kronecker AKS** | Yes | Huge composites with $p\le10^8$ instant; AKS usable on 4-digit $n$ | Huge primes still AKS-slow |
+| **1.5.0** | same 64-bit | same u128 | **wheel→Kronecker AKS** | Yes | Huge composites with $p\le10^8$ instant; AKS usable on 4-digit $n$ | Huge primes still AKS-slow |
+| **1.6.0 (now)** | same | same | same | Yes | **`next_prime` API** (wheel candidates + `is_prime`) | Successor search still $\sim$gap $\times$ one prime check |
 
 ---
 
@@ -501,6 +509,7 @@ Recorded so agents and humans do not “rediscover” them:
 | Path | Role |
 |------|------|
 | `is_prime.py` | Dispatch + Python/Numba/AKS engines |
+| `next_prime.py` | Successor prime (wheel candidates + `is_prime`) |
 | `is_prime_data/wheel_core.c` | OpenMP u64/u128 engines (generated + hand-tuned sections) |
 | `scripts/generate_wheel_core_c.py` | C generator |
 | `scripts/generate_wheel_data.py` | Wheel tables |
@@ -513,4 +522,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.5.0** (huge-n Kronecker AKS + wheel pretrial). Extend forward; do not delete past eras.*
+*Last updated for package **1.6.0** (`next_prime` API; engines unchanged from 1.5.0). Extend forward; do not delete past eras.*

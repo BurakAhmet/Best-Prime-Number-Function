@@ -19,7 +19,7 @@ Today’s CI specimen sits above the bench. Type any $n$ for an exact 30-wheel t
 
 | | |
 |--|--|
-| **Library** | `is_prime(n)` in Python (`int` or decimal `str`) |
+| **Library** | `is_prime(n)`, `next_prime(n)` in Python (`int` or decimal `str`) |
 | **Fast path** | $n \lt 2^{64}$: OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
 | **Mid-large path** | $n \ge 2^{64}$ with practical $\sqrt{n}$ (e.g. about $10^{20}$): OpenMP **u128** full trial (or stdlib wheel) |
 | **Huge path** | Partial trial, then **AKS** if needed (deterministic, can be slow) |
@@ -62,8 +62,9 @@ pip install -e .
 # optional if OpenMP core was not built at install time:
 bash scripts/compile_wheel_core.sh
 
-python -c "from best_prime import is_prime; print(is_prime(17))"
+python -c "from best_prime import is_prime, next_prime; print(is_prime(17), next_prime(14))"
 is-prime 1000000007                    # console script
+next-prime 100                         # 101
 python is_prime.py                     # default: largest prime < 2^64
 python is_prime.py 100000000000000000039  # ~10^20 prime (u128_wheel_c)
 pytest -q -m "not slow"
