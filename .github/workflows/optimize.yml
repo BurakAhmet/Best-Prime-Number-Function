@@ -1,8 +1,10 @@
 # Daily / on-demand optimization loop.
 # 1. Record a baseline on the standing Optimization log issue.
 # 2. Hunt a small catalog of compile-time knobs (interleaved A/B).
-# 3. If a candidate wins: open a PR, examine it on a fresh runner, squash-merge
-#    only when it is still faster and tests pass. Otherwise close the PR.
+# 3. If a catalog candidate wins: open a PR, examine, squash-merge only if faster.
+# 4. Open a dated [Optimize] issue and assign Copilot (COPILOT_ASSIGN_TOKEN)
+#    for a real engine idea. Copilot PRs are labeled optimize/candidate and
+#    examined by optimize-examine.yml.
 #
 # Generic Auto-merge is skipped for these PRs — "not 20% slower" is not enough.
 name: Optimize
@@ -14,6 +16,10 @@ on:
     inputs:
       hunt:
         description: "Search the catalog and open a PR if a candidate wins"
+        type: boolean
+        default: true
+      assign_copilot:
+        description: "Open an Optimization round issue and assign Copilot"
         type: boolean
         default: true
       merge:
@@ -119,8 +125,10 @@ jobs:
               'Scheduled **Optimize** workflow (08:00 Istanbul / 05:00 UTC):',
               '1. Record a baseline here.',
               '2. Hunt the compile-time catalog (`scripts/optimize_hunt.py`).',
-              '3. Open a PR if a candidate wins, **examine** it on a fresh runner,',
-              '   squash-merge only when it is still faster (and tests pass).',
+              '3. Open a dated **Optimization round** issue and assign **Copilot**',
+              '   to invent a real engine change (needs `COPILOT_ASSIGN_TOKEN`).',
+              '4. Catalog or Copilot PRs labeled `optimize/candidate` are **examined**',
+              '   and squash-merged only when still faster (and tests pass).',
               '',
               'Rules: deterministic; no stochastic primality engine; no external prime libraries;',
               'e2e CLI `TIME` is primary; read `docs/ALGORITHM_HISTORY.md` F1–F13.',
@@ -402,3 +410,115 @@ jobs:
             gh issue comment "$ISSUE" --body-file /tmp/done.md
             echo "Did not merge optimize PR #${PR} (${REASON})"
           fi
+
+  copilot:
+    name: Assign Copilot to a new Optimization round
+    needs: [baseline, hunt]
+    if: ${{ always() && !cancelled() && needs.baseline.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.assign_copilot) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: optimize-baseline
+          path: /tmp/optimize-baseline
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: optimize-hunt
+          path: /tmp/optimize-hunt
+
+      - name: Build issue body
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          HUNT=""
+          if [ -f /tmp/optimize-hunt/optimize_hunt.json ]; then
+            HUNT="--hunt /tmp/optimize-hunt/optimize_hunt.json"
+          fi
+          python3 scripts/optimize_round_issue.py \
+            --baseline /tmp/optimize-baseline/optimize_baseline.json \
+            $HUNT \
+            --run-url "$RUN_URL" \
+            --out /tmp/round.md
+
+      - name: Create issue and assign Copilot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSIGN_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
+          ISSUE_LOG: ${{ needs.baseline.outputs.issue }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          DATE=$(date -u +%F)
+          TITLE="[Optimize] daily ${DATE}"
+
+          # Do not stack Copilot sessions.
+          OPEN=$(gh issue list --repo "${{ github.repository }}" \
+            --label optimize/round --state open \
+            --json number,assignees,title \
+            --jq '[.[] | select(.assignees | map(.login) | join(",") | test("copilot"; "i"))] | .[0].number // empty')
+          if [ -n "$OPEN" ]; then
+            echo "Copilot already working on #${OPEN} — skip new assignment"
+            gh issue comment "$ISSUE_LOG" --body "Copilot still assigned to #${OPEN}; skipped a new round today. [run](${RUN_URL})"
+            exit 0
+          fi
+
+          gh label create optimize/round --color 0e8a16 \
+            --description "Daily Copilot optimization hunt" --force || true
+
+          URL=$(gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "$TITLE" \
+            --body-file /tmp/round.md \
+            --label optimize/round \
+            --label performance \
+            --label area/core \
+            --label restriction-risk/high)
+          NUM=$(echo "$URL" | grep -oE '[0-9]+$')
+          echo "Opened $URL"
+
+          ASSIGNED="no"
+          if [ -n "${ASSIGN_TOKEN:-}" ]; then
+            jq -n \
+              --arg repo "${{ github.repository }}" \
+              --arg hint "Follow the issue body and .github/copilot-instructions.md. One real engine idea, not TILE catalog knobs. Interleaved A/B; PR only on a win; do not merge. No stochastic primality engine; no external prime libraries." \
+              '{assignees:["copilot-swe-agent[bot]"],agent_assignment:{target_repo:$repo,base_branch:"main",custom_instructions:$hint}}' \
+              > /tmp/assign.json
+            set +e
+            RESP=$(GH_TOKEN="$ASSIGN_TOKEN" gh api --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/issues/${NUM}/assignees" \
+              --input /tmp/assign.json)
+            RC=$?
+            set -e
+            if [ "$RC" -eq 0 ]; then
+              ASSIGNED="yes"
+              echo "Assigned Copilot to #${NUM}"
+            else
+              echo "Assign API failed (exit $RC). Response:" >&2
+              echo "$RESP" >&2
+            fi
+          else
+            echo "COPILOT_ASSIGN_TOKEN is not set — issue created, assign Copilot in the UI."
+          fi
+
+          {
+            echo "## Copilot round"
+            echo
+            echo "- Issue: $URL"
+            echo "- Assigned Copilot: **${ASSIGNED}**"
+            if [ "$ASSIGNED" != "yes" ]; then
+              echo
+              echo "Add repo secret \`COPILOT_ASSIGN_TOKEN\` (PAT that can assign Copilot;"
+              echo "Issues + Contents + PRs + Actions read/write) or click"
+              echo "**Assign to Copilot** on the issue."
+            fi
+            echo
+            echo "[run](${RUN_URL})"
+          } > /tmp/copilot_log.md
+          gh issue comment "$ISSUE_LOG" --body-file /tmp/copilot_log.md
+          gh issue comment "$NUM" --body "Opened by Optimize [run](${RUN_URL}). Assigned Copilot: **${ASSIGNED}**."

@@ -21,6 +21,21 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 - Prefer concrete repro steps and test ideas over vague advice.
 - Reminder: much of this repo was AI-generated; recommend review before production use.
 
+## Optimization rounds (when assigned an `[Optimize]` issue)
+
+You are the **engine hunter**, not the TILE catalog. The daily Actions catalog
+already tried `TILE_BYTES` / `TILE_P_MAX` / `PARALLEL_SEG_MIN`. Pick **one**
+other idea. Read `docs/ALGORITHM_HISTORY.md` **F1–F13** first.
+
+1. `bash scripts/compile_wheel_core.sh` and copy `wheel_core.so` aside.
+2. Edit `scripts/generate_wheel_core_c.py` (generator is source of truth).
+3. `python3 scripts/generate_wheel_core_c.py && bash scripts/compile_wheel_core.sh`
+4. Interleaved A/B: `python3 scripts/optimize_hunt.py examine --orig /tmp/orig_wheel_core.so`
+5. Open a PR **only** on a real win; update `docs/ALGORITHM_HISTORY.md` + `CHANGELOG.md`.
+6. **Do not merge.** The Optimize examine workflow merges only if a fresh runner agrees.
+
+Forbidden as the engine: stochastic primality tests, external prime libraries.
+
 ## When changing code or reviewing PRs
 
 - Keep or extend unit tests; do not remove edge-case coverage without replacement.

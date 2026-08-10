@@ -6,7 +6,9 @@
 | **Determinism** | push / PR | Repeated serial/parallel trials + `check_determinism.py` |
 | **Auto-merge** | CI / Determinism completed | Squash-merge **same-repo** PRs when tests + determinism (+ perf if present) are green |
 | **Prime of the day** | daily 12:00 UTC / manual | Deterministic date→`n` challenge via `lab()`; upserts issue labeled `prime-of-the-day` |
-| **Optimize** | daily 05:00 UTC / manual | Baseline on the **Optimization log** issue; hunt the compile-time catalog; open an `optimize/candidate` PR if a candidate wins; **examine** it (interleaved A/B + tests) on a fresh runner; squash-merge only if it is still faster. Generic Auto-merge skips these PRs. |
+| **Optimize** | daily 05:00 UTC / manual | Baseline on the **Optimization log** issue; hunt the compile-time catalog; open a dated **Optimization round** issue and assign **Copilot** (needs `COPILOT_ASSIGN_TOKEN`); catalog/Copilot PRs labeled `optimize/candidate` are examined (interleaved A/B + tests) and squash-merged only if still faster. Generic Auto-merge skips these PRs. |
+| **Optimize examine** | PR labeled `optimize/candidate` | Fresh-runner A/B vs `main`; merge only on a confirmed win. |
+| **Copilot setup steps** | Copilot coding agent | Install gcc/OpenMP, `pip install -e ".[fast,test]"`, compile `wheel_core.so`. |
 | **Issue agent** | issue opened | Keyword answers + restrictions briefing + labels |
 | **PR agent** | PR open/sync | Briefing, Copilot review request (best-effort), **auto-approve same-repo PRs** |
 | **Project autonomy** | issues / PRs | Label kanban without a human-only lane |
@@ -28,7 +30,9 @@ python -m best_prime --lab --json 97
 ## Auto-approve / auto-merge policy
 
 - **Same-repository** PRs may be auto-approved (PR agent) and auto-merged (Auto-merge) after green **CI** + **Determinism**.
-- **`optimize/candidate` PRs are not auto-merged.** The Optimize workflow examines them and merges only when they are actually faster than `main`.
+- **`optimize/candidate` PRs are not auto-merged.** Optimize examine merges them only when they are actually faster than `main`.
+- **Copilot** is the daily *idea* hunter (assigned to `[Optimize] daily …` issues). The catalog job only tries TILE / pmax / OpenMP knobs.
+- To auto-assign Copilot, add repo secret **`COPILOT_ASSIGN_TOKEN`**: a PAT (user who can assign Copilot) with read/write **Issues, Contents, Pull requests, Actions**. Without it the issue is still created — click **Assign to Copilot** on the issue.
 - **Forks are not auto-approved or auto-merged.**
 - Approval **does not** waive CI — gates stay on green checks.
 

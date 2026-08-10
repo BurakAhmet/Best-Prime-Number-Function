@@ -1,0 +1,124 @@
+# Examine Optimize / Copilot candidate PRs on a fresh runner.
+# Merge only if interleaved A/B still beats main and tests pass.
+# Generic Auto-merge skips these PRs.
+name: Optimize examine
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
+
+concurrency:
+  group: optimize-examine-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
+
+env:
+  OMP_NUM_THREADS: "2"
+  NUMBA_NUM_THREADS: "2"
+
+jobs:
+  examine:
+    name: A/B vs main and merge if faster
+    if: >
+      contains(join(github.event.pull_request.labels.*.name, ','), 'optimize/candidate')
+      || startsWith(github.event.pull_request.head.ref, 'optimize/auto-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout PR (candidate)
+        uses: actions/checkout@v4
+        with:
+          path: cand
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Checkout main (baseline engine)
+        uses: actions/checkout@v4
+        with:
+          path: main_src
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: cand/pyproject.toml
+
+      - name: Install build tools for OpenMP wheel core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
+
+      - run: pip install -e "cand/[fast,test]"
+
+      - name: Compile both wheel cores
+        run: |
+          bash main_src/scripts/compile_wheel_core.sh
+          bash cand/scripts/compile_wheel_core.sh
+          test -f main_src/is_prime_data/wheel_core.so
+          test -f cand/is_prime_data/wheel_core.so
+
+      - name: Interleaved A/B + e2e
+        id: ab
+        continue-on-error: true
+        working-directory: cand
+        run: |
+          python3 scripts/optimize_hunt.py examine \
+            --orig "$GITHUB_WORKSPACE/main_src/is_prime_data/wheel_core.so" \
+            --cand "$GITHUB_WORKSPACE/cand/is_prime_data/wheel_core.so" \
+            --pairs 3 \
+            --json optimize_examine.json \
+            --md optimize_examine.md \
+            --work /tmp/optimize_examine
+
+      - name: Tests + restrictions + determinism
+        id: tests
+        continue-on-error: true
+        working-directory: cand
+        run: |
+          python3 scripts/check_restrictions.py
+          python3 scripts/check_wiki_sync.py
+          pytest -q -m "not slow"
+          python benchmarks/check_determinism.py --trials 2
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: optimize-examine-pr-${{ github.event.pull_request.number }}
+          path: |
+            cand/optimize_examine.json
+            cand/optimize_examine.md
+
+      - name: Comment and merge or leave
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          AB="${{ steps.ab.outcome }}"
+          TS="${{ steps.tests.outcome }}"
+          {
+            echo "## Optimize examine"
+            echo
+            echo "- A/B vs \`${{ github.event.pull_request.base.sha }}\`: **${AB}**"
+            echo "- Tests: **${TS}**"
+            echo
+            if [ -f cand/optimize_examine.md ]; then cat cand/optimize_examine.md; fi
+          } > /tmp/ex.md
+          gh pr comment "$PR" --repo "${{ github.repository }}" --body-file /tmp/ex.md
+
+          if [ "$AB" = "success" ] && [ "$TS" = "success" ]; then
+            gh pr ready "$PR" --repo "${{ github.repository }}" || true
+            gh pr merge "$PR" --repo "${{ github.repository }}" --squash --delete-branch \
+              --subject "${{ github.event.pull_request.title }} (#${PR})" \
+              --body "Optimize examine confirmed a same-machine win vs main. Tests green."
+            echo "Merged optimize PR #${PR}"
+          else
+            echo "Not merging PR #${PR} (examine=${AB} tests=${TS})"
+            gh pr comment "$PR" --repo "${{ github.repository }}" --body \
+              "Examine did **not** accept this as faster than \`main\` (A/B=${AB}, tests=${TS}). Generic Auto-merge will not land it. Leave it for inspection or close it."
+          fi
