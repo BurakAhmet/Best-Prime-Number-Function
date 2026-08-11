@@ -28,7 +28,7 @@
 ## Install
 
 ```bash
-pip install best-prime-number-function          # PyPI (when the publisher is configured)
+pip install best-prime-number-function          # PyPI (Trusted Publisher on first upload)
 pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
 pip install -e ".[dev]"                         # clone + tests, ruff, mypy, Numba
 bash scripts/compile_wheel_core.sh              # gcc+OpenMP (Linux) or clang+libomp (macOS)

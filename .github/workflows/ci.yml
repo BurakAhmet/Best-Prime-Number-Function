@@ -237,6 +237,54 @@ jobs:
             e2e_candidate.json
             hot_candidate.json
 
+  wheel-smoke:
+    name: Platform wheel (not py3-none-any)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
+          python -m pip install -U pip build
+      - name: Build required-native wheel
+        env:
+          BEST_PRIME_REQUIRE_NATIVE: "1"
+          BEST_PRIME_PORTABLE: "1"
+        run: python -m build --wheel
+      - name: Assert platform tag and native core inside
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          wheels = list(Path("dist").glob("*.whl"))
+          assert len(wheels) == 1, wheels
+          name = wheels[0].name
+          assert "none-any" not in name, name
+          assert "linux" in name or "manylinux" in name, name
+          with zipfile.ZipFile(wheels[0]) as zf:
+              so = [n for n in zf.namelist() if n.endswith("wheel_core.so")]
+          assert so, f"wheel_core.so missing from {name}"
+          print("ok", name, "contains", so[0])
+          PY
+
+  docker-smoke:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t best-prime:ci .
+      - name: Smoke CLI (tiny + C-path n)
+        run: |
+          docker run --rm best-prime:ci 17
+          docker run --rm best-prime:ci 1000000007
+
   attestation:
     name: Certificate of correctness
     runs-on: ubuntu-latest

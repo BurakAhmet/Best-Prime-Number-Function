@@ -28,32 +28,73 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
 
-  wheels:
-    name: cibuildwheel (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+  wheel-linux:
+    name: manylinux x86_64 wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build portable platform wheel in manylinux
+        run: |
+          mkdir -p wheelhouse
+          docker run --rm --volume "$PWD":/src --workdir /src \
+            quay.io/pypa/manylinux_2_28_x86_64 \
+            bash -lc '
+              set -euo pipefail
+              dnf -y install libgomp-devel
+              PY=/opt/python/cp312-cp312/bin/python
+              "$PY" -m pip install -U pip build auditwheel
+              BEST_PRIME_REQUIRE_NATIVE=1 BEST_PRIME_PORTABLE=1 \
+                "$PY" -m build --wheel --outdir /tmp/built
+              "$PY" -m auditwheel repair /tmp/built/*.whl -w /src/wheelhouse
+            '
+          python3 - <<'PY'
+          from pathlib import Path
+          wheels = list(Path("wheelhouse").glob("*.whl"))
+          assert wheels, "no repaired wheel"
+          name = wheels[0].name
+          assert "none-any" not in name, name
+          assert "manylinux" in name, name
+          print("ok", name)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux
+          path: wheelhouse/*.whl
+
+  wheel-macos:
+    name: macOS wheel
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install macOS OpenMP
-        if: runner.os == 'macOS'
-        run: brew install libomp || true
-      - uses: pypa/cibuildwheel@v2.22.0
+      - name: Install libomp
+        run: brew install libomp
+      - name: Build portable platform wheel
         env:
-          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
-          CIBW_SKIP: "pp* *-win32 *-manylinux_i686 *-musllinux_i686"
+          BEST_PRIME_REQUIRE_NATIVE: "1"
+          BEST_PRIME_PORTABLE: "1"
+        run: |
+          python -m pip install -U pip build delocate
+          python -m build --wheel --outdir /tmp/built
+          mkdir -p wheelhouse
+          delocate-wheel -w wheelhouse /tmp/built/*.whl
+          python - <<'PY'
+          from pathlib import Path
+          wheels = list(Path("wheelhouse").glob("*.whl"))
+          assert wheels, "no macOS wheel"
+          name = wheels[0].name
+          assert "none-any" not in name, name
+          print("ok", name)
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-macos
           path: wheelhouse/*.whl
 
   publish:
-    needs: [sdist, wheels]
+    needs: [sdist, wheel-linux, wheel-macos]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

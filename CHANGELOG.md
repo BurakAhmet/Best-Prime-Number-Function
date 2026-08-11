@@ -4,9 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.1] — 2026-08-11
+
 ### Fixed
 - Auto-merge recognizes cross-platform CI job names (`Tests (<os> / Python …)`), not only the old `Tests (Python …)` form.
 - Determinism workflow publishes a `Determinism` gate check so branch protection can see it.
+- Dockerfile installs `libc6-dev` so the slim image can compile `wheel_core.so` (GHCR 1.11.0 failed on missing `stdint.h`).
+- Published wheels are real platform artifacts (`py3-none-<plat>` with `wheel_core.so` inside), not `py3-none-any`. `BEST_PRIME_REQUIRE_NATIVE=1` fails the build if the core does not compile; `BEST_PRIME_PORTABLE=1` skips `-march=native`.
 
 ## [1.11.0] — 2026-08-10
 
