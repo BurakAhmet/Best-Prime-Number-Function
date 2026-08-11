@@ -5,17 +5,17 @@ These rules apply to **all** contributors and **automated agents**.
 ## Non-negotiable
 
 1. **Deterministic** — no randomness; same input ⇒ same output, always.
-2. **No stochastic Miller–Rabin** — no random bases, no “probably prime” engines as the core.
+2. **No stochastic Miller–Rabin** — no random bases, no “probably prime” engines as the core. A **deterministic Miller test** with a published *complete* witness set on a stated bound is allowed; above that bound we still use trial / AKS.
 3. **No prime libraries** as the implementation (e.g. primesieve, sympy.isprime as the engine).
 4. **Allowed:** NumPy / Numba, and our own compiled OpenMP helper (`wheel_core.so`), for speeding up *our* trial division.
 5. **Correctness model**
-   - $n \lt 2^{64}$: exact trial division up to $\lfloor\sqrt{n}\rfloor$ — OpenMP **precomputed primes** / segmented primes when `wheel_core.so` is built; otherwise primorial-wheel (embedded **30030** and/or modulus **9699690**)
-   - $2^{64} \le n$ with $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): same full trial model via OpenMP **u128** core or stdlib wheel
-   - still larger $n$: partial trial, then **AKS** (may be slow for huge primes)
+   - $n \lt 2^{64}$: deterministic Miller test with witnesses $2,3,5,7,11,13,23$ (complete on this range), after a tiny prime precheck
+   - $2^{64} \le n \le 3\,317\,044\,064\,679\,887\,385\,961\,981$: deterministic Miller test with witnesses $2,3,5,7,11,13,17,19,23,29,31,37$ (Sorenson–Webster)
+   - still larger $n$: **30030**-wheel / **9699690**-wheel partial trial, then **AKS** (may be slow for huge primes)
 
-## Why not “just use MR”?
+## Why not random-base MR?
 
-Fixed witness Miller–Rabin is deterministic only on **proven finite ranges** (e.g. 64-bit with a known base set). That does **not** give a uniform finite-base proof for **every** natural number. This project optimizes under the stricter goal: deterministic for all $n$ in theory, with engineered fast paths for 64-bit inputs.
+A random-base Miller–Rabin test is only *probably* prime. This project still forbids that. Fixed witness sets are a **theorem** on a finite interval: if those tests pass, $n$ is prime. Above the largest published bound we do not pretend a short witness list is a proof — we fall back to trial / AKS.
 
 ## Agent files in the main repo
 

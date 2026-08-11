@@ -5,21 +5,15 @@
 CLI **`TIME` is end-to-end** (import → answer). Engines are tiered to minimize that total:
 
 1. $n \lt 10^4$: tiny pure-Python loop (no NumPy/Numba).
-2. If `is_prime_data/wheel_core.so` is present: **OpenMP C** (preferred on Linux CI), with:
-   - small-prime precheck (through a few hundred),
-   - **precomputed odd primes** $\le 2^{20}$ and exact **2-adic inverse** trial when $\lfloor\sqrt{n}\rfloor \le 1\,048\,576$ (wrap-mul divisibility; no wheel `DIV`),
-   - **wheel-30 segmented sieve + memcpy presieve** ($7\cdot11\cdot13\cdot17$) **+ OR presieve** ($19\cdot23\cdot29$) **+ persisted uint32 byte-index marks + L1 tiles for $p<4096$ (16 KiB) + `DELTA[64]`/`ctzll` extract + 4+4 2-adic** (INV16, two Newton steps) when $\lfloor\sqrt{n}\rfloor$ is larger (1 byte / 30 numbers; wrap-mul, no `DIV`; OpenMP only when $\lfloor\sqrt{n}\rfloor \ge 10^7$; 128 KiB segments),
-   - integer `isqrt` and early abort when a factor is found.
+2. If `is_prime_data/wheel_core.so` is present: **OpenMP C** small-prime precheck, then a **deterministic Miller test** with witnesses $2,3,5,7,11,13,23$ (complete for every 64-bit $n$).
 3. Else if $n \le 4\cdot10^{12}$: **embedded 30030-wheel** (stdlib only, zlib-compressed steps in `best_prime/is_prime.py`).
-4. Else: lazy **Numba** `9699690`-wheel with optional `prange` when $\lfloor\sqrt{n}\rfloor \ge 50\,000$.
+4. Else: stdlib fixed-witness test (same complete set). The **9699690**-wheel / Numba path remains as a legacy table for tests.
 
 Legacy `W30030` / `RES_TO_WI` load lazily for tests. Build the C core with `bash scripts/compile_wheel_core.sh` (regenerate sources via `python scripts/generate_wheel_core_c.py`). Regenerate tables with `python scripts/generate_wheel_data.py`. E2E bench: `python benchmarks/compare_e2e.py`.
 
 ## Large path — $n \ge 2^{64}$
 
-1. If $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits (covers e.g. primes near $10^{20}$):
-   - Prefer OpenMP C **`is_prime_u128_core`** (same wheel / segmented-prime full trial as the 64-bit engine; limbs `lo`/`hi`).
-   - Else stdlib **9699690-wheel** full trial in Python.
+1. If $n \le 3\,317\,044\,064\,679\,887\,385\,961\,981$: deterministic Miller test with witnesses $2,3,5,7,11,13,17,19,23,29,31,37$ (Sorenson–Webster). Prefer OpenMP C **`is_prime_u128_core`**.
 2. For still-larger $n$: **30030-wheel** trial up to $\min(10^8,\lfloor\sqrt{n}\rfloor)$, then **AKS** if needed (Kronecker poly mul; correct, still slow for huge primes).
 
 ## Enumeration, factors, powers

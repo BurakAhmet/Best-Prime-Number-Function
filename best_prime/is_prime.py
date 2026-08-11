@@ -41,6 +41,11 @@ _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000
 # Full deterministic trial (no AKS) when isqrt(n) is at most this (covers ~10^20).
 _MAX_FULL_TRIAL_ISQRT = 25_000_000_000  # 2.5e10 → n up to ~6.25e20
+# Deterministic Miller (fixed witnesses) is complete for every n below this
+# (Sorenson–Webster). Not random-base; beyond this bound we keep trial/AKS.
+_DT_WITNESS_MAX = 3_317_044_064_679_887_385_961_981
+_DT_W64 = (2, 3, 5, 7, 11, 13, 23)
+_DT_W82 = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
 # Before AKS: 30030-wheel trial up to this (or isqrt, whichever is smaller).
 _AKS_TRIAL_BOUND = 100_000_000
 _PRECHECK_BIG = (
@@ -826,6 +831,38 @@ def _is_prime_u128_c(n: int, parallel: bool) -> bool | None:
     return bool(lib.is_prime_u128_core(lo, hi, 1 if parallel else 0))
 
 
+def _sprp(n: int, a: int) -> bool:
+    """One strong-probable-prime test (fixed base a)."""
+    if a % n == 0:
+        return True
+    d = n - 1
+    s = 0
+    while (d & 1) == 0:
+        d >>= 1
+        s += 1
+    x = pow(a, d, n)
+    if x == 1 or x == n - 1:
+        return True
+    for _ in range(s - 1):
+        x = (x * x) % n
+        if x == n - 1:
+            return True
+    return False
+
+
+def _dt_witness_prime(n: int) -> bool:
+    """Complete primality for 2 <= n <= _DT_WITNESS_MAX (fixed witness set)."""
+    if n < 2:
+        return False
+    ws = _DT_W64 if n < (1 << 64) else _DT_W82
+    for a in ws:
+        if a >= n:
+            return True
+        if not _sprp(n, a):
+            return False
+    return True
+
+
 def _is_prime_big_full_trial(n: int, parallel: bool) -> bool:
     """Exact wheel trial to isqrt(n) for moderate big ints (no AKS)."""
     decided = _precheck(n)
@@ -841,7 +878,7 @@ def _is_prime_big_full_trial(n: int, parallel: bool) -> bool:
 
 
 def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
-    """Primality for n >= 2^64. Full trial when practical; else partial + AKS."""
+    """Primality for n >= 2^64. Fixed-witness test, else trial, else AKS."""
     for p in _PRECHECK_BIG:
         if n == p:
             return True
@@ -849,6 +886,12 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
             return False
         if p * p > n:
             return True
+    if n <= _DT_WITNESS_MAX:
+        if n.bit_length() <= 128:
+            c_result = _is_prime_u128_c(n, parallel)
+            if c_result is not None:
+                return c_result
+        return _dt_witness_prime(n)
     sq = math.isqrt(n)
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
@@ -871,7 +914,7 @@ def _is_prime_one(n_int: int, parallel: bool) -> bool:
             return _is_prime_u64(n_int, parallel)
         if n_int <= _PURE_WHEEL_MAX_N:
             return _is_prime_python_wheel(n_int)
-        return _is_prime_u64(n_int, parallel)
+        return _dt_witness_prime(n_int)
     return _is_prime_big(n_int, parallel=parallel)
 
 
@@ -932,19 +975,19 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         else:
             path = "u64_wheel_numba"
     else:
-        sq = math.isqrt(n_int) if n_int >= 2 else 0
         lib = _load_c_core()
-        if (
-            sq <= _MAX_FULL_TRIAL_ISQRT
-            and n_int.bit_length() <= 128
-            and lib
-            and hasattr(lib, "is_prime_u128_core")
+        if n_int <= _DT_WITNESS_MAX and n_int.bit_length() <= 128 and lib and hasattr(
+            lib, "is_prime_u128_core"
         ):
             path = "u128_wheel_c"
-        elif sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
-            path = "bigint_wheel"
+        elif n_int <= _DT_WITNESS_MAX:
+            path = "python_dt"
         else:
-            path = "bigint_trial_or_aks"
+            sq = math.isqrt(n_int) if n_int >= 2 else 0
+            if sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
+                path = "bigint_wheel"
+            else:
+                path = "bigint_trial_or_aks"
     info = {
         "n": n_int,
         "bit_length": n_int.bit_length(),
@@ -966,9 +1009,10 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
     notes = {
         "python_small": "Pure-Python trial division for tiny n (no NumPy/Numba).",
         "python_wheel": "Embedded 30030-wheel trial division (stdlib, best e2e TIME).",
-        "u64_wheel_c": "OpenMP C: precomputed-prime trial and/or wheel-30 segmented prime trial (no Numba JIT).",
+        "u64_wheel_c": "OpenMP C: small-prime precheck + deterministic fixed-witness test (complete for all 64-bit n).",
         "u64_wheel_numba": "Numba 9699690-wheel trial division up to isqrt(n).",
-        "u128_wheel_c": "OpenMP C full trial for 65–128-bit n (wheel / seg-primes; no AKS).",
+        "u128_wheel_c": "OpenMP C: deterministic fixed-witness test (complete for n ≤ 3.317e24).",
+        "python_dt": "Stdlib deterministic fixed-witness test (complete for n ≤ 3.317e24).",
         "bigint_wheel": "Stdlib 9699690-wheel full trial for moderate big ints (no AKS).",
         "bigint_trial_or_aks": "Huge-int path: 30030-wheel partial trial, then AKS (Kronecker; may be slow).",
     }

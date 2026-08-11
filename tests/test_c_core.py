@@ -149,7 +149,12 @@ class TestCU128Path:
     def test_two_to_64_uses_big_path_not_u64(self):
         # 2^64 itself is composite power of two; path is big-int family.
         info = lab(1 << 64)
-        assert info["path"] in {"u128_wheel_c", "bigint_wheel", "bigint_trial_or_aks"}
+        assert info["path"] in {
+            "u128_wheel_c",
+            "python_dt",
+            "bigint_wheel",
+            "bigint_trial_or_aks",
+        }
         assert info["is_prime"] is False
 
 

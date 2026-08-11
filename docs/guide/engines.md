@@ -8,13 +8,14 @@ CLI **`TIME` is end-to-end** (import → answer). Dispatch is tiered to minimize
 is_prime(n)
     ├─ n < 10⁴         → pure-Python small loop
     ├─ n < 2⁶⁴
-    │    ├─ wheel_core.so → OpenMP C precomputed primes / seg-primes
-    │    │                 (Linux/macOS wheels ship this; else compile locally)
+    │    ├─ wheel_core.so → OpenMP C precheck + fixed-witness Miller
+    │    │                 (complete for every 64-bit n)
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
-    │    └─ else          → Numba 9699690-wheel
+    │    └─ else          → stdlib fixed-witness test
     └─ n ≥ 2⁶⁴
-         ├─ isqrt(n) ≤ 2.5·10¹⁰ (≤128-bit) → OpenMP u128 full trial / stdlib wheel
-         └─ larger still            → 30030-wheel to 1e8 → AKS if needed
+         ├─ n ≤ 3.317e24  → OpenMP C / stdlib fixed-witness Miller
+         │                  (Sorenson–Webster complete set)
+         └─ larger still  → 30030-wheel to 1e8 → AKS if needed
 ```
 
 ```mermaid
@@ -25,18 +26,18 @@ flowchart TD
   C -->|yes| P1[Pure-Python small loop]
   C -->|no| D{n < 2^64}
   D -->|yes| E{wheel_core.so?}
-  E -->|yes| P2[OpenMP C — precomputed / seg-primes<br/>Linux/macOS wheels ship this]
+  E -->|yes| P2[OpenMP C — precheck + fixed-witness Miller]
   E -->|no| F{n ≤ 4·10^12}
   F -->|yes| P3[Embedded 30030-wheel]
-  F -->|no| P4[Numba 9699690-wheel]
-  P1 --> G{divisor ≤ √n?}
+  F -->|no| P4[Stdlib fixed-witness test]
+  P1 --> G{composite?}
   P2 --> G
   P3 --> G
   P4 --> G
   G -->|yes| Z1
   G -->|no| Z2[True]
-  D -->|no| H{isqrt n ≤ 2.5·10^10 and ≤128-bit?}
-  H -->|yes| P5[OpenMP u128 full trial / stdlib wheel]
+  D -->|no| H{n ≤ 3.317e24?}
+  H -->|yes| P5[OpenMP C / stdlib fixed-witness Miller]
   P5 --> G
   H -->|no| I[30030-wheel to 1e8 then AKS]
   I --> L{prime?}
@@ -47,16 +48,13 @@ flowchart TD
 ### Fast path — $n \lt 2^{64}$
 
 1. $n \lt 10^4$: tiny pure-Python loop (no NumPy/Numba).
-2. If `is_prime_data/wheel_core.so` is present: **OpenMP C**
-    - small-prime precheck
-    - **precomputed odd primes** $\le 2^{20}$ and exact **2-adic inverse** trial when $\lfloor\sqrt{n}\rfloor \le 1\,048\,576$ (wrap-mul; no wheel `DIV`)
-    - **wheel-30 segmented sieve** + memcpy presieve $7\cdot11\cdot13\cdot17$ + OR presieve $19\cdot23\cdot29$ + persisted uint32 marks + **16 KiB L1 tiles for $p<4096$** + `DELTA[64]` extract + 4+4 INV16 wrap-mul when $\sqrt{n}$ is larger (OpenMP when $\lfloor\sqrt{n}\rfloor \ge 10^7$; 128 KiB segments)
+2. If `is_prime_data/wheel_core.so` is present: **OpenMP C** small-prime precheck, then a **deterministic Miller test** with witnesses $2,3,5,7,11,13,23$ (complete for every 64-bit $n$).
 3. Else if $n \le 4\cdot10^{12}$: **embedded 30030-wheel** (stdlib only).
-4. Else: lazy **Numba** `9699690`-wheel.
+4. Else: stdlib fixed-witness test (same complete set).
 
 ### Large path — $n \ge 2^{64}$
 
-1. If $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits (covers e.g. primes near $10^{20}$): OpenMP **`is_prime_u128_core`**, else stdlib 9699690-wheel.
+1. If $n \le 3\,317\,044\,064\,679\,887\,385\,961\,981$: deterministic Miller test with witnesses $2,3,5,7,11,13,17,19,23,29,31,37$ (Sorenson–Webster; OpenMP C when the core is built).
 2. Still larger: 30030-wheel trial up to $\min(10^8,\lfloor\sqrt{n}\rfloor)$, then **AKS** if needed (Kronecker poly mul).
 
 Inspect the live path with [`lab(n)`](api.md).

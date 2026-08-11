@@ -5,7 +5,8 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Changed
-- CLI / `DEFAULT_N` is now **`600000000000000000001`** (70-bit prime; OpenMP u128 full trial, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$). The largest prime $<2^{64}$ remains a documented 64-bit specimen.
+- **Deterministic fixed-witness Miller test** is the engine for every $n\le 3\,317\,044\,064\,679\,887\,385\,961\,981$ (complete witness sets; not random-base / “probably prime”). CLI default (~2 s of u128 trial) is now a short modular-exponentiation check. Above that bound, trial / AKS is unchanged.
+- CLI / `DEFAULT_N` is now **`600000000000000000001`** (70-bit prime). The largest prime $<2^{64}$ remains a documented 64-bit specimen.
 - Hard-path `wheel_core`: L1 tiles now cover primes $p<4096$ (was $256$), and 8-way wrap-mul trial is two GPR-friendly groups of 4 with an early exit between them. Interleaved A/B ~**4%** geomean on the hard 64-bit set (max $<2^{64}$ ~**4–6%**).
 
 ### Docs

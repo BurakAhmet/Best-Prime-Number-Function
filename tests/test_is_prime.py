@@ -304,6 +304,13 @@ class TestLarge64Bit:
         assert DEFAULT_N > (1 << 64)
         assert DEFAULT_N in LARGE_PRIMES_SLOW
 
+    def test_default_n_is_prime_and_fast(self):
+        import time
+
+        t0 = time.perf_counter()
+        assert is_prime(DEFAULT_N) is True
+        assert (time.perf_counter() - t0) * 1000.0 < 200.0
+
     def test_two_pow_63_minus_one_composite(self):
         assert is_prime(MERSENNE_COMPOSITE) is False
 

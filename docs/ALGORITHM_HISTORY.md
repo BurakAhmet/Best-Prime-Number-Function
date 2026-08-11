@@ -66,7 +66,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-10  v1.8.2   prime_count Meissel–Lehmer through 2^64−1
 2026-08-10  v1.9.0   totient / primorial / divisors; primerange generator
 2026-08-10  v1.10.0  L1-tiled marking for p<256 on the hard path
-2026-08-11  unreleased  L1 tiles to p<4096 + 4+4 wrap-mul trial  ← current
+2026-08-11  unreleased  L1 tiles to p<4096 + 4+4 wrap-mul trial
+2026-08-11  unreleased  Deterministic fixed-witness Miller (≤ 3.317e24)  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -620,7 +621,7 @@ Recorded so agents and humans do not “rediscover” them:
 | **F4** | Prebuilt **Linux `.so` in pure wheel** | Broken/ misleading installs on other platforms | Build at install or ship **platform wheels** |
 | **F5** | Segmented-prime **threshold only tuned on hardest primes** | 12-digit path left on dense wheel | Retune with full e2e suite (1.3.2: $2\cdot10^5$) |
 | **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **70-bit** u128 full-trial prime `600000000000000000001` (`DEFAULT_N`); keep README / wiki / `DEFAULT_N` in sync. Largest prime $<2^{64}$ stays a documented 64-bit specimen. Pages JS demo may stay near $2^{63}$. |
-| **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled |
+| **F7** | Using **external prime sieve libs** or **random-base / “probably prime” MR** for speed | Violates project identity | Forbidden as engine. **Fixed-witness** Miller on a *published complete bound* is a theorem, not a probable-prime API; above that bound keep trial / AKS. |
 | **F8** | Skipping **serial vs parallel** determinism checks | Racey OpenMP bugs | `benchmarks/check_determinism.py` + Determinism workflow |
 | **F9** | Changing wheel/sieve without regenerating **committed C / tables** | Drift between generators and shipped artifacts | `generate_wheel_core_c.py` / `generate_wheel_data.py` + compile script |
 | **F10** | Parallel OpenMP segmented sieve on **mid-size** $\sqrt{n}$ (e.g. 12-digit) | More threads *slower* (fork + tiny segments); e2e 12-digit ~2–3× worse at 12 vs 2 threads | Serial precomputed trial for $\sqrt{n}\le 2^{20}$; OpenMP only if $\sqrt{n}\ge 10^7$ |

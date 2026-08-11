@@ -69,7 +69,12 @@ class TestLabContract:
 
     def test_two_pow_64_not_u64_path(self):
         info = lab(1 << 64)
-        assert info["path"] in {"u128_wheel_c", "bigint_wheel", "bigint_trial_or_aks"}
+        assert info["path"] in {
+            "u128_wheel_c",
+            "python_dt",
+            "bigint_wheel",
+            "bigint_trial_or_aks",
+        }
         assert info["is_prime"] is False
 
     def test_u128_path_when_core_present(self):

@@ -4,8 +4,10 @@
 Emits a compact OpenMP C engine:
   * precomputed odd primes up to PRE_MAX plus 2-adic inverses / thresholds
     (exact wrap-mul divisibility, no DIV on the mid-size path)
-  * wheel-30 segmented sieve + 8-way 2-adic prime-only trial for larger isqrt(n)
-    (Newton inv64 from a 16-bit table; exact: odd p | n iff (n*inv)*p < 2^64)
+  * deterministic Miller test (fixed witnesses) for all 64-bit n and for
+    65–128-bit n up to the Sorenson–Webster bound 3.317e24
+  * wheel-30 segmented sieve + 8-way 2-adic prime-only trial as fallback
+    beyond that bound (Newton inv64; exact: odd p | n iff (n*inv)*p < 2^64)
   * memcpy presieve of 7·11·13·17 plus AVX2/scalar OR of 19·23·29
   * contiguous per-thread ranges with persisted uint32 byte-index marks (no per-segment DIV)
   * small primes (p<TILE_P_MAX, default 4096) marked in TILE_BYTES tiles (L1); larger primes still one pass
@@ -151,6 +153,52 @@ static int precheck(uint64_t n) {
         if (p * p > n) return 1;
     }
     return -1;
+}
+
+/* Deterministic Miller test (fixed witnesses). Not random-base Rabin.
+ * Complete for every odd n < 2^64 with {2,3,5,7,11,13,23}. */
+static inline uint64_t mulmod_u64(uint64_t a, uint64_t b, uint64_t m) {
+    return (uint64_t)(((unsigned __int128)a * (unsigned __int128)b) % m);
+}
+
+static uint64_t powmod_u64(uint64_t a, uint64_t e, uint64_t m) {
+    uint64_t r = 1;
+    a %= m;
+    while (e) {
+        if (e & 1ull) r = mulmod_u64(r, a, m);
+        a = mulmod_u64(a, a, m);
+        e >>= 1;
+    }
+    return r;
+}
+
+static int sprp_u64(uint64_t n, uint64_t a) {
+    if (a >= n) {
+        a %= n;
+        if (a == 0) return 1;
+    }
+    uint64_t d = n - 1;
+    int s = 0;
+    while ((d & 1ull) == 0) {
+        d >>= 1;
+        s++;
+    }
+    uint64_t x = powmod_u64(a, d, n);
+    if (x == 1 || x == n - 1) return 1;
+    for (int r = 1; r < s; r++) {
+        x = mulmod_u64(x, x, n);
+        if (x == n - 1) return 1;
+    }
+    return 0;
+}
+
+static int dt_prime_u64(uint64_t n) {
+    static const uint64_t W[] = {2, 3, 5, 7, 11, 13, 23};
+    for (int i = 0; i < (int)(sizeof W / sizeof W[0]); i++) {
+        if (W[i] >= n) return 1;
+        if (!sprp_u64(n, W[i])) return 0;
+    }
+    return 1;
 }
 
 /*
@@ -533,11 +581,10 @@ static int seg_primes_u64(uint64_t n, uint64_t limit, int parallel) {
 }
 
 int is_prime_u64_core(uint64_t n, int parallel) {
+    (void)parallel;
     int pc = precheck(n);
     if (pc >= 0) return pc;
-    uint64_t limit = isqrt_u64(n);
-    if (limit <= PRE_MAX) return trial_pre_u64(n, limit);
-    return seg_primes_u64(n, limit, parallel);
+    return dt_prime_u64(n);
 }
 
 /* ---- 65..128-bit path: full deterministic prime trial ---- */
@@ -720,11 +767,78 @@ static int seg_primes_u128(u128 n, uint64_t limit, int parallel) {
     return !found;
 }
 
-/* n = hi * 2^64 + lo  (little-endian limbs). Full trial to isqrt(n). */
+static inline u128 addmod_u128(u128 a, u128 b, u128 m) {
+    u128 s = a + b;
+    if (s < a || s >= m) s -= m;
+    return s;
+}
+
+static u128 mulmod_u128(u128 a, u128 b, u128 m) {
+    u128 r = 0;
+    a %= m;
+    b %= m;
+    while (b) {
+        if (b & 1) r = addmod_u128(r, a, m);
+        a = addmod_u128(a, a, m);
+        b >>= 1;
+    }
+    return r;
+}
+
+static u128 powmod_u128(u128 a, u128 e, u128 m) {
+    u128 r = 1;
+    a %= m;
+    while (e) {
+        if (e & 1) r = mulmod_u128(r, a, m);
+        a = mulmod_u128(a, a, m);
+        e >>= 1;
+    }
+    return r;
+}
+
+static int sprp_u128(u128 n, uint64_t a64) {
+    u128 a = (u128)a64;
+    if (a >= n) {
+        a %= n;
+        if (a == 0) return 1;
+    }
+    u128 d = n - 1;
+    int s = 0;
+    while ((d & 1) == 0) {
+        d >>= 1;
+        s++;
+    }
+    u128 x = powmod_u128(a, d, n);
+    u128 nm1 = n - 1;
+    if (x == 1 || x == nm1) return 1;
+    for (int r = 1; r < s; r++) {
+        x = mulmod_u128(x, x, n);
+        if (x == nm1) return 1;
+    }
+    return 0;
+}
+
+/* Complete for n < 3317044064679887385961981 (Sorenson–Webster). */
+#define DT_U128_MAX_LO 0x51adc5b22410a5fdull
+#define DT_U128_MAX_HI 0x2be69ull
+
+static int dt_prime_u128(u128 n) {
+    static const uint64_t W[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37};
+    for (int i = 0; i < (int)(sizeof W / sizeof W[0]); i++) {
+        if ((u128)W[i] >= n) return 1;
+        if (!sprp_u128(n, W[i])) return 0;
+    }
+    return 1;
+}
+
+/* n = hi * 2^64 + lo  (little-endian limbs). */
 int is_prime_u128_core(uint64_t lo, uint64_t hi, int parallel) {
+    (void)parallel;
     u128 n = u128_from_halves(lo, hi);
     int pc = precheck_u128(n);
     if (pc >= 0) return pc;
+    u128 bound = u128_from_halves(DT_U128_MAX_LO, DT_U128_MAX_HI);
+    if (n <= bound) return dt_prime_u128(n);
     uint64_t limit = isqrt_u128(n);
     if (limit <= PRE_MAX) return trial_pre_u128(n, limit);
     return seg_primes_u128(n, limit, parallel);
