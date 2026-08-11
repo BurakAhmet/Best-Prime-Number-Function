@@ -40,7 +40,7 @@ install: all
 	install -d $(PREFIX)/include $(PREFIX)/lib $(PREFIX)/lib/pkgconfig
 	install -m 644 $(INCLUDE)/best_prime.h $(PREFIX)/include/best_prime.h
 	install -m 755 $(DATA)/$(SO) $(PREFIX)/lib/$(SO)
-	sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|1.11.1|g' \
+	sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|1.11.2|g' \
 	    $(ROOT)/pkgconfig/best_prime.pc.in > $(PREFIX)/lib/pkgconfig/best_prime.pc
 
 uninstall:

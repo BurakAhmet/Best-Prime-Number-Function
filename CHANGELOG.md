@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.2] — 2026-08-11
+
+### Fixed
+- manylinux wheel build: install `libgomp` (there is no `libgomp-devel` on manylinux_2_28).
+- macOS wheel: arm64-only tag + `MACOSX_DEPLOYMENT_TARGET=11.0` so delocate does not require a fake universal2 x86_64 slice.
+
 ## [1.11.1] — 2026-08-11
 
 ### Fixed
