@@ -71,6 +71,25 @@ class TestPrimeFactors:
         with pytest.raises(TypeError):
             prime_factors(True)  # type: ignore[arg-type]
 
+    def test_ecm_classic(self):
+        from best_prime.factor_ecm import ecm_factor
+
+        n = 455839  # 13 × 35065? actually 599 × 761
+        g = ecm_factor(n, B1=200, B2=2000, max_curves=20)
+        assert g is not None and 1 < g < n and n % g == 0
+
+    def test_siqs_small_semiprime(self):
+        from best_prime.factor_siqs import siqs_factor
+
+        n = 10403  # 101 × 103
+        g = siqs_factor(n, fb_bound=50, interval=400)
+        assert g is not None and 1 < g < n and n % g == 0
+        assert sorted((g, n // g)) == [101, 103]
+
+    def test_factorint_uses_advanced_for_medium(self):
+        n = 101 * 103
+        assert factorint(n) == {101: 1, 103: 1}
+
 
 @settings(max_examples=60, **_HYP)
 @given(st.integers(min_value=0, max_value=50_000))

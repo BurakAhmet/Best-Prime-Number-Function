@@ -116,6 +116,29 @@ def _try_interval_prev(n: int, k: int) -> int | None:
     return None
 
 
+def prev_primes(n: int | str, k: int | None = None, *, parallel: bool = True):
+    """Yield primes strictly less than ``n``, descending.
+
+    If ``k`` is set, stop after ``k`` primes (raises ``ValueError`` if
+    fewer than ``k`` exist). If ``k`` is ``None``, yield until 2. Large
+    ``k`` uses an interval sieve only while ``√n ≤ 2_000_000``; otherwise
+    a backward 30030-wheel + ``is_prime`` walk.
+    """
+    n_int = _parse_n(n)
+    if k is not None:
+        k_int = _parse_k(k)
+        p = prev_prime(n_int, 1, parallel=parallel)
+        yield p
+        for _ in range(k_int - 1):
+            p = prev_prime(p, 1, parallel=parallel)
+            yield p
+        return
+    p = n_int
+    while p > 2:
+        p = prev_prime(p, 1, parallel=parallel)
+        yield p
+
+
 def prev_prime(n: int | str, k: int = 1, *, parallel: bool = True) -> int:
     """Return the ``k``-th prime strictly less than ``n``.
 

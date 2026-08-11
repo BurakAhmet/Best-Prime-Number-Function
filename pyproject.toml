@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "best-prime-number-function"
-version = "1.10.0"
+version = "1.11.0"
 description = "Fully deterministic primality, π(n), factoring, and arithmetic (OpenMP C / Numba / AKS)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -43,11 +43,15 @@ dependencies = []
 # NumPy/Numba are optional: hard 64-bit / Lucy π without a compiler still
 # benefit from `[fast]`. Pure install uses stdlib wheels + Python Lucy.
 fast = ["numpy>=1.22", "numba>=0.56"]
-test = ["pytest>=7.0", "hypothesis>=6.0"]
+test = ["pytest>=7.0", "hypothesis>=6.0", "pytest-cov>=4.0"]
+lint = ["ruff>=0.6", "mypy>=1.8"]
 docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10"]
 dev = [
   "pytest>=7.0",
   "hypothesis>=6.0",
+  "pytest-cov>=4.0",
+  "ruff>=0.6",
+  "mypy>=1.8",
   "build",
   "wheel",
   "numpy>=1.22",
@@ -78,6 +82,8 @@ is-perfect-power = "best_prime.prime_cli:is_perfect_power_main"
 totient = "best_prime.prime_cli:totient_main"
 primorial = "best_prime.prime_cli:primorial_main"
 divisors = "best_prime.prime_cli:divisors_main"
+primality-certificate = "best_prime.prime_cli:primality_certificate_main"
+next-primes = "best_prime.prime_cli:next_primes_main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -93,8 +99,57 @@ include-package-data = true
 [tool.setuptools.packages.find]
 include = ["is_prime_data*", "best_prime*"]
 
-# Do not ship a prebuilt .so in the pure wheel (platform-specific).
-# setup.py builds wheel_core.so during install when a compiler is available.
+# Raw wheel tables (.u8/.u16) are the source of truth. .npy is optional
+# (generated on demand). The native .so/.dylib is built at install / cibuildwheel
+# and included in *platform* wheels only.
 [tool.setuptools.package-data]
-is_prime_data = ["*.npy", "*.u8", "*.u16", "*.py", "*.c"]
+is_prime_data = ["*.u8", "*.u16", "*.py", "*.c", "wheel_core.so", "wheel_core.dylib", "wheel_core.dll"]
 best_prime = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["best_prime", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+  "E402",  # late imports: CLI TIME starts at import
+  "E501",  # existing long lines; format does not wrap them all
+]
+
+[tool.ruff.lint.per-file-ignores]
+"is_prime_data/*" = ["ALL"]
+"scripts/generate_wheel_core_c.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = false
+follow_imports = "silent"
+files = [
+  "best_prime/certificate.py",
+  "best_prime/factor_ecm.py",
+  "best_prime/factor_siqs.py",
+]
+
+[tool.coverage.run]
+source = ["best_prime"]
+branch = true
+omit = ["best_prime/__main__.py"]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true
+
+[tool.cibuildwheel]
+build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
+skip = "pp* *-win32 *-manylinux_i686 *-musllinux_i686"
+test-command = "python -c \"from best_prime import is_prime; assert is_prime(17) and not is_prime(100)\""
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y libgomp gcc || apk add --no-cache libgomp gcc || true"
+
+[tool.cibuildwheel.macos]
+environment = { CC = "clang" }

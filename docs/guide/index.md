@@ -36,7 +36,7 @@ This library keeps a stricter contract: same $n$, any machine, serial or paralle
 
 ## Where to go
 
-- [Install](install.md) — GitHub pip, `[fast]`, OpenMP `wheel_core.so`
+- [Install](install.md) — PyPI / GitHub pip, `[fast]`, OpenMP `wheel_core`
 - [Quick start](quickstart.md) — first calls and the runnable tours
 - [API reference](api.md) — every public function, with examples
 - [Command line](cli.md) — `is-prime`, `prime-count`, `totient`, …

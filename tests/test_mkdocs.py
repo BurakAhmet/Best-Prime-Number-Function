@@ -18,6 +18,9 @@ REQUIRED = (
     "engines.md",
     "performance.md",
     "restrictions.md",
+    "faq.md",
+    "bindings.md",
+    "compare.md",
 )
 API_NEEDLES = (
     "is_prime",

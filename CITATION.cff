@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+title: Best-Prime-Number-Function
+message: If you use this software, please cite it using these metadata.
+type: software
+authors:
+  - family-names: Biçer
+    given-names: Ahmet Burak
+    email: ahmetburakbicer@gmail.com
+    alias: BurakAhmet
+repository-code: https://github.com/BurakAhmet/Best-Prime-Number-Function
+url: https://burakahmet.github.io/Best-Prime-Number-Function/guide/
+abstract: >
+  Fully deterministic primality testing, π(n), factoring, and arithmetic
+  for Python (OpenMP C / Numba / AKS). No stochastic Miller–Rabin.
+keywords:
+  - primality
+  - deterministic
+  - AKS
+  - OpenMP
+  - number theory
+license: MIT
+version: 1.11.0
+date-released: "2026-08-10"

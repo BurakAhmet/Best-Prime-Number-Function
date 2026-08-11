@@ -1,0 +1,32 @@
+# Full @pytest.mark.slow suite — does not block PR CI (issue #5).
+name: Nightly slow tests
+
+on:
+  schedule:
+    - cron: "20 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NUMBA_NUM_THREADS: "2"
+  OMP_NUM_THREADS: "2"
+
+jobs:
+  slow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libgomp1
+      - run: pip install -e ".[fast,test]"
+      - run: bash scripts/compile_wheel_core.sh
+      - run: pytest -q -m slow

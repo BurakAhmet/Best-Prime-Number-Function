@@ -67,6 +67,15 @@ _threads_configured = False
 _thread_count = 1
 
 
+def _c_core_path() -> str | None:
+    """First existing native core (Linux .so, macOS .dylib, Windows .dll)."""
+    for name in ("wheel_core.so", "wheel_core.dylib", "wheel_core.dll", "wheel_core.pyd"):
+        path = os.path.join(_DATA_DIR, name)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
 def _load_c_core():
     """Load prebuilt OpenMP extension if present (skips Numba import/JIT)."""
     global _c_core, _c_core_checked, _thread_count
@@ -75,11 +84,17 @@ def _load_c_core():
     _c_core_checked = True
     import ctypes
 
-    path = os.path.join(_DATA_DIR, "wheel_core.so")
-    if not os.path.isfile(path):
+    path = _c_core_path()
+    if not path:
         _c_core = False
         return _c_core
-    lib = ctypes.CDLL(path)
+    try:
+        lib = ctypes.CDLL(path)
+    except OSError:
+        # File exists but is the wrong ABI (e.g. a MinGW .so on Windows)
+        # or a dependency such as libgomp is missing.
+        _c_core = False
+        return _c_core
     lib.is_prime_u64_core.argtypes = [ctypes.c_uint64, ctypes.c_int]
     lib.is_prime_u64_core.restype = ctypes.c_int
     # Optional 65–128-bit full-trial entry (regenerated wheel_core).
@@ -134,7 +149,7 @@ def _load_tables():
         return _tables
     np = _numpy()
 
-    def load(name):
+    def load_npy(name):
         path = os.path.join(_DATA_DIR, name)
         if not os.path.isfile(path):
             raise FileNotFoundError(
@@ -142,20 +157,31 @@ def _load_tables():
             )
         return np.load(path)
 
+    def load_u8_wheel():
+        raw = os.path.join(_DATA_DIR, "w9699690_steps.u8")
+        if os.path.isfile(raw):
+            return np.fromfile(raw, dtype=np.uint8)
+        npy = os.path.join(_DATA_DIR, "w9699690_u8.npy")
+        if os.path.isfile(npy):
+            return load_npy("w9699690_u8.npy")
+        raise FileNotFoundError(
+            f"Missing {raw}. Run: python scripts/generate_wheel_data.py"
+        )
+
     w2_path = os.path.join(_DATA_DIR, "w9699690_u64x2.npy")
     if os.path.isfile(w2_path):
-        w64 = load("w9699690_u64x2.npy")
+        w64 = load_npy("w9699690_u64x2.npy")
     else:
-        w_wheel = load("w9699690_u8.npy")
+        w_wheel = load_u8_wheel()
         n = int(w_wheel.size)
         w64 = np.empty(n * 2, dtype=np.uint64)
         w64[:n] = w_wheel
         w64[n:] = w_wheel
     res_path = os.path.join(_DATA_DIR, "res9699690_u32.npy")
     if os.path.isfile(res_path):
-        res_wheel = load("res9699690_u32.npy")
+        res_wheel = load_npy("res9699690_u32.npy")
     else:
-        w_wheel = load("w9699690_u8.npy")
+        w_wheel = load_u8_wheel()
         nW = int(w_wheel.size)
         cs = np.empty(nW, dtype=np.int64)
         cs[0] = _WHEEL_START_I
@@ -463,8 +489,9 @@ def _get_steps_9699690():
     else:
         buf.extend(zlib.decompress(_W30030_STEPS_Z))  # should not happen
         path2 = os.path.join(_DATA_DIR, "w9699690_u8.npy")
-        np = _numpy()
-        buf = array("B", np.load(path2).tobytes())
+        if os.path.isfile(path2):
+            np = _numpy()
+            buf = array("B", np.load(path2).tobytes())
     _steps_9699690 = buf
     return _steps_9699690
 
@@ -833,9 +860,7 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
     return _aks_is_prime(n, parallel=parallel)
 
 
-def is_prime(n: int | str, *, parallel: bool = True) -> bool:
-    """Return True iff ``n`` is prime. Fully deterministic."""
-    n_int = _parse_n(n)
+def _is_prime_one(n_int: int, parallel: bool) -> bool:
     if n_int < _SMALL_LIMIT:
         return _is_prime_small(n_int)
     if n_int < (1 << 64):
@@ -846,6 +871,43 @@ def is_prime(n: int | str, *, parallel: bool = True) -> bool:
             return _is_prime_python_wheel(n_int)
         return _is_prime_u64(n_int, parallel)
     return _is_prime_big(n_int, parallel=parallel)
+
+
+def _is_sequence(n: object) -> bool:
+    """True for list/tuple/ndarray of values; not str / 0-d numpy / int."""
+    if isinstance(n, (str, bytes, bytearray, int)):
+        return False
+    if isinstance(n, (list, tuple)):
+        return True
+    ndim = getattr(n, "ndim", None)
+    if isinstance(ndim, int):
+        return ndim >= 1
+    return False
+
+
+def is_prime(n, *, parallel: bool = True):
+    """Return True iff ``n`` is prime. Fully deterministic.
+
+    ``n`` may be a natural ``int``, a decimal ``str``, a list/tuple of
+    those, or a NumPy array. Sequences return a ``list[bool]`` (or an
+    ``ndarray`` of dtype ``bool`` when the input was an ndarray).
+    """
+    ndim = getattr(n, "ndim", None)
+    if ndim == 0 and not isinstance(n, (int, str)):
+        n = int(n.item()) if hasattr(n, "item") else int(n)
+    if _is_sequence(n):
+        # NumPy array → ndarray[bool]; list/tuple → list[bool].
+        vals = list(n)
+        out = [_is_prime_one(_parse_n(int(x) if not isinstance(x, str) else x), parallel) for x in vals]
+        if getattr(n, "ndim", None) is not None and not isinstance(n, (list, tuple)):
+            try:
+                import numpy as np
+
+                return np.asarray(out, dtype=bool).reshape(getattr(n, "shape", len(out)))
+            except Exception:
+                return out
+        return out
+    return _is_prime_one(_parse_n(n), parallel)
 
 
 def _isqrt_u64(n):
@@ -914,7 +976,11 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
 
 _LAZY_API = {
     "next_prime": ("next_prime", "next_prime"),
+    "next_primes": ("next_prime", "next_primes"),
     "prev_prime": ("prev_prime", "prev_prime"),
+    "prev_primes": ("prev_prime", "prev_primes"),
+    "primality_certificate": ("certificate", "primality_certificate"),
+    "verify_certificate": ("certificate", "verify_certificate"),
     "nth_prime": ("prime_sieve", "nth_prime"),
     "prime_count": ("prime_sieve", "prime_count"),
     "primes": ("prime_sieve", "primes"),
@@ -945,13 +1011,22 @@ def __getattr__(name: str):
         return val
     if name in {"W30030", "RES_TO_WI", "W_WHEEL"}:
         np = _numpy()
-        mapping = {
+        raw = {
+            "W30030": ("w30030_steps.u8", np.uint8),
+            "RES_TO_WI": ("res30030.u16", np.uint16),
+            "W_WHEEL": ("w9699690_steps.u8", np.uint8),
+        }
+        npy = {
             "W30030": "w30030_u8.npy",
             "RES_TO_WI": "res30030_u16.npy",
             "W_WHEEL": "w9699690_u8.npy",
         }
-        path = os.path.join(_DATA_DIR, mapping[name])
-        val = np.load(path)
+        fname, dtype = raw[name]
+        path = os.path.join(_DATA_DIR, fname)
+        if os.path.isfile(path):
+            val = np.fromfile(path, dtype=dtype)
+        else:
+            val = np.load(os.path.join(_DATA_DIR, npy[name]))
         globals()[name] = val
         return val
     if name in {"RES_WHEEL", "W_WHEEL64"}:

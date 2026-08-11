@@ -33,9 +33,12 @@ from best_prime import (  # noqa: E402
     lab,
     modinv,
     next_prime,
+    next_primes,
     nth_prime,
+    primality_certificate,
     omega,
     prev_prime,
+    prev_primes,
     prime_count,
     prime_factors,
     primerange,
@@ -44,7 +47,9 @@ from best_prime import (  # noqa: E402
     radical,
     totient,
     totient_range,
+    verify_certificate,
 )
+from best_prime.next_prime import NEXT_PRIME_SIEVE_ISQRT_MAX  # noqa: E402
 
 
 def show(expr: str, value: object) -> None:
@@ -61,6 +66,7 @@ def main() -> None:
     show("DEFAULT_N", DEFAULT_N)
     show("PRIME_COUNT_MAX_N", PRIME_COUNT_MAX_N)
     show("TOTIENT_RANGE_MAX", TOTIENT_RANGE_MAX)
+    show("NEXT_PRIME_SIEVE_ISQRT_MAX", NEXT_PRIME_SIEVE_ISQRT_MAX)
 
     print("\nprimality")
     show("is_prime(17)", is_prime(17))
@@ -74,8 +80,13 @@ def main() -> None:
     print("\nneighbours / nth")
     show("next_prime(14)", next_prime(14))
     show("next_prime(14, 3)", next_prime(14, 3))
+    show("list(next_primes(14, 3))", list(next_primes(14, 3)))
     show("prev_prime(14)", prev_prime(14))
     show("prev_prime(10, 3)", prev_prime(10, 3))
+    show("list(prev_primes(14, 2))", list(prev_primes(14, 2)))
+    cert = primality_certificate(17)
+    show("primality_certificate(17)['kind']", cert["kind"])
+    show("verify_certificate(cert)", verify_certificate(cert))
     show("nth_prime(1)", nth_prime(1))
     show("nth_prime(5)", nth_prime(5))
     show("nth_prime(10001)", nth_prime(10_001))

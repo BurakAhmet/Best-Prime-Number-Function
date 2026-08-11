@@ -2,11 +2,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-!is_prime_data/wheel_core.so
+*.dylib
+*.dll
+.coverage
+coverage.xml
+htmlcov/
 .Python
-# Large derivable Numba fallback tables (built on demand if missing)
-is_prime_data/w9699690_u64x2.npy
-is_prime_data/res9699690_u32.npy
+# Derived NumPy copies of the raw .u8/.u16 wheel tables (built on demand).
+is_prime_data/*.npy
 is_prime_data/__pycache__/
 .venv/
 venv/

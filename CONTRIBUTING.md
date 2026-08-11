@@ -45,6 +45,7 @@ python3 examples/basic_usage.py
 **Secondary:** in-process hot loop (`compare_speed.py`) after engines are warm.
 
 On Linux with a successful `compile_wheel_core.sh`, `lab(10**9+7)["path"]` must be `u64_wheel_c`.
+The native `.so` is **not** committed; CI and `setup.py` rebuild it. macOS: `brew install libomp`.
 
 ### Full tests
 

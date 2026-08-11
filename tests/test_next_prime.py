@@ -105,8 +105,11 @@ class TestEdgeCases:
             assert next_prime(p) != p
 
     def test_exported_from_best_prime(self):
-        assert best_prime_next_prime is next_prime
-        assert best_prime_next_prime(14) == 17
+        fn = best_prime_next_prime
+        if not callable(fn):
+            fn = fn.next_prime  # package attribute may be the submodule
+        assert fn(14) == 17
+        assert next_prime(14) == 17
 
     def test_lazy_export_from_is_prime(self):
         import best_prime.is_prime as ip

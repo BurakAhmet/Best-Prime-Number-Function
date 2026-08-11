@@ -1,0 +1,10 @@
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: best_prime
+Description: Deterministic OpenMP primality core (no Miller–Rabin)
+Version: @VERSION@
+Libs: -L${libdir} -lbestprime -lm
+Cflags: -I${includedir}

@@ -1,9 +1,13 @@
-recursive-include is_prime_data *.npy
 recursive-include is_prime_data *.u8
 recursive-include is_prime_data *.u16
 recursive-include is_prime_data *.py
 recursive-include is_prime_data *.c
+include include/best_prime.h
+include pkgconfig/best_prime.pc.in
+include native/Makefile
 global-exclude is_prime_data/wheel_core.so
+global-exclude is_prime_data/wheel_core.dylib
+global-exclude is_prime_data/*.npy
 include setup.py
 include best_prime/py.typed
 include scripts/compile_wheel_core.sh
