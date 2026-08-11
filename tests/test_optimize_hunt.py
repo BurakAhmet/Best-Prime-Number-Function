@@ -73,8 +73,9 @@ def test_catalog_skips_known_failures():
     assert "16-way" not in joined
     for c in hunt.CANDIDATES:
         knobs = hunt.knobs_of(c)
-        # Tiling "all" primes would push p_max into the thousands.
-        assert knobs["tile_p_max"] <= 512
+        # Tiling *all* primes (pmax >= 8192) loses; default 4096 is the
+        # 12-thread L1 cutoff. Catalog pmax tweaks stay at or below that.
+        assert knobs["tile_p_max"] <= hunt.DEFAULTS["tile_p_max"]
         assert knobs["tile_bytes"] >= 8192
 
 

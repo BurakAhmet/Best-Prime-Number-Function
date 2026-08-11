@@ -8,7 +8,8 @@ Emits a compact OpenMP C engine:
     (Newton inv64 from a 16-bit table; exact: odd p | n iff (n*inv)*p < 2^64)
   * memcpy presieve of 7·11·13·17 plus AVX2/scalar OR of 19·23·29
   * contiguous per-thread ranges with persisted uint32 byte-index marks (no per-segment DIV)
-  * small primes (p<TILE_P_MAX, default 256) marked in TILE_BYTES tiles (L1); larger primes still one pass
+  * small primes (p<TILE_P_MAX, default 4096) marked in TILE_BYTES tiles (L1); larger primes still one pass
+  * 4+4 wrap-mul trial (two GPR-width groups, early-exit between them)
   * DELTA[64] extract: one table lookup from ctzll instead of (byte,residue) math
   * uint64 ctzll extract of unset wheel-30 bits (8 bytes / iteration)
   * same sieve model for u128 full trial (128-bit DIV; wrap-mul is 64-bit)
@@ -28,7 +29,7 @@ DATA = ROOT / "is_prime_data"
 PRE_MAX = 1_048_576  # 2^20
 # Hard-path sieve knobs (overridable at compile time via -DTILE_BYTES=… etc.).
 TILE_BYTES = 16384
-TILE_P_MAX = 256
+TILE_P_MAX = 4096
 PARALLEL_SEG_MIN = 10_000_000
 
 BODY = r"""
@@ -111,27 +112,27 @@ static inline int divides_u64(uint64_t n, uint64_t p) {
     return ((unsigned __int128)q * p) >> 64 == 0;
 }
 
-static inline int any_div8_u64(uint64_t n, const uint64_t *b) {
+/* 4 independent wrap-muls (fits GPRs, no spill). Bitwise | keeps the
+ * lanes in flight; the 8-wide caller early-exits between two groups. */
+static inline int any_div4_u64(uint64_t n, const uint64_t *b) {
     uint64_t p0 = b[0], p1 = b[1], p2 = b[2], p3 = b[3];
-    uint64_t p4 = b[4], p5 = b[5], p6 = b[6], p7 = b[7];
-    uint64_t x0 = INV16[((uint32_t)p0 >> 1) & 32767u], x1 = INV16[((uint32_t)p1 >> 1) & 32767u];
-    uint64_t x2 = INV16[((uint32_t)p2 >> 1) & 32767u], x3 = INV16[((uint32_t)p3 >> 1) & 32767u];
-    uint64_t x4 = INV16[((uint32_t)p4 >> 1) & 32767u], x5 = INV16[((uint32_t)p5 >> 1) & 32767u];
-    uint64_t x6 = INV16[((uint32_t)p6 >> 1) & 32767u], x7 = INV16[((uint32_t)p7 >> 1) & 32767u];
+    uint64_t x0 = INV16[((uint32_t)p0 >> 1) & 32767u];
+    uint64_t x1 = INV16[((uint32_t)p1 >> 1) & 32767u];
+    uint64_t x2 = INV16[((uint32_t)p2 >> 1) & 32767u];
+    uint64_t x3 = INV16[((uint32_t)p3 >> 1) & 32767u];
     x0 *= 2 - p0 * x0; x1 *= 2 - p1 * x1; x2 *= 2 - p2 * x2; x3 *= 2 - p3 * x3;
-    x4 *= 2 - p4 * x4; x5 *= 2 - p5 * x5; x6 *= 2 - p6 * x6; x7 *= 2 - p7 * x7;
     x0 *= 2 - p0 * x0; x1 *= 2 - p1 * x1; x2 *= 2 - p2 * x2; x3 *= 2 - p3 * x3;
-    x4 *= 2 - p4 * x4; x5 *= 2 - p5 * x5; x6 *= 2 - p6 * x6; x7 *= 2 - p7 * x7;
     uint64_t q0 = n * x0, q1 = n * x1, q2 = n * x2, q3 = n * x3;
-    uint64_t q4 = n * x4, q5 = n * x5, q6 = n * x6, q7 = n * x7;
-    return ((unsigned __int128)q0 * p0) >> 64 == 0 ||
-           ((unsigned __int128)q1 * p1) >> 64 == 0 ||
-           ((unsigned __int128)q2 * p2) >> 64 == 0 ||
-           ((unsigned __int128)q3 * p3) >> 64 == 0 ||
-           ((unsigned __int128)q4 * p4) >> 64 == 0 ||
-           ((unsigned __int128)q5 * p5) >> 64 == 0 ||
-           ((unsigned __int128)q6 * p6) >> 64 == 0 ||
-           ((unsigned __int128)q7 * p7) >> 64 == 0;
+    uint64_t h0 = (uint64_t)(((unsigned __int128)q0 * p0) >> 64);
+    uint64_t h1 = (uint64_t)(((unsigned __int128)q1 * p1) >> 64);
+    uint64_t h2 = (uint64_t)(((unsigned __int128)q2 * p2) >> 64);
+    uint64_t h3 = (uint64_t)(((unsigned __int128)q3 * p3) >> 64);
+    return (h0 == 0) | (h1 == 0) | (h2 == 0) | (h3 == 0);
+}
+
+static inline int any_div8_u64(uint64_t n, const uint64_t *b) {
+    if (any_div4_u64(n, b)) return 1;
+    return any_div4_u64(n, b + 4);
 }
 
 static int precheck(uint64_t n) {
@@ -380,9 +381,10 @@ static inline void mark_segment(uint8_t *seg, uint32_t nbytes, uint32_t g0,
     int k_hi = k_mark0;
     while (k_hi < np && (uint64_t)PRE_P[k_hi] * (uint64_t)PRE_P[k_hi] <= hi)
         k_hi++;
-    /* Dense small primes: walk TILE_BYTES tiles so the working set stays in L1.
-     * Large primes keep a single pass (few stores; tile restart would dominate).
-     * TILE_BYTES / TILE_P_MAX are compile-time knobs (defaults from the generator). */
+    /* Dense/medium primes: walk TILE_BYTES tiles so the working set stays in L1.
+     * Large primes (p >= TILE_P_MAX, default 4096) keep a single pass (few
+     * stores; tile restart would dominate). TILE_BYTES / TILE_P_MAX are
+     * compile-time knobs (defaults from the generator). */
     int k_small = k_mark0;
     while (k_small < k_hi && PRE_P[k_small] < TILE_P_MAX) k_small++;
     const uint32_t TILE = TILE_BYTES;

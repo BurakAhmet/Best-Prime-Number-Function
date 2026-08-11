@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Hard-path `wheel_core`: L1 tiles now cover primes $p<4096$ (was $256$), and 8-way wrap-mul trial is two GPR-friendly groups of 4 with an early exit between them. Interleaved A/B ~**4%** geomean on the hard 64-bit set (DEFAULT_N ~**4–6%**).
+
 ### Docs
 - README restores **Objective** / **Mission** and updates the `is_prime` dispatch flowchart for shipped Linux/macOS wheels and the u128 / AKS split.
 
