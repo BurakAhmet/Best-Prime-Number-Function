@@ -33,4 +33,6 @@ def test_publish_pypi_builds_manylinux_not_cibuildwheel_any() -> None:
     assert "BEST_PRIME_REQUIRE_NATIVE=1" in text
     assert "auditwheel repair" in text
     assert "manylinux_2_28" in text
+    assert "install libgomp-devel" not in text
+    assert "ARCHFLAGS" in text
     assert "none-any" in text  # the assertion that rejects it

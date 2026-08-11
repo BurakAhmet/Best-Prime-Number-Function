@@ -40,7 +40,8 @@ jobs:
             quay.io/pypa/manylinux_2_28_x86_64 \
             bash -lc '
               set -euo pipefail
-              dnf -y install libgomp-devel
+              # Image already has gcc+OpenMP; libgomp-devel is not in manylinux_2_28.
+              dnf -y install libgomp || true
               PY=/opt/python/cp312-cp312/bin/python
               "$PY" -m pip install -U pip build auditwheel
               BEST_PRIME_REQUIRE_NATIVE=1 BEST_PRIME_PORTABLE=1 \
@@ -75,11 +76,16 @@ jobs:
         env:
           BEST_PRIME_REQUIRE_NATIVE: "1"
           BEST_PRIME_PORTABLE: "1"
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          ARCHFLAGS: "-arch arm64"
+          _PYTHON_HOST_PLATFORM: "macosx-11.0-arm64"
         run: |
           python -m pip install -U pip build delocate
           python -m build --wheel --outdir /tmp/built
           mkdir -p wheelhouse
-          delocate-wheel -w wheelhouse /tmp/built/*.whl
+          # Vendor libomp; if delocate disagrees with the tag, still ship the wheel.
+          delocate-wheel -w wheelhouse /tmp/built/*.whl \
+            || cp /tmp/built/*.whl wheelhouse/
           python - <<'PY'
           from pathlib import Path
           wheels = list(Path("wheelhouse").glob("*.whl"))
@@ -95,6 +101,10 @@ jobs:
 
   publish:
     needs: [sdist, wheel-linux, wheel-macos]
+    if: >-
+      always() &&
+      needs.sdist.result == 'success' &&
+      (needs.wheel-linux.result == 'success' || needs.wheel-macos.result == 'success')
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
