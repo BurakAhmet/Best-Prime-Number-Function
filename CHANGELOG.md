@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Auto-merge recognizes cross-platform CI job names (`Tests (<os> / Python …)`), not only the old `Tests (Python …)` form.
+- Determinism workflow publishes a `Determinism` gate check so branch protection can see it.
+
 ## [1.11.0] — 2026-08-10
 
 ### Added

@@ -96,7 +96,9 @@ jobs:
                 name: c.name, status: c.status, conclusion: c.conclusion,
               })), null, 2));
 
-              const testJobs = runs.filter(c => /Tests \(Python/i.test(c.name));
+              // Must match both legacy "Tests (Python 3.12)" and
+              // cross-platform "Tests (ubuntu-latest / Python 3.12)".
+              const testJobs = runs.filter(c => /^Tests\s*\(.*Python/i.test(c.name));
               const detJobs = runs.filter(c => /determinism/i.test(c.name));
               const perf = runs.filter(c => /Performance/i.test(c.name));
               const pendingGate = [...testJobs, ...detJobs, ...perf].filter(c =>
