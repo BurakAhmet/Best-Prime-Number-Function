@@ -15,6 +15,12 @@ Today’s CI specimen sits above the bench. Type any $n$ for an exact 30-wheel t
 
 ---
 
+## Mission
+
+Most “is this prime?” code is **stochastic Miller–Rabin** or a wrapper around someone else’s sieve. Those are excellent *filters*. They are not a uniform proof for every natural number.
+
+This project refuses that bargain: same $n$, any machine, serial or parallel → the same boolean. Speed is engineered **after** that promise. $\pi(n)$, factoring, and Pratt certificates sit on the same contract.
+
 ## What this project is
 
 | | |

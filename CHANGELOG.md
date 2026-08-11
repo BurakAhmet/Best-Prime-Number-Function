@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Docs
+- README restores **Objective** / **Mission** and updates the `is_prime` dispatch flowchart for shipped Linux/macOS wheels and the u128 / AKS split.
+
 ## [1.11.2] — 2026-08-11
 
 ### Fixed

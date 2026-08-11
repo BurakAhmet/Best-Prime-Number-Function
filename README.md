@@ -78,9 +78,50 @@ CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `prim
 | `gmpy2.is_prime` | Miller–Rabin | No | Fast probable-prime |
 | `primesieve` | Sieve | N/A (enumeration) | **Forbidden** here as the engine |
 
-A 3-base Miller–Rabin can lie: $n = 3943673813084040361$ is `mr([2,3,5])` “prime” and `is_prime` composite. Details: [FAQ](https://burakahmet.github.io/Best-Prime-Number-Function/guide/faq/).
+A 3-base Miller–Rabin can lie: $n = 3943673813084040361$ is `mr([2,3,5])` “prime” and `is_prime` composite. Details below and in the [FAQ](https://burakahmet.github.io/Best-Prime-Number-Function/guide/faq/).
 
 ---
+
+## Objective
+
+Deliver one auditable predicate: `is_prime(n)` is true **if and only if** `n` is prime. The boolean must not depend on a random number generator, a witness drawn at runtime, a thread schedule, or a “probably prime” threshold. Same `n`, any machine, serial or parallel → same answer.
+
+The engineering task is to keep that promise *usable*: full trial division through √n for the sizes people actually hit (everyday integers, hard 64-bit primes, values around $10^{20}$), and **AKS** only when walking up to √n is no longer realistic. The same contract covers $\pi(n)$, deterministic factoring, and Pratt certificates. Speed is a first-class metric (end-to-end CLI `TIME`). Luck is not an allowed ingredient.
+
+## Mission
+
+Most “is this prime?” code in the wild is **stochastic Miller–Rabin** or something adjacent: pick random bases, run a handful of modular exponentiations, and declare the number prime if none of them prove it composite. That is a superb *filter*. It is not a *proof*, and it is not a uniform function of `n` alone.
+
+This repository exists to refuse that bargain — a public, deterministic primality **library** you can read, test, time, and reproduce, without outsourcing the answer to primesieve, `sympy.isprime`, or a dice roll.
+
+### What stochastic algorithms give up
+
+1. **They can be wrong.** A composite that slips every chosen witness is reported prime. The error probability can be made tiny; it is not zero.
+
+   **n = 3,943,673,813,084,040,361 = 869,461 × 1,738,921 × 2,608,381**
+
+   ```python
+   from sympy.ntheory.primetest import mr, isprime
+   from best_prime import is_prime
+
+   n = 3943673813084040361            # 869461 × 1738921 × 2608381
+   mr(n, [2, 3, 5])                   # True   ← SymPy MR: “prime”
+   isprime(n)                         # False  ← SymPy’s full predicate
+   is_prime(n)                        # False  ← exact trial
+   n % 869461                         # 0      ← factor
+   ```
+
+   Hunt scripts: `benchmarks/find_sympy_discrepancy.py`, `benchmarks/find_large_sympy_liars.py`.
+2. **Probably-prime is not a type.** Callers that mint a key, accept a certificate, or record a notable prime cannot tell *proved prime* from *survived a random quiz*.
+3. **Runs are not replayable.** Random bases mean two calls can take different internal paths. CI cannot freeze *why* the answer was yes.
+4. **“Deterministic MR” quietly shrinks the domain.** Fixed witness sets are deterministic only on **proven finite ranges** (for example a known base list for 64-bit integers). There is no small, uniform witness list that settles every natural number.
+5. **Failures masquerade as rarity.** A bug in a probabilistic checker looks like a one-in-a-billion miss. Deterministic trial either finds a factor $\le\sqrt{n}$ or it does not.
+
+### Why this project is important
+
+Primality is treated as a fact in cryptography, computer algebra, teaching, and research tooling. A stack that is “almost always right” trains people to stop asking for a proof.
+
+We optimize under a stricter question: *after you give up luck, what speed can you still engineer?* The library may lose to Miller–Rabin on wall-clock for a hard 64-bit prime; it may not shrug, guess, or silently restrict the domain. Tests, determinism CI, the restriction linter, the Pages exhibit, Pratt certificates, and downloadable trial certificates exist so that contract stays visible.
 
 ## Design restrictions
 
@@ -92,16 +133,25 @@ A 3-base Miller–Rabin can lie: $n = 3943673813084040361$ is `mr([2,3,5])` “p
 | **All natural numbers** | `int` or decimal `str`, including $>64$ bits |
 | **Allowed accelerators** | NumPy / Numba, plus our OpenMP `wheel_core` |
 
-Tiny $n < 10^4$ is a pure-Python loop. $10^4 \le n < 2^{64}$ uses OpenMP C when `wheel_core` is built, else the embedded **30030**-wheel (stdlib) or **9699690**-wheel (Numba). Larger $n$ with practical $\sqrt{n}$ stays on full trial; only then **AKS**.
+## How the checker chooses a path
+
+Linux/macOS **wheels** (v1.11.2+) ship `wheel_core.so`. A no-compiler or Windows install still falls back to stdlib / Numba. Same dispatch either way:
 
 ```text
 is_prime(n)
   n < 10⁴              →  tiny pure-Python loop
   10⁴ ≤ n < 2⁶⁴
-       ├─ wheel_core.so present  →  OpenMP C
-       ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel
-       └─ else                   →  Numba 9699690-wheel
-  n ≥ 2⁶⁴              →  u128 trial if practical, else partial trial + AKS
+       ├─ wheel_core.so present  →  OpenMP C (precomputed primes / seg-primes + 2-adic trial)
+       ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel (stdlib only)
+       └─ else                   →  lazy NumPy/Numba 9699690-wheel
+  n ≥ 2⁶⁴
+       ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
+       │                      →  OpenMP C full trial (u128 limbs; no AKS)
+       ├─ same size, no .so  →  stdlib 9699690-wheel full trial
+       └─ larger still       →  30030-wheel to 1e8 → AKS (Kronecker) if needed
+
+  ✗  stochastic Miller–Rabin · prime sieving libraries
+  ✓  deterministic for every natural number
 ```
 
 ```mermaid
@@ -112,7 +162,7 @@ flowchart TD
   C -->|yes| P1[Pure-Python small loop]
   C -->|no| D{n < 2⁶⁴}
   D -->|yes| E{wheel_core.so?}
-  E -->|yes| P2[OpenMP C precomputed primes / seg-primes]
+  E -->|yes| P2[OpenMP C — precomputed / seg-primes<br/>Linux/macOS wheels ship this]
   E -->|no| F{n ≤ 4·10¹²}
   F -->|yes| P3[Embedded 30030-wheel stdlib]
   F -->|no| P4[Numba 9699690-wheel]
@@ -122,14 +172,18 @@ flowchart TD
   P4 --> G
   G -->|yes| Z1
   G -->|no| Z2[True]
-  D -->|no| H{practical √n and ≤128-bit?}
+  D -->|no| H{isqrt n ≤ 2.5·10¹⁰ and ≤128-bit?}
   H -->|yes| P5[OpenMP C u128 full trial / stdlib wheel]
   P5 --> G
-  H -->|no| I[Partial trial then AKS if needed]
+  H -->|no| I[30030-wheel to 1e8 then AKS]
   I --> L{prime?}
   L -->|yes| Z2
   L -->|no| Z1
 ```
+
+Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on the 64-bit paths and on practical multi-limb sizes. Only still-larger inputs fall through to **AKS** (correct, but can be very slow).
+
+`primality_certificate` / `factorint` sit on top of this predicate (Pratt; trial + Fermat + deterministic Brent + ECM + SIQS). They do not change the boolean contract.
 
 Primary perf metric: e2e CLI `TIME` (`benchmarks/compare_e2e.py`). Secondary: warm hot-loop (`benchmarks/compare_speed.py`).
 

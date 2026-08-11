@@ -9,11 +9,12 @@ is_prime(n)
     ├─ n < 10⁴         → pure-Python small loop
     ├─ n < 2⁶⁴
     │    ├─ wheel_core.so → OpenMP C precomputed primes / seg-primes
+    │    │                 (Linux/macOS wheels ship this; else compile locally)
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
-         ├─ practical √n (≤128-bit) → OpenMP u128 full trial / stdlib wheel
-         └─ larger still            → partial trial → AKS if needed
+         ├─ isqrt(n) ≤ 2.5·10¹⁰ (≤128-bit) → OpenMP u128 full trial / stdlib wheel
+         └─ larger still            → 30030-wheel to 1e8 → AKS if needed
 ```
 
 ```mermaid
@@ -24,7 +25,7 @@ flowchart TD
   C -->|yes| P1[Pure-Python small loop]
   C -->|no| D{n < 2^64}
   D -->|yes| E{wheel_core.so?}
-  E -->|yes| P2[OpenMP C precomputed / seg-primes]
+  E -->|yes| P2[OpenMP C — precomputed / seg-primes<br/>Linux/macOS wheels ship this]
   E -->|no| F{n ≤ 4·10^12}
   F -->|yes| P3[Embedded 30030-wheel]
   F -->|no| P4[Numba 9699690-wheel]
@@ -34,10 +35,10 @@ flowchart TD
   P4 --> G
   G -->|yes| Z1
   G -->|no| Z2[True]
-  D -->|no| H{practical √n and ≤128-bit?}
-  H -->|yes| P5[OpenMP u128 / stdlib wheel]
+  D -->|no| H{isqrt n ≤ 2.5·10^10 and ≤128-bit?}
+  H -->|yes| P5[OpenMP u128 full trial / stdlib wheel]
   P5 --> G
-  H -->|no| I[Partial trial then AKS]
+  H -->|no| I[30030-wheel to 1e8 then AKS]
   I --> L{prime?}
   L -->|yes| Z2
   L -->|no| Z1
