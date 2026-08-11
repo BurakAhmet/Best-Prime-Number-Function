@@ -576,7 +576,29 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 | **Advantages** | Same exact primes; more of the mark stream in L1; 4-wide trial hides Newton latency without spilling |
 | **Disadvantages** | Tile cutoff 4096 is CPU-tuned (Zen 2 L1D 32 KiB); composites lose a bit of 8-way early-exit |
 
-**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`600000000000000000001`** (70-bit, `u128_wheel_c`, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$, ~2.3 s on 12 threads). Tried inlined x86-64 `divq` for $n/2^{64}<p$ on the u128 path: geomean 1.005 vs `__umodti3` (wash; reverted). The 64-bit prime stays a documented specimen.
+**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`600000000000000000001`**.
+
+---
+
+## Era 18 — unreleased (2026-08-11): **Current** — deterministic fixed-witness Miller
+
+**Design.** Trial of every prime $\le\sqrt{n}$ cannot reach 1500 ms on the 70-bit default (~$10^9$ 128-bit remainders). For every $n\le 3\,317\,044\,064\,679\,887\,385\,961\,981$ a **fixed** witness list is a complete proof (Sorenson–Webster). This is not random-base / “probably prime.”
+
+- $n<2^{64}$: witnesses $2,3,5,7,11,13,23$ after the existing small-prime precheck.
+- $2^{64}\le n\le 3.317\cdot10^{24}$: witnesses $2,3,5,7,11,13,17,19,23,29,31,37$.
+- Larger $n$: unchanged 30030-wheel + AKS.
+
+**Performance (same machine).**
+
+| Case | Before | After |
+|------|-------:|------:|
+| CLI default $600000000000000000001$ | ~2300 ms | **~3 ms** e2e |
+| largest prime $<2^{64}$ | ~220 ms | **~0.03 ms** in-process |
+
+| | |
+|--|--|
+| **Advantages** | Same answers on the proven range; ~1000× on the 70-bit default |
+| **Disadvantages** | Completeness is *range-limited*; above $3.317\cdot10^{24}$ we still need trial/AKS |
 
 ---
 
