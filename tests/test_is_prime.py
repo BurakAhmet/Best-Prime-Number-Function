@@ -27,6 +27,7 @@ from tests.numbers import (  # noqa: E402
     FERMAT_COMPOSITE,
     LARGE_COMPOSITES,
     LARGE_PRIMES_FAST,
+    DEFAULT_CLI_N,
     LARGE_PRIMES_SLOW,
     LARGEST_PRIME_LT_2_64,
     MR_LIAR,
@@ -297,8 +298,10 @@ class TestLarge64Bit:
     def test_near_int64_max_prime_listed(self):
         assert LARGE_64BIT_PRIME in LARGE_PRIMES_SLOW
 
-    def test_default_n_is_largest_64bit_prime(self):
-        assert DEFAULT_N == LARGEST_PRIME_LT_2_64
+    def test_default_n_is_70bit_u128_yardstick(self):
+        assert DEFAULT_N == DEFAULT_CLI_N
+        assert DEFAULT_N.bit_length() == 70
+        assert DEFAULT_N > (1 << 64)
         assert DEFAULT_N in LARGE_PRIMES_SLOW
 
     def test_two_pow_63_minus_one_composite(self):

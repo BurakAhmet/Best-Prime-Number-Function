@@ -114,8 +114,11 @@ class TestCSerialParallelAgree:
     def test_serial_equals_parallel_hard(self, n):
         assert is_prime(n, parallel=True) is is_prime(n, parallel=False)
 
-    def test_default_n_matches_largest_prime_constant(self):
-        assert DEFAULT_N == LARGEST_PRIME_LT_2_64
+    def test_default_n_is_u128_yardstick(self):
+        from tests.numbers import DEFAULT_CLI_N
+
+        assert DEFAULT_N == DEFAULT_CLI_N
+        assert DEFAULT_N.bit_length() == 70
 
 
 class TestCU128Path:

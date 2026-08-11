@@ -111,11 +111,11 @@ def main() -> int:
     is_prime(97, parallel=True)
     is_prime(1_000_000_007, parallel=True)
 
-    # CLI default must remain the largest prime < 2^64 (not evaluated — too slow for this script).
-    if DEFAULT_N != 18_446_744_073_709_551_557:
+    # CLI default is the 70-bit u128 full-trial yardstick (not evaluated here).
+    if DEFAULT_N != 600_000_000_000_000_000_001:
         print(f"  FAIL  DEFAULT_N drifted: {DEFAULT_N}")
         return 1
-    print("  OK  DEFAULT_N is largest prime < 2^64")
+    print("  OK  DEFAULT_N is the 70-bit u128 yardstick")
 
     failed = 0
     for label, n, expected in DEFAULT_CASES:
