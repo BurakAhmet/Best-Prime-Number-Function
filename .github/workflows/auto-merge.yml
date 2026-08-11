@@ -34,7 +34,7 @@ jobs:
       - name: Wait for required checks and merge
         env:
           PR_NUMBER_INPUT: ${{ inputs.pr_number }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const owner = context.repo.owner;

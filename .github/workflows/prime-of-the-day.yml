@@ -108,7 +108,7 @@ jobs:
           fi
 
       - name: Upsert GitHub Issue (Prime of the day)
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
