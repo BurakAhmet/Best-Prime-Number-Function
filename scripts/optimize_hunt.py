@@ -55,7 +55,7 @@ HARD = [
     ("semiprime 1e9s", (10**9 + 7) * (10**9 + 9), 0),
     ("M61", (1 << 61) - 1, 1),
     ("near 2^63", 9_223_372_036_854_775_783, 1),
-    ("DEFAULT_N", 18_446_744_073_709_551_557, 1),
+    ("max < 2^64", 18_446_744_073_709_551_557, 1),
 ]
 
 # Conservative vs GHA 2-thread noise. Interleaved same-machine A/B only.

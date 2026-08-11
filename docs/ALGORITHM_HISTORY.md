@@ -575,6 +575,8 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 | **Advantages** | Same exact primes; more of the mark stream in L1; 4-wide trial hides Newton latency without spilling |
 | **Disadvantages** | Tile cutoff 4096 is CPU-tuned (Zen 2 L1D 32 KiB); composites lose a bit of 8-way early-exit |
 
+**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`600000000000000000001`** (70-bit, `u128_wheel_c`, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$, ~2.3 s on 12 threads). Tried inlined x86-64 `divq` for $n/2^{64}<p$ on the u128 path: geomean 1.005 vs `__umodti3` (wash; reverted). The 64-bit prime stays a documented specimen.
+
 ---
 
 ## Summary comparison
@@ -617,7 +619,7 @@ Recorded so agents and humans do not “rediscover” them:
 | **F3** | **AKS too early** for multi-limb with practical $\sqrt{n}$ | Correct but unusable latency | Full trial up to `_MAX_FULL_TRIAL_ISQRT`; AKS only beyond |
 | **F4** | Prebuilt **Linux `.so` in pure wheel** | Broken/ misleading installs on other platforms | Build at install or ship **platform wheels** |
 | **F5** | Segmented-prime **threshold only tuned on hardest primes** | 12-digit path left on dense wheel | Retune with full e2e suite (1.3.2: $2\cdot10^5$) |
-| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **hardest** 64-bit prime (`DEFAULT_N`, v1.4.3+); keep README / wiki / e2e hard list in sync. Pages JS demo may stay near $2^{63}$. |
+| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **70-bit** u128 full-trial prime `600000000000000000001` (`DEFAULT_N`); keep README / wiki / `DEFAULT_N` in sync. Largest prime $<2^{64}$ stays a documented 64-bit specimen. Pages JS demo may stay near $2^{63}$. |
 | **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled |
 | **F8** | Skipping **serial vs parallel** determinism checks | Racey OpenMP bugs | `benchmarks/check_determinism.py` + Determinism workflow |
 | **F9** | Changing wheel/sieve without regenerating **committed C / tables** | Drift between generators and shipped artifacts | `generate_wheel_core_c.py` / `generate_wheel_data.py` + compile script |

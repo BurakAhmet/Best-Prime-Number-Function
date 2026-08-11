@@ -4,7 +4,7 @@ After `pip install`, the same programs as `python -m best_prime` / `python -m be
 
 ```bash
 is-prime 97
-is-prime 18446744073709551557
+is-prime 600000000000000000001
 best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 next-prime 100                 # 101 (smallest prime > 100)
@@ -23,7 +23,7 @@ is-prime-power 8               # yes (exit 0)
 is-perfect-power 36            # yes (exit 0)
 ```
 
-`is-prime` with no argument defaults to the largest prime $<2^{64}$: `18446744073709551557` (hardest 64-bit yardstick). Near $2^{63}$ (`9223372036854775783`) is a documented mid-hard specimen. `next-prime` **requires** `n` — it does not default to that 64-bit prime (the successor is 65-bit).
+`is-prime` with no argument defaults to the 70-bit prime `600000000000000000001` (OpenMP u128 full trial, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
 
 ## Exit codes (`is-prime` / power predicates)
 
@@ -38,10 +38,10 @@ is-perfect-power 36            # yes (exit 0)
 `TIME` on the CLI is **end-to-end** (import + tables/native load + check), not a warm hot-loop. That is the [primary performance metric](performance.md).
 
 ```text
-TEST:    18446744073709551557 (20 chars)
+TEST:    600000000000000000001 (21 chars)
 THREADS: 12
 RESULT:  prime
-TIME:    289827924 ns  (289.827924 ms)
+TIME:    2307170444 ns  (2307.170444 ms)
 ```
 
 Example for the mid-size 12-digit prime (precomputed-prime C path):

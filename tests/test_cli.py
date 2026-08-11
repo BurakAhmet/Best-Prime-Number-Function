@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from best_prime.is_prime import DEFAULT_N
-from tests.numbers import LARGEST_PRIME_LT_2_64, P10_9_7
+from tests.numbers import DEFAULT_CLI_N, P10_9_7
 
 ROOT = Path(__file__).resolve().parents[1]
 IMPL = ROOT / "best_prime" / "is_prime.py"
@@ -52,21 +52,21 @@ class TestCliExitCodes:
 
 
 class TestCliDefault:
-    def test_package_default_is_largest_64bit_prime(self):
-        assert DEFAULT_N == LARGEST_PRIME_LT_2_64
-        assert DEFAULT_N.bit_length() == 64
-        assert DEFAULT_N < (1 << 64)
+    def test_package_default_is_70bit_u128_yardstick(self):
+        assert DEFAULT_N == DEFAULT_CLI_N
+        assert DEFAULT_N.bit_length() == 70
+        assert DEFAULT_N > (1 << 64)
 
     def test_source_default_string_matches(self):
         src = IMPL.read_text(encoding="utf-8")
         assert "DEFAULT_N" in src
-        assert "18_446_744_073_709_551_557" in src or str(LARGEST_PRIME_LT_2_64) in src
+        assert "600_000_000_000_000_000_001" in src or str(DEFAULT_CLI_N) in src
 
     @pytest.mark.slow
-    def test_no_args_checks_largest_64bit_prime(self):
+    def test_no_args_checks_default_70bit_prime(self):
         r = _run(timeout=120.0)
         assert r.returncode == 0
-        assert str(LARGEST_PRIME_LT_2_64) in r.stdout
+        assert str(DEFAULT_CLI_N) in r.stdout
         assert "RESULT:  prime" in r.stdout
         assert "TIME:" in r.stdout
 

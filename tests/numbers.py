@@ -5,8 +5,10 @@ re-deriving literals in individual test modules.
 """
 from __future__ import annotations
 
-# Largest prime strictly less than 2^64. CLI default and hard-path yardstick.
+# Largest prime strictly less than 2^64 (hard 64-bit specimen, not CLI default).
 LARGEST_PRIME_LT_2_64 = 18_446_744_073_709_551_557
+# CLI default: 70-bit prime, OpenMP u128 full trial (isqrt ~ 24494897427).
+DEFAULT_CLI_N = 600_000_000_000_000_000_001
 NEAR_2_63_PRIME = 9_223_372_036_854_775_783
 M61 = (1 << 61) - 1  # 2305843009213693951
 M31 = (1 << 31) - 1  # 2147483647
@@ -58,7 +60,7 @@ LARGE_PRIMES_FAST = [
     999_999_999_999_999_989,
 ]
 
-LARGE_PRIMES_SLOW = [M61, NEAR_2_63_PRIME, LARGEST_PRIME_LT_2_64]
+LARGE_PRIMES_SLOW = [M61, NEAR_2_63_PRIME, LARGEST_PRIME_LT_2_64, DEFAULT_CLI_N]
 
 LARGE_COMPOSITES = [
     (1 << 63) - 1,

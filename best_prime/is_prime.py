@@ -32,8 +32,10 @@ WHEEL_MOD = 9_699_690
 WHEEL_NW = 1_658_880
 _WHEEL_START_I = 23
 _SMALL_LIMIT = 10_000
-# CLI default / hard 64-bit specimen: largest prime strictly below 2^64.
-DEFAULT_N = 18_446_744_073_709_551_557
+# CLI default / hard yardstick: 70-bit prime (u128 full trial, isqrt ~2.45e10).
+# Still under _MAX_FULL_TRIAL_ISQRT (no AKS). Largest prime < 2^64 stays a
+# documented 64-bit specimen (tests.numbers.LARGEST_PRIME_LT_2_64).
+DEFAULT_N = 600_000_000_000_000_000_001
 # Stdlib wheel wins end-to-end TIME up to this n (avoids NumPy/Numba import).
 _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000

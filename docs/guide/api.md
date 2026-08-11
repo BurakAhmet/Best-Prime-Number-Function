@@ -22,15 +22,15 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 | Name | Meaning | Example |
 |------|---------|---------|
 | `__version__` | Installed package version | `"1.11.2"` |
-| `DEFAULT_N` | CLI default / hardest 64-bit yardstick: largest prime $<2^{64}$ | `18446744073709551557` |
+| `DEFAULT_N` | CLI default / 70-bit u128 full-trial yardstick | `600000000000000000001` |
 | `PRIME_COUNT_MAX_N` | **Hard ceiling** for `prime_count` | $2^{64}-1$ |
 | `NEXT_PRIME_SIEVE_ISQRT_MAX` | Interval-sieve cap for next/prev | $2\cdot10^6$ |
 | `TOTIENT_RANGE_MAX` | Max $n$ for `totient_range` | $2\cdot10^{7}$ |
 
 ```python
 from best_prime import DEFAULT_N, PRIME_COUNT_MAX_N, __version__
-assert DEFAULT_N == 18446744073709551557
-assert is_prime(DEFAULT_N)  # wants wheel_core.so
+assert DEFAULT_N == 600000000000000000001
+assert is_prime(DEFAULT_N)  # wants wheel_core.so (u128 path)
 ```
 
 ---
