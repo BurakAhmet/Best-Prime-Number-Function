@@ -130,7 +130,7 @@ jobs:
           print("wiki HTML + /guide/ compile checks OK")
           PY
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
