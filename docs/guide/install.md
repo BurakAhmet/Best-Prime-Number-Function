@@ -11,9 +11,10 @@ pip install best-prime-number-function
 pip install "best-prime-number-function[fast]"   # NumPy / Numba
 ```
 
-Trusted Publishing is wired in `.github/workflows/publish-pypi.yml` (needs a
-PyPI pending publisher for this repo). Until the first successful publish,
-install from Git.
+Linux/macOS wheels ship the OpenMP `wheel_core` (no compiler needed at
+`pip install` time). The sdist still compiles it at install when `gcc` is
+present. First PyPI upload needs a Trusted Publisher on pypi.org
+(`environment: pypi`); until that exists, install from Git.
 
 ## From GitHub
 
