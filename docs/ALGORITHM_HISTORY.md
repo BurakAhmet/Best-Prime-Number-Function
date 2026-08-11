@@ -575,7 +575,7 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 | **Advantages** | Same exact primes; more of the mark stream in L1; 4-wide trial hides Newton latency without spilling |
 | **Disadvantages** | Tile cutoff 4096 is CPU-tuned (Zen 2 L1D 32 KiB); composites lose a bit of 8-way early-exit |
 
-**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`600000000000000000001`** (70-bit, `u128_wheel_c`, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$, ~2.3 s on 12 threads). Tried inlined x86-64 `divq` for $n/2^{64}<p$ on the u128 path: geomean 1.005 vs `__umodti3` (wash; reverted). The 64-bit prime stays a documented specimen.
+**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`600000000000000000001`** (70-bit, `u128_wheel_c`, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$, ~2.0–2.3 s on 12 threads). Tried for a **1500 ms** target and reverted: inlined `divq` (wash); 32/64 KiB segments (**+15–33%**); nextg L2 banding (~2–3% / noise); PGO (broken path / wash). 12 threads still beat 6/8. Floor on this Zen 2 is ~**1950–2050 ms** warm (≈1e9 128/64 DIVs + wheel-30 mark). The 64-bit prime stays a documented specimen.
 
 ---
 

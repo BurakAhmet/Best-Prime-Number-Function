@@ -8,6 +8,9 @@ All notable changes to this project are documented in this file.
 - CLI / `DEFAULT_N` is now **`600000000000000000001`** (70-bit prime; OpenMP u128 full trial, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$). The largest prime $<2^{64}$ remains a documented 64-bit specimen.
 - Hard-path `wheel_core`: L1 tiles now cover primes $p<4096$ (was $256$), and 8-way wrap-mul trial is two GPR-friendly groups of 4 with an early exit between them. Interleaved A/B ~**4%** geomean on the hard 64-bit set (max $<2^{64}$ ~**4–6%**).
 
+### Removed
+- Grok playbook `.grok/skills/optimize-primes/SKILL.md` (and its pointers in Optimize / issue-agent text).
+
 ### Docs
 - README restores **Objective** / **Mission** and updates the `is_prime` dispatch flowchart for shipped Linux/macOS wheels and the u128 / AKS split.
 

@@ -107,8 +107,6 @@ def to_markdown(payload: dict) -> str:
         "and will open / examine / merge a PR only if a catalog candidate is faster.",
         "Novel ideas still go through an **Optimization round** issue or Grok.",
         "",
-        "Skill: `.grok/skills/optimize-primes/SKILL.md`.",
-        "",
         "<sub>Posted by the **Optimize** workflow.</sub>",
     ]
     return "\n".join(lines) + "\n"
