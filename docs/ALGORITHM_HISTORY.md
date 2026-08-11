@@ -65,7 +65,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-10  v1.8.1   uint32 nextg persist + DELTA[64] extract
 2026-08-10  v1.8.2   prime_count Meissel–Lehmer through 2^64−1
 2026-08-10  v1.9.0   totient / primorial / divisors; primerange generator
-2026-08-10  v1.10.0  L1-tiled marking for p<256 on the hard path  ← current
+2026-08-10  v1.10.0  L1-tiled marking for p<256 on the hard path
+2026-08-11  unreleased  L1 tiles to p<4096 + 4+4 wrap-mul trial  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -520,7 +521,7 @@ Lucy–Hedgehog allows $n\le 2.5\cdot10^{15}$ ($\sqrt{n}\le 5\cdot10^7$, compact
 
 ---
 
-## Era 16 — v1.10.0 (2026-08-10): **Current** — L1-tiled small-prime marking
+## Era 16 — v1.10.0 (2026-08-10): L1-tiled small-prime marking
 
 **Design (hard path only).** Mid-size $\sqrt{n}\le 2^{20}$ unchanged.
 
@@ -548,6 +549,34 @@ Marking a 128 KiB wheel-30 segment with every $p\le\sqrt{\mathrm{limit}}$ walk
 
 ---
 
+## Era 17 — unreleased (2026-08-11): **Current** — tiles to $p<4096$ + 4+4 trial
+
+**Design (hard path only).** Mid-size $\sqrt{n}\le 2^{20}$ unchanged.
+
+Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** each on DEFAULT_N. Two complementary changes:
+
+- Raise **`TILE_P_MAX` 256 → 4096** so medium primes (the bulk of remaining mark stores) also walk 16 KiB L1 tiles. Catalog only tried $\le 512$; $p\ge 8192$ restarts too often (tiling *all* primes still loses).
+- Split 8-way wrap-mul into **two groups of 4** with an early exit between them. Four independent Newton chains fit in GPRs (no spill). A forced 8-wide bitwise `|` (no short-circuit) spilled and was **~2–3% slower**; full 4-wide replacement was already slower in 1.10.x.
+
+**Tried same session and rejected:** Newton mixed into extract (lost 8-wide ILP, +2–8%); fill-presieve inside each tile (~1%); two-band 64 KiB tiles for $p\in[256,2048)$ (wash); long presieve memcpy / `aligned_alloc` / extract prefetch / TLS segment buffers (noise); `orb` asm (GCC already emits it); 8-wide `|` instead of `||` (register spills); TILE_P_MAX $\ge 8192$ (10–25% slower).
+
+**Performance vs 1.10.0 `.so` (interleaved mean A/B, 12 threads, Zen 2; two runs + order-swap).**
+
+| Case | mean ratio (cand/orig) |
+|------|-----------------------:|
+| $10^9+7\times10^9+9$ | ~0.95–1.00 |
+| M61 | ~0.96–1.00 |
+| near $2^{63}$ | ~**0.94–0.97** |
+| largest $<2^{64}$ | ~**0.94–0.96** (11/12 pair wins) |
+| geomean | ~**0.96** |
+
+| | |
+|--|--|
+| **Advantages** | Same exact primes; more of the mark stream in L1; 4-wide trial hides Newton latency without spilling |
+| **Disadvantages** | Tile cutoff 4096 is CPU-tuned (Zen 2 L1D 32 KiB); composites lose a bit of 8-way early-exit |
+
+---
+
 ## Summary comparison
 
 | Era | 64-bit engine (best case) | Big-int practical | Big-int huge | E2E focus | Main win | Main cost / risk |
@@ -572,7 +601,8 @@ Marking a 128 KiB wheel-30 segment with every $p\le\sqrt{\mathrm{limit}}$ walk
 | **1.8.1** | + **uint32 nextg**, **DELTA extract** | same | same | Yes | Hard 64-bit another ~6–15% | `limit/30` must fit `uint32` |
 | **1.8.2** | same | same | same | Yes | **`prime_count` to $2^{64}-1$** (Lucy then Meissel–Lehmer) | Hardest 64-bit $\pi(n)$ needs primes $\le 2^{32}$ once |
 | **1.9.0** | same | same | same | Yes | **`primerange` generator**; totient / primorial / divisors / Jacobi / CRT | Product-tree primorial; linear-sieve `totient_range` |
-| **1.10.0 (now)** | + **L1 tiles for $p<256$** (16 KiB) | same tiles on u128 | same | Yes | Hard 64-bit ~6–14% (marking-bound) | Tile only the dense streams; tiling *all* primes still loses |
+| **1.10.0** | + **L1 tiles for $p<256$** (16 KiB) | same tiles on u128 | same | Yes | Hard 64-bit ~6–14% (marking-bound) | Tile only the dense streams; tiling *all* primes still loses |
+| **unreleased** | + **L1 tiles $p<4096$** + **4+4 wrap-mul** | same | same | Yes | Hard 64-bit ~4% geomean (DEFAULT_N ~4–6%) | Tiling $p\ge 8192$ restarts too often; forced 8-wide `\|` spills |
 
 ---
 

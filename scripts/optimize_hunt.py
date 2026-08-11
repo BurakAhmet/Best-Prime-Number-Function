@@ -32,7 +32,7 @@ SO = DATA / "wheel_core.so"
 # Defaults must match scripts/generate_wheel_core_c.py.
 DEFAULTS = {
     "tile_bytes": 16384,
-    "tile_p_max": 256,
+    "tile_p_max": 4096,
     "parallel_seg_min": 10_000_000,
 }
 
