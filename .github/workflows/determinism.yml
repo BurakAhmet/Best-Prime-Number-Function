@@ -61,3 +61,22 @@ jobs:
           grep -E '^(  OK|Determinism check PASSED)' /tmp/det1.txt > /tmp/ok1.txt
           grep -E '^(  OK|Determinism check PASSED)' /tmp/det2.txt > /tmp/ok2.txt
           diff -u /tmp/ok1.txt /tmp/ok2.txt
+
+  # Branch protection requires a check literally named "Determinism".
+  # Matrix cells are "Repeated-trial determinism (Python X)" and would
+  # otherwise leave that required context pending forever (blocking merge).
+  gate:
+    name: Determinism
+    if: always()
+    needs: [determinism]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require matrix success
+        run: |
+          case "${{ needs.determinism.result }}" in
+            success) echo "Determinism matrix green" ;;
+            *)
+              echo "Determinism matrix: ${{ needs.determinism.result }}" >&2
+              exit 1
+              ;;
+          esac

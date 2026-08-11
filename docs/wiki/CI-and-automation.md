@@ -30,6 +30,8 @@ python -m best_prime --lab --json 97
 ## Auto-approve / auto-merge policy
 
 - **Same-repository** PRs may be auto-approved (PR agent) and auto-merged (Auto-merge) after green **CI** + **Determinism**.
+- Auto-merge treats jobs named `Tests (… Python …)` as the test gate (legacy `Tests (Python 3.12)` and current `Tests (ubuntu-latest / Python 3.12)` both count).
+- Branch protection requires **`Tests (ubuntu-latest / Python 3.12)`** and the **`Determinism`** gate job (not the per-version `Repeated-trial determinism (Python X)` cells).
 - **`optimize/candidate` PRs are not auto-merged.** Optimize examine merges them only when they are actually faster than `main`.
 - **Copilot** is the daily *idea* hunter (assigned to `[Optimize] daily …` issues). The catalog job only tries TILE / pmax / OpenMP knobs.
 - To auto-assign Copilot, add repo secret **`COPILOT_ASSIGN_TOKEN`**: a PAT (user who can assign Copilot) with read/write **Issues, Contents, Pull requests, Actions**. Without it the issue is still created — click **Assign to Copilot** on the issue.
