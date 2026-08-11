@@ -104,6 +104,33 @@ is_prime(n)
   n ≥ 2⁶⁴              →  u128 trial if practical, else partial trial + AKS
 ```
 
+```mermaid
+flowchart TD
+  A[Input n] --> B{n < 2}
+  B -->|yes| Z1[False]
+  B -->|no| C{n < 10⁴}
+  C -->|yes| P1[Pure-Python small loop]
+  C -->|no| D{n < 2⁶⁴}
+  D -->|yes| E{wheel_core.so?}
+  E -->|yes| P2[OpenMP C precomputed primes / seg-primes]
+  E -->|no| F{n ≤ 4·10¹²}
+  F -->|yes| P3[Embedded 30030-wheel stdlib]
+  F -->|no| P4[Numba 9699690-wheel]
+  P1 --> G{divisor ≤ √n?}
+  P2 --> G
+  P3 --> G
+  P4 --> G
+  G -->|yes| Z1
+  G -->|no| Z2[True]
+  D -->|no| H{practical √n and ≤128-bit?}
+  H -->|yes| P5[OpenMP C u128 full trial / stdlib wheel]
+  P5 --> G
+  H -->|no| I[Partial trial then AKS if needed]
+  I --> L{prime?}
+  L -->|yes| Z2
+  L -->|no| Z1
+```
+
 Primary perf metric: e2e CLI `TIME` (`benchmarks/compare_e2e.py`). Secondary: warm hot-loop (`benchmarks/compare_speed.py`).
 
 ---
