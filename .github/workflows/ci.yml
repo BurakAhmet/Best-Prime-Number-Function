@@ -140,7 +140,7 @@ jobs:
           info = lab(1_000_000_007)
           assert info["path"] == "u64_wheel_c", info
           info2 = lab(9_223_372_036_854_775_783)
-          assert info2["path"] == "u64_wheel_c" and info2["is_prime"] is True, info2
+          assert info2["path"] == "u64_lehman_c" and info2["is_prime"] is True, info2
           print("C path OK:", info["path"], info2["path"])
           PY
 
