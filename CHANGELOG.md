@@ -4,7 +4,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to $\lceil n^{1/3}\rceil$, then integer-safe Lehman windows. Complete through every 64-bit $n$; not a replacement for `is_prime`'s trial-to-$\sqrt{n}$ contract. `factorint` runs it after Fermat and before Brent. Guide: `docs/guide/cubic-search.md`.
+- OpenMP **`lehman_factor_u128`** in `wheel_core.so`: complete cubic proof through the 70-bit CLI default (`600000000000000000001`). **`is_prime` / CLI use it for $n\ge 2^{64}$** when the C core can finish (`lab` path `u128_lehman_c`). In-process ~**0.19 s** vs the old u128 trial ~**2.1 s**. 64-bit `is_prime` is still trial to $\sqrt{n}$.
+
 ### Changed
+- Hard 64-bit `is_prime` ($\lfloor\sqrt{n}\rfloor \ge 10^{7}$) uses the same OpenMP cubic search as the CLI default (`u64_lehman_c`). Mid-size 64-bit (e.g. $10^{9}+7$) stays `u64_wheel_c`.
+- Faster cubic C: 64-bit remainders, parallel 30-wheel, cheaper 128-bit `isqrt`. M61 ~**19 ms** (was ~29 ms), CLI default ~**118 ms** (was ~180 ms).
+- CLI `is-prime` prints **`FACTOR:`** when the number is composite (one proper divisor).
 - CLI / `DEFAULT_N` is now **`600000000000000000001`** (70-bit prime; OpenMP u128 full trial, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$). The largest prime $<2^{64}$ remains a documented 64-bit specimen.
 - Hard-path `wheel_core`: L1 tiles now cover primes $p<4096$ (was $256$), and 8-way wrap-mul trial is two GPR-friendly groups of 4 with an early exit between them. Interleaved A/B ~**4%** geomean on the hard 64-bit set (max $<2^{64}$ ~**4–6%**).
 

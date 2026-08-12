@@ -21,6 +21,7 @@ REQUIRED = (
     "faq.md",
     "bindings.md",
     "compare.md",
+    "cubic-search.md",
 )
 API_NEEDLES = (
     "is_prime",

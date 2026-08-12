@@ -7,8 +7,8 @@ so import, table load, JIT, and the check all count. Heavy dependencies
 
 Tiered engines: tiny Python loop; 64-bit OpenMP C (precomputed-prime trial +
 wheel-30 segmented sieve with persisted marks) with stdlib/Numba wheel
-fallbacks; practical multi-limb (≤128-bit) OpenMP u128 or stdlib full trial;
-AKS only for huge n.
+fallbacks; ``n ≥ 2^{64}`` complete cubic search when the OpenMP C core
+can finish (CLI default), else u128 / stdlib full trial; AKS only for huge n.
 
 Restrictions: deterministic; no stochastic Miller–Rabin; no prime libraries.
 """
@@ -32,9 +32,9 @@ WHEEL_MOD = 9_699_690
 WHEEL_NW = 1_658_880
 _WHEEL_START_I = 23
 _SMALL_LIMIT = 10_000
-# CLI default / hard yardstick: 70-bit prime (u128 full trial, isqrt ~2.45e10).
-# Still under _MAX_FULL_TRIAL_ISQRT (no AKS). Largest prime < 2^64 stays a
-# documented 64-bit specimen (tests.numbers.LARGEST_PRIME_LT_2_64).
+# CLI default / hard yardstick: 70-bit prime (complete cubic C when
+# wheel_core.so exports lehman_factor_u128; else u128 trial).
+# Largest prime < 2^64 stays a documented 64-bit specimen.
 DEFAULT_N = 600_000_000_000_000_000_001
 # Stdlib wheel wins end-to-end TIME up to this n (avoids NumPy/Numba import).
 _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
@@ -841,7 +841,7 @@ def _is_prime_big_full_trial(n: int, parallel: bool) -> bool:
 
 
 def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
-    """Primality for n >= 2^64. Full trial when practical; else partial + AKS."""
+    """Primality for n >= 2^64. Cubic C when complete; else trial or AKS."""
     for p in _PRECHECK_BIG:
         if n == p:
             return True
@@ -849,6 +849,10 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
             return False
         if p * p > n:
             return True
+    from .factor_lehman import cubic_complete_ready, lehman_factor
+
+    if cubic_complete_ready(n):
+        return lehman_factor(n, parallel=parallel) is None
     sq = math.isqrt(n)
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
@@ -865,6 +869,10 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
 def _is_prime_one(n_int: int, parallel: bool) -> bool:
     if n_int < _SMALL_LIMIT:
         return _is_prime_small(n_int)
+    from .factor_lehman import cubic_complete_ready, lehman_factor
+
+    if cubic_complete_ready(n_int):
+        return lehman_factor(n_int, parallel=parallel) is None
     if n_int < (1 << 64):
         # Prefer OpenMP .so whenever present (fast in-process + solid e2e).
         if _load_c_core():
@@ -925,7 +933,11 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
     if n_int < _SMALL_LIMIT:
         path = "python_small"
     elif n_int < (1 << 64):
-        if _load_c_core():
+        from .factor_lehman import cubic_complete_ready
+
+        if cubic_complete_ready(n_int):
+            path = "u64_lehman_c"
+        elif _load_c_core():
             path = "u64_wheel_c"
         elif n_int <= _PURE_WHEEL_MAX_N:
             path = "python_wheel"
@@ -934,7 +946,11 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
     else:
         sq = math.isqrt(n_int) if n_int >= 2 else 0
         lib = _load_c_core()
-        if (
+        from .factor_lehman import cubic_complete_ready
+
+        if cubic_complete_ready(n_int):
+            path = "u128_lehman_c"
+        elif (
             sq <= _MAX_FULL_TRIAL_ISQRT
             and n_int.bit_length() <= 128
             and lib
@@ -951,7 +967,14 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "path": path,
         "parallel": bool(
             parallel
-            and path in {"u64_wheel_numba", "u64_wheel_c", "u128_wheel_c"}
+            and path
+            in {
+                "u64_wheel_numba",
+                "u64_wheel_c",
+                "u64_lehman_c",
+                "u128_wheel_c",
+                "u128_lehman_c",
+            }
         ),
     }
     if n_int >= 2:
@@ -967,7 +990,9 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "python_small": "Pure-Python trial division for tiny n (no NumPy/Numba).",
         "python_wheel": "Embedded 30030-wheel trial division (stdlib, best e2e TIME).",
         "u64_wheel_c": "OpenMP C: precomputed-prime trial and/or wheel-30 segmented prime trial (no Numba JIT).",
+        "u64_lehman_c": "OpenMP C complete cubic search for hard 64-bit n (isqrt ≥ 10^7).",
         "u64_wheel_numba": "Numba 9699690-wheel trial division up to isqrt(n).",
+        "u128_lehman_c": "OpenMP C complete cubic search for n ≥ 2^64 (CLI default; no AKS).",
         "u128_wheel_c": "OpenMP C full trial for 65–128-bit n (wheel / seg-primes; no AKS).",
         "bigint_wheel": "Stdlib 9699690-wheel full trial for moderate big ints (no AKS).",
         "bigint_trial_or_aks": "Huge-int path: 30030-wheel partial trial, then AKS (Kronecker; may be slow).",
@@ -1037,10 +1062,35 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def _print_result(arg: str, prime: bool, threads: int) -> None:
+def _one_factor(n: int, *, parallel: bool = True) -> int | None:
+    """One proper factor of composite n, or None for 0, 1, or prime."""
+    if n < 2:
+        return None
+    if n % 2 == 0:
+        return 2
+    if n % 3 == 0:
+        return 3
+    if n % 5 == 0:
+        return 5
+    from .factor_lehman import lehman_factor
+
+    f = lehman_factor(n, parallel=parallel)
+    if f is not None:
+        return f
+    from .prime_factors import prime_factors
+
+    facs = prime_factors(n, parallel=parallel)
+    return facs[0] if facs else None
+
+
+def _print_result(
+    arg: str, prime: bool, threads: int, factor: int | None = None
+) -> None:
     print(f"TEST:    {arg} ({len(arg)} chars)")
     print(f"THREADS: {threads}")
     print(f"RESULT:  {'prime' if prime else 'not prime'}")
+    if not prime and factor is not None:
+        print(f"FACTOR:  {factor}")
     dt = time.perf_counter_ns() - t0
     print(f"TIME:    {dt} ns  ({dt / 1e6:.6f} ms)")
 
@@ -1075,6 +1125,16 @@ def _main_simple(argv: list[str]) -> int:
         print("n must be a natural number (n >= 0)", file=sys.stderr)
         return 2
 
+    factor: int | None = None
+    from .factor_lehman import cubic_complete_ready, lehman_factor
+
+    if cubic_complete_ready(n):
+        factor = lehman_factor(n, parallel=parallel)
+        prime = factor is None
+        threads = _thread_count if parallel and _thread_count else 1
+        _print_result(str(n) if positional else arg, prime, threads, factor)
+        return 0 if prime else 1
+
     if n < _SMALL_LIMIT:
         prime = _is_prime_small(n)
         threads = 1
@@ -1100,7 +1160,9 @@ def _main_simple(argv: list[str]) -> int:
             else 1
         )
 
-    _print_result(str(n) if positional else arg, prime, threads)
+    if not prime:
+        factor = _one_factor(n, parallel=parallel)
+    _print_result(str(n) if positional else arg, prime, threads, factor)
     return 0 if prime else 1
 
 
@@ -1117,6 +1179,10 @@ def _main_full(argv: list[str] | None = None) -> int:
     parallel = not args.serial
     if args.lab:
         info = lab(args.n, parallel=parallel)
+        factor = None
+        if not info["is_prime"]:
+            factor = _one_factor(info["n"], parallel=parallel)
+        info["factor"] = factor
         if args.json:
             print(json.dumps(info, indent=2))
         else:
@@ -1126,6 +1192,8 @@ def _main_full(argv: list[str] | None = None) -> int:
             print(f"ISQRT:     {info['isqrt']}")
             print(f"PARALLEL:  {info['parallel']}")
             print(f"RESULT:    {'prime' if info['is_prime'] else 'not prime'}")
+            if factor is not None:
+                print(f"FACTOR:    {factor}")
             print(f"TIME_MS:   {info['elapsed_ms']:.6f}")
             print(f"E2E_MS:    {info['e2e_ms']:.6f}")
             print(f"NOTE:      {info['note']}")

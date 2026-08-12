@@ -58,7 +58,12 @@ class TestCPathEngine:
     @pytest.mark.slow
     def test_default_hard_prime_uses_c_path(self):
         info = lab(LARGEST_PRIME_LT_2_64)
-        assert info["path"] == "u64_wheel_c"
+        from best_prime.factor_lehman import _c_lehman_ready
+
+        if _c_lehman_ready():
+            assert info["path"] == "u64_lehman_c"
+        else:
+            assert info["path"] == "u64_wheel_c"
         assert info["is_prime"] is True
         assert info["isqrt"] == (1 << 32) - 1
 
@@ -129,7 +134,12 @@ class TestCU128Path:
 
     def test_lab_reports_u128_path(self):
         info = lab(self.P10_20)
-        assert info["path"] == "u128_wheel_c"
+        from best_prime.factor_lehman import _c_lehman_ready
+
+        if _c_lehman_ready():
+            assert info["path"] == "u128_lehman_c"
+        else:
+            assert info["path"] == "u128_wheel_c"
         assert info["is_prime"] is True
         assert info["bit_length"] == 67
 
@@ -149,7 +159,12 @@ class TestCU128Path:
     def test_two_to_64_uses_big_path_not_u64(self):
         # 2^64 itself is composite power of two; path is big-int family.
         info = lab(1 << 64)
-        assert info["path"] in {"u128_wheel_c", "bigint_wheel", "bigint_trial_or_aks"}
+        assert info["path"] in {
+            "u128_lehman_c",
+            "u128_wheel_c",
+            "bigint_wheel",
+            "bigint_trial_or_aks",
+        }
         assert info["is_prime"] is False
 
 

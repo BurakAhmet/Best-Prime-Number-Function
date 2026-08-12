@@ -23,7 +23,7 @@ is-prime-power 8               # yes (exit 0)
 is-perfect-power 36            # yes (exit 0)
 ```
 
-`is-prime` with no argument defaults to the 70-bit prime `600000000000000000001` (OpenMP u128 full trial, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
+`is-prime` with no argument defaults to the 70-bit prime `600000000000000000001` (OpenMP complete cubic search when `wheel_core.so` exports `lehman_factor_u128`). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
 
 ## Exit codes (`is-prime` / power predicates)
 
@@ -42,6 +42,16 @@ TEST:    600000000000000000001 (21 chars)
 THREADS: 12
 RESULT:  prime
 TIME:    2307170444 ns  (2307.170444 ms)
+```
+
+A composite prints one proper factor:
+
+```text
+TEST:    6000000000000000000043 (22 chars)
+THREADS: 1
+RESULT:  not prime
+FACTOR:  1017077
+TIME:    4881644 ns  (4.881644 ms)
 ```
 
 Example for the mid-size 12-digit prime (precomputed-prime C path):

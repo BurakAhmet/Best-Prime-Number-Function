@@ -22,7 +22,7 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 | Name | Meaning | Example |
 |------|---------|---------|
 | `__version__` | Installed package version | `"1.11.2"` |
-| `DEFAULT_N` | CLI default / 70-bit u128 full-trial yardstick | `600000000000000000001` |
+| `DEFAULT_N` | CLI default / 70-bit cubic-search yardstick | `600000000000000000001` |
 | `PRIME_COUNT_MAX_N` | **Hard ceiling** for `prime_count` | $2^{64}-1$ |
 | `NEXT_PRIME_SIEVE_ISQRT_MAX` | Interval-sieve cap for next/prev | $2\cdot10^6$ |
 | `TOTIENT_RANGE_MAX` | Max $n$ for `totient_range` | $2\cdot10^{7}$ |
@@ -30,7 +30,7 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 ```python
 from best_prime import DEFAULT_N, PRIME_COUNT_MAX_N, __version__
 assert DEFAULT_N == 600000000000000000001
-assert is_prime(DEFAULT_N)  # wants wheel_core.so (u128 path)
+assert is_prime(DEFAULT_N)  # wants wheel_core.so (cubic C path)
 ```
 
 ---
@@ -39,7 +39,7 @@ assert is_prime(DEFAULT_N)  # wants wheel_core.so (u128 path)
 
 ### `is_prime(n, *, parallel=True) -> bool | list[bool]`
 
-`True` iff $n$ is prime. Fully deterministic: exact trial through practical $\sqrt{n}$, then AKS only for huge $n$.
+`True` iff $n$ is prime. Fully deterministic: exact trial through $\sqrt{n}$ for mid-size 64-bit $n$; complete cubic search for hard 64-bit $n$ ($\lfloor\sqrt{n}\rfloor\ge 10^{7}$) and for $n\ge 2^{64}$ when the C core can finish; AKS only for huge $n$.
 
 ```python
 is_prime(17)                       # True
@@ -71,7 +71,7 @@ info["is_prime"], info["path"], info["isqrt"]
 # (True, 'u64_wheel_c', 31622)   # path depends on wheel_core.so
 ```
 
-Typical `path` values: `python_small`, `u64_wheel_c`, `u128_wheel_c`, `python_wheel`, `bigint_wheel`, `bigint_trial_or_aks`. See [Engines](engines.md).
+Typical `path` values: `python_small`, `u64_wheel_c`, `u64_lehman_c`, `u128_lehman_c`, `u128_wheel_c`, `python_wheel`, `bigint_wheel`, `bigint_trial_or_aks`. See [Engines](engines.md).
 
 ---
 
@@ -166,6 +166,20 @@ Prime $\to$ exponent. Empty if $n<2`.
 
 ```python
 factorint(360)    # {2: 3, 3: 2, 5: 1}
+```
+
+Trial + Fermat + **two-band cubic search** + deterministic Brent + ECM + SIQS. See [cubic search](cubic-search.md).
+
+### `lehman_factor(n, *, k_max=None) -> int | None`
+
+A nontrivial factor of $n$, or `None` if the budget finds none. Default budget is $\lceil n^{1/3}\rceil$ while that is $\le 3\cdot 10^6$ (every 64-bit $n$): then `None` means $n$ is $0$, $1$, or prime. A smaller `k_max` is a probe, not a proof.
+
+This is **not** `is_prime`. The 64-bit predicate stays exact trial through $\lfloor\sqrt{n}\rfloor$.
+
+```python
+lehman_factor(91)     # 7 or 13
+lehman_factor(97)     # None
+lehman_factor(15, k_max=0)  # None — probe skipped the wheel
 ```
 
 ### `is_perfect_power(n) -> bool`

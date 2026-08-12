@@ -23,6 +23,7 @@ from best_prime import (  # noqa: E402
     euler_phi,
     factorint,
     gcd,
+    lehman_factor,
     is_carmichael,
     is_perfect_power,
     is_prime,
@@ -101,6 +102,8 @@ def main() -> None:
     print("\nfactoring / powers")
     show("prime_factors(360)", prime_factors(360))
     show("factorint(360)", factorint(360))
+    show("lehman_factor(91)", lehman_factor(91))
+    show("lehman_factor(97)", lehman_factor(97))
     show("is_perfect_power(36)", is_perfect_power(36))
     show("is_perfect_power(12)", is_perfect_power(12))
     show("is_prime_power(8)", is_prime_power(8))

@@ -114,6 +114,7 @@ nav:
   - Design:
       - Restrictions: restrictions.md
       - Engines: engines.md
+      - Cubic search: cubic-search.md
       - Performance: performance.md
 
 watch:

@@ -12,7 +12,7 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 2. **No stochastic Miller–Rabin** — no random bases, no “probably prime” APIs as the engine.
 3. **No prime libraries** — do not depend on primesieve, sympy.isprime, etc. for the implementation.
 4. **Allowed** — NumPy, Numba (JIT / parallel) for *our* trial division / helpers.
-5. **Correctness model** — for `n < 2^64`: exact trial division up to `isqrt(n)` (OpenMP C precomputed primes / segmented primes when `wheel_core.so` is built; else tiered 30030 / 9699690 wheels). For `2^64 ≤ n` with practical `isqrt` (≤ ~2.5e10, ≤128-bit): same full trial via `is_prime_u128_core` or stdlib wheel. For still larger `n`: partial trial then AKS if needed (may be slow).
+5. **Correctness model** — for `n < 2^64` with `isqrt(n) < 1e7`: exact trial division up to `isqrt(n)` (OpenMP C precomputed primes / segmented primes when `wheel_core.so` is built; else tiered 30030 / 9699690 wheels). For harder 64-bit n (`isqrt ≥ 1e7`) and for `2^64 ≤ n` when OpenMP cubic search can finish (cube root ≤ 2e7): `lehman_factor_u128`. Else practical `isqrt` (≤ ~2.5e10, ≤128-bit): full trial via `is_prime_u128_core` or stdlib wheel. For still larger `n`: partial trial then AKS if needed (may be slow).
 
 ## When answering issues
 

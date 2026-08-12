@@ -40,6 +40,15 @@ class TestCliExitCodes:
         r = _run("100")
         assert r.returncode == 1
         assert "not prime" in r.stdout
+        assert "FACTOR:" in r.stdout
+        line = next(x for x in r.stdout.splitlines() if x.startswith("FACTOR:"))
+        factor = int(line.split()[-1])
+        assert 1 < factor < 100 and 100 % factor == 0
+
+    def test_prime_has_no_factor_line(self):
+        r = _run("97")
+        assert r.returncode == 0
+        assert "FACTOR:" not in r.stdout
 
     def test_invalid_exits_two(self):
         r = _run("12a")

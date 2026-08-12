@@ -7,7 +7,7 @@ from __future__ import annotations
 
 # Largest prime strictly less than 2^64 (hard 64-bit specimen, not CLI default).
 LARGEST_PRIME_LT_2_64 = 18_446_744_073_709_551_557
-# CLI default: 70-bit prime, OpenMP u128 full trial (isqrt ~ 24494897427).
+# CLI default: 70-bit prime, OpenMP cubic search when C can finish.
 DEFAULT_CLI_N = 600_000_000_000_000_000_001
 NEAR_2_63_PRIME = 9_223_372_036_854_775_783
 M61 = (1 << 61) - 1  # 2305843009213693951
