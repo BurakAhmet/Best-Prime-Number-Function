@@ -29,6 +29,13 @@ int is_prime_u64_core(uint64_t n, int parallel);
  */
 int is_prime_u128_core(uint64_t lo, uint64_t hi, int parallel);
 
+/*
+ * Two-band cubic search. n = lo + (hi << 64).
+ * Returns a proper factor, or 0 if none in the budget.
+ * k_max is the inclusive cube-root budget.
+ */
+uint64_t lehman_factor_u128(uint64_t lo, uint64_t hi, uint64_t k_max, int parallel);
+
 /* Friendlier aliases (same symbols). */
 #define best_prime_u64 is_prime_u64_core
 #define best_prime_u128 is_prime_u128_core

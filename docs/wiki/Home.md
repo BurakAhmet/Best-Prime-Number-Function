@@ -27,7 +27,7 @@ This project refuses that bargain: same $n$, any machine, serial or parallel →
 |--|--|
 | **Library** | `is_prime`, `next_prime` / `prev_prime`, `nth_prime`, `prime_count`, `primes` / `primerange`, `prime_factors` / `factorint`, `totient` / `primorial` / `divisors`, `is_prime_power` / `is_perfect_power` |
 | **Fast path** | $n \lt 2^{64}$: OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
-| **Mid-large path** | $n \ge 2^{64}$ with practical $\sqrt{n}$ (e.g. about $10^{20}$): OpenMP **u128** full trial (or stdlib wheel) |
+| **Mid-large path** | $n \ge 2^{64}$: complete cubic C when it can finish (CLI default); else OpenMP **u128** full trial / stdlib wheel |
 | **Huge path** | Partial trial, then **AKS** if needed (deterministic, can be slow) |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
@@ -46,6 +46,7 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 | **[Library reference](Library)** | Every public function, with examples (wiki copy) |
 | **[Project restrictions](Project-restrictions)** | Non-negotiable rules for humans **and agents** |
 | **[Algorithm overview](Algorithm-overview)** | Tiered wheel trial (u64/u128) + AKS for huge n |
+| **[Cubic search](https://burakahmet.github.io/Best-Prime-Number-Function/guide/cubic-search/)** | Two-band $O(n^{1/3})$ factor search (not the 64-bit `is_prime` engine) |
 | **[Algorithm history](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)** | Performance eras, opts, tradeoffs, failures to avoid |
 | **[CI and automation](CI-and-automation)** | Tests, determinism, e2e performance, issue/PR agents |
 | **[Agent briefing](Agent-briefing)** | Instructions for coding / triage agents |
@@ -97,10 +98,12 @@ pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
 is_prime(n)
     ├─ n < 10⁴         → pure-Python small loop
     ├─ n < 2⁶⁴
+    │    ├─ isqrt ≥ 10⁷ and cubic C → lehman_factor_u128
     │    ├─ wheel_core.so → OpenMP C precomputed primes / seg-primes
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
+         ├─ cubic C can finish → lehman_factor_u128 (CLI default)
          ├─ practical √n (≤128-bit) → OpenMP u128 full trial / stdlib wheel
          └─ larger still            → partial trial → AKS if needed
 ```

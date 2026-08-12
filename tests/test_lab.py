@@ -69,14 +69,24 @@ class TestLabContract:
 
     def test_two_pow_64_not_u64_path(self):
         info = lab(1 << 64)
-        assert info["path"] in {"u128_wheel_c", "bigint_wheel", "bigint_trial_or_aks"}
+        assert info["path"] in {
+            "u128_lehman_c",
+            "u128_wheel_c",
+            "bigint_wheel",
+            "bigint_trial_or_aks",
+        }
         assert info["is_prime"] is False
 
     def test_u128_path_when_core_present(self):
         if not _load_c_core() or not hasattr(_load_c_core(), "is_prime_u128_core"):
             pytest.skip("no u128 core")
         info = lab(P10_20)
-        assert info["path"] == "u128_wheel_c"
+        from best_prime.factor_lehman import _c_lehman_ready
+
+        if _c_lehman_ready():
+            assert info["path"] == "u128_lehman_c"
+        else:
+            assert info["path"] == "u128_wheel_c"
         assert info["is_prime"] is True
         assert info["bit_length"] == 67
 
@@ -98,10 +108,25 @@ class TestLabContract:
         assert a["is_prime"] is b["is_prime"]
         assert a["path"] == b["path"]
 
+    def test_hard_64bit_uses_cubic_when_c_ready(self):
+        info = lab(SEMIPRIME_1E9)
+        from best_prime.factor_lehman import _c_lehman_ready
+
+        assert info["is_prime"] is False
+        if _c_lehman_ready():
+            assert info["path"] == "u64_lehman_c"
+        elif _load_c_core():
+            assert info["path"] == "u64_wheel_c"
+
     @pytest.mark.slow
     def test_default_hard_prime_lab(self):
         info = lab(LARGEST_PRIME_LT_2_64)
         assert info["is_prime"] is True
         assert info["isqrt"] == (1 << 32) - 1
         if _load_c_core():
-            assert info["path"] == "u64_wheel_c"
+            from best_prime.factor_lehman import _c_lehman_ready
+
+            if _c_lehman_ready():
+                assert info["path"] == "u64_lehman_c"
+            else:
+                assert info["path"] == "u64_wheel_c"

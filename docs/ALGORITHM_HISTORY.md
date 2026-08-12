@@ -608,6 +608,23 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 
 ---
 
+## API addition — cubic factor search (unreleased)
+
+**Not an `is_prime` engine change.** New module [`best_prime/factor_lehman.py`](../best_prime/factor_lehman.py):
+
+- **Band 1.** 30-wheel rising-product gcd (batches of 128) through the cube-root budget. One gcd proves a block has no factor — Pollard–Strassen / product-tree idea, no FFT, no RNG.
+- **Band 2.** Integer-safe Lehman windows on $4kn$ for $k=1,\ldots,\lceil n^{1/3}\rceil$. Overestimated extra so the Crandall–Pomerance interval is never short. $O(n^{1/3})$ instead of walking $(n^{1/3},\sqrt{n}]$.
+- **`factorint` / `_split`.** After Fermat, before Brent. Complete on every 64-bit composite; `k_max=100_000` probe for larger $n`.
+- **`is_prime`.** Complete cubic C for $n\ge 2^{64}$ (`u128_lehman_c`) and hard 64-bit $n$ with $\lfloor\sqrt{n}\rfloor\ge 10^{7}$ (`u64_lehman_c`). Mid-size 64-bit stays trial (`u64_wheel_c`). Completeness cap `LEHMAN_COMPLETE_CUB_MAX = 3·10^6` (Python) / `LEHMAN_COMPLETE_CUB_MAX_C = 2\cdot10^7` (C).
+
+Indicative (pure Python, this machine class): $101\times 103$ instant; $(10^9+7)(10^9+9)$ tens of ms; $(2^{31}-1)\times$ next odd $\sim 80\,\mathrm{ms}$.
+
+**C follow-up / CLI default.** `lehman_factor_u128` in `wheel_core.so` (source `is_prime_data/lehman_core.c`) completes through `LEHMAN_COMPLETE_CUB_MAX_C = 2\cdot10^7`. **`is_prime` uses it for every $n\ge 2^{64}$** that fits that budget (`lab` path `u128_lehman_c`), including the CLI default. Same machine: `is_prime(DEFAULT_N)` ~**0.19 s** (was ~**2.1 s** u128 trial). Hard 64-bit: M61 ~**19 ms**, near $2^{63}$ ~**31 ms** (after C micro-opts: 64-bit `%`, parallel wheel, faster `isqrt`). Mid-size 64-bit stays `u64_wheel_c`. CLI default ~**118 ms**.
+
+Recent papers surveyed and **not** taken as the engine: Harvey $n^{1/5}$ (2020), Harvey–Hittmeir (2021), Hales–Hiary power-divisor Lehman (2024), Oznovich–Volk high-order elements (2025). Those are either theoretical or special-form; they do not beat a cubic split under this repo's determinism rules. Guide: [`docs/guide/cubic-search.md`](guide/cubic-search.md).
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:
@@ -655,7 +672,10 @@ Recorded so agents and humans do not “rediscover” them:
 | `best_prime/prev_prime.py` | Predecessor prime |
 | `best_prime/prime_sieve.py` | Odds-only / segmented sieve, $\pi(n)$, $p_k$, generator `primerange` |
 | `best_prime/ntheory.py` | totient, primorial, divisors, Jacobi, CRT |
-| `best_prime/prime_factors.py` | Trial + Fermat + deterministic Brent |
+| `best_prime/prime_factors.py` | Trial + Fermat + cubic search + deterministic Brent |
+| `best_prime/factor_lehman.py` | Two-band cubic split (rising-product + Lehman) |
+| `best_prime/factor_ecm.py` | Deterministic ECM |
+| `best_prime/factor_siqs.py` | Deterministic SIQS |
 | `best_prime/prime_power.py` | Perfect powers / prime powers |
 | `is_prime_data/wheel_core.c` | OpenMP u64/u128 engines (generated + hand-tuned sections) |
 | `scripts/generate_wheel_core_c.py` | C generator |
@@ -670,4 +690,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.10.0** (L1-tiled small-prime marking). Extend forward; do not delete past eras.*
+*Last updated for unreleased cubic factor search (`lehman_factor`) on top of package **1.11.2**. Extend forward; do not delete past eras.*

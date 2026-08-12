@@ -2,7 +2,8 @@
 Exact integer factorization.
 
 Small factors by 8-way 30-wheel trial (updates √n as it shrinks). Composite
-remainders split with Fermat (close factors), deterministic Brent–Pollard
+remainders split with Fermat (close factors), two-band cubic search
+(Lehman + rising-product wheel), deterministic Brent–Pollard
 (fixed c = 1,2,3,… — no RNG), then deterministic ECM and SIQS for larger
 balanced composites. Each prime factor is confirmed with is_prime.
 """
@@ -181,6 +182,16 @@ def _split(n: int) -> int:
     """A proper factor of composite n > 1."""
     f = _fermat_split(n)
     if f is not None:
+        return f
+    # Cubic search: complete through 64-bit (n^{1/3} ≤ 2.6e6); bounded
+    # probe after that. Does not replace is_prime's trial-to-√n contract.
+    from .factor_lehman import lehman_factor
+
+    if n.bit_length() <= 64:
+        f = lehman_factor(n)
+    else:
+        f = lehman_factor(n, k_max=100_000)
+    if f is not None and 1 < f < n:
         return f
     # Fixed c sequence: 1,2,3,… (c=0 is x^2, often degenerate).
     for c in range(1, 64):

@@ -37,6 +37,12 @@ Only while $\sqrt{\text{bound}} \le$ `NEXT_PRIME_SIEVE_ISQRT_MAX`
 ($2\cdot 10^6$). Larger $k$ or $n$ walk a 30030-wheel and call `is_prime`.
 Stream with `next_primes` / `prev_primes`.
 
+## Did you replace “search up to $\sqrt{n}$”?
+
+For mid-size $n < 2^{64}$ ($\lfloor\sqrt{n}\rfloor < 10^{7}$), `is_prime` is still exact trial through $\lfloor\sqrt{n}\rfloor$. Harder 64-bit $n$ and $n\ge 2^{64}$ use the complete cubic search when the C core can finish.
+
+`lehman_factor` is a **different schedule** of the same interval: a rising-product wheel through $n^{1/3}$, then Lehman windows instead of walking $(n^{1/3},\sqrt{n}]$. For $n\ge 2^{64}$, `is_prime` (and the CLI default) uses the OpenMP C form when it can finish. Details: [cubic search](cubic-search.md).
+
 ## Is AKS practical?
 
 Only as the last engine for huge $n$ with no small factor. Hard 64-bit

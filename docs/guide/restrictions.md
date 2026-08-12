@@ -9,8 +9,8 @@ These rules apply to **all** contributors and **automated agents**. They are the
 3. **No prime libraries** as the implementation (e.g. `primesieve`, `sympy.isprime` as the engine).
 4. **Allowed:** NumPy / Numba, and our own compiled OpenMP helper (`wheel_core.so`), for speeding up *our* trial division.
 5. **Correctness model**
-    - $n \lt 2^{64}$: exact trial division up to $\lfloor\sqrt{n}\rfloor$ — OpenMP **precomputed primes** / segmented primes when `wheel_core.so` is built; otherwise primorial-wheel (embedded **30030** and/or modulus **9699690**)
-    - $2^{64} \le n$ with $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): same full trial model via OpenMP **u128** core or stdlib wheel
+    - $n \lt 2^{64}$: exact trial division up to $\lfloor\sqrt{n}\rfloor$ when $\lfloor\sqrt{n}\rfloor < 10^{7}$ (OpenMP **precomputed primes** / segmented primes, or primorial-wheel **30030** / **9699690**). Harder 64-bit $n$ ($\lfloor\sqrt{n}\rfloor \ge 10^{7}$) use the same complete OpenMP cubic search as the CLI default when `lehman_factor_u128` is present.
+    - $2^{64} \le n$ with a complete OpenMP cubic search (cube root $\le 2\cdot10^{7}$, $4kn$ fits in 128 bits): two-band Lehman in `wheel_core.so` (CLI default). Else $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): full trial via OpenMP **u128** core or stdlib wheel
     - still larger $n$: partial trial, then **AKS** (may be slow for huge primes)
 
 Enforced in CI by `scripts/check_restrictions.py`. Serial and parallel must agree on every result.
@@ -39,6 +39,7 @@ NumPy, Numba, and `wheel_core.so` exist to run **our** wheel / sieve / wrap-mul 
 
 ## Related
 
+- [Cubic search](cubic-search.md) — $O(n^{1/3})$ factor schedule; not a replacement for 64-bit trial
 - [Engines](engines.md)
 - [Algorithm history](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md) — eras, tradeoffs, **failures not to repeat**
 - [CONTRIBUTING.md](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/CONTRIBUTING.md)

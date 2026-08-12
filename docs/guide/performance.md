@@ -14,8 +14,9 @@ Both in-process baselines are **deterministic** (no Miller–Rabin).
 | Input size | Typical engine (with `.so`) | Notes |
 |------------|----------------------------|--------|
 | Tiny / moderate | Python loop or stdlib wheel | Sub-ms to tens of ms |
-| Hard 64-bit primes | OpenMP `u64_wheel_c` | Sub-second multi-core on a laptop |
-| Up to about $10^{20}$ with practical $\sqrt{n}$ | OpenMP `u128_wheel_c` | Seconds, not AKS |
+| Hard 64-bit primes | OpenMP `u64_lehman_c` | ~30–55 ms (was ~80–230 ms trial) |
+| Up to about $10^{20}$ when cubic C can finish | OpenMP `u128_lehman_c` | ~0.2 s on the CLI default |
+| Else practical $\sqrt{n}$ (≤128-bit) | OpenMP `u128_wheel_c` | Seconds, not AKS |
 | Huge primes, no small factors | Partial trial → **AKS** | Correct but can be very slow |
 
 Without `wheel_core.so`, the library still works via stdlib wheels and/or Numba; only the slowest 64-bit / multi-limb cases suffer most.
@@ -30,7 +31,7 @@ End-to-end CLI `TIME` on a dev machine (`compare_e2e.py`, best of several runs; 
 | $10^9+7$ | 1000000007 | ~2–3 ms |
 | 12-digit prime | 999999999989 | ~2–4 ms |
 | Near $2^{63}$ | 9223372036854775783 | ~0.19–0.22 s |
-| CLI default (70-bit u128) | 600000000000000000001 | ~2.3 s |
+| CLI default (70-bit cubic C) | 600000000000000000001 | ~0.2 s |
 | Largest prime $<2^{64}$ | 18446744073709551557 | ~0.21–0.23 s |
 | Mersenne M61 | $2^{61}-1$ | ~0.10–0.12 s |
 

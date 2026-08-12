@@ -46,13 +46,17 @@ if [[ -n "${WHEEL_CORE_CFLAGS:-}" ]]; then
 fi
 
 OUT="$DATA/wheel_core.$OUT_EXT"
+LEHMAN_C=()
+if [[ -f "$DATA/lehman_core.c" ]]; then
+  LEHMAN_C=("$DATA/lehman_core.c")
+fi
 # -funroll-loops + LTO help the independent-mod / segmented-prime hot paths.
 "$CC" -O3 -flto -fPIC -shared \
   "${ARCH_FLAGS[@]}" \
   "${OPENMP_FLAGS[@]}" \
   -funroll-loops -fomit-frame-pointer \
   "${EXTRA[@]}" \
-  -o "$OUT" "$DATA/wheel_core.c" -lm "${OPENMP_FLAGS[@]}"
+  -o "$OUT" "$DATA/wheel_core.c" "${LEHMAN_C[@]}" -lm "${OPENMP_FLAGS[@]}"
 # ctypes loader also accepts wheel_core.so on every platform.
 if [[ "$OUT_EXT" != so ]]; then
   cp -f "$OUT" "$DATA/wheel_core.so"

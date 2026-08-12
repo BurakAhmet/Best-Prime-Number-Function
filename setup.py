@@ -105,9 +105,11 @@ def _compile_wheel_core(target_dir: Path) -> bool:
             "-o",
             str(out),
             str(src),
-            "-lm",
-            *omp,
         ]
+        lehman_c = DATA / "lehman_core.c"
+        if lehman_c.is_file():
+            cmd.append(str(lehman_c))
+        cmd.extend(["-lm", *omp])
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
             print(f"is_prime: built native core -> {out}")

@@ -8,11 +8,13 @@ CLI **`TIME` is end-to-end** (import → answer). Dispatch is tiered to minimize
 is_prime(n)
     ├─ n < 10⁴         → pure-Python small loop
     ├─ n < 2⁶⁴
+    │    ├─ isqrt ≥ 10⁷ and cubic C → lehman_factor_u128
     │    ├─ wheel_core.so → OpenMP C precomputed primes / seg-primes
     │    │                 (Linux/macOS wheels ship this; else compile locally)
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
+         ├─ cubic C can finish (cube root ≤ 2·10⁷) → lehman_factor_u128 (CLI default)
          ├─ isqrt(n) ≤ 2.5·10¹⁰ (≤128-bit) → OpenMP u128 full trial / stdlib wheel
          └─ larger still            → 30030-wheel to 1e8 → AKS if needed
 ```
@@ -24,7 +26,10 @@ flowchart TD
   B -->|no| C{n < 10^4}
   C -->|yes| P1[Pure-Python small loop]
   C -->|no| D{n < 2^64}
-  D -->|yes| E{wheel_core.so?}
+  D -->|yes| E0{isqrt ≥ 10^7 and cubic C?}
+  E0 -->|yes| P7[OpenMP C cubic search]
+  P7 --> Z3
+  E0 -->|no| E{wheel_core.so?}
   E -->|yes| P2[OpenMP C — precomputed / seg-primes<br/>Linux/macOS wheels ship this]
   E -->|no| F{n ≤ 4·10^12}
   F -->|yes| P3[Embedded 30030-wheel]
@@ -35,7 +40,12 @@ flowchart TD
   P4 --> G
   G -->|yes| Z1
   G -->|no| Z2[True]
-  D -->|no| H{isqrt n ≤ 2.5·10^10 and ≤128-bit?}
+  D -->|no| H0{cubic C complete?}
+  H0 -->|yes| P6[OpenMP C cubic search]
+  P6 --> Z3{factor?}
+  Z3 -->|yes| Z1
+  Z3 -->|no| Z2
+  H0 -->|no| H{isqrt n ≤ 2.5·10^10 and ≤128-bit?}
   H -->|yes| P5[OpenMP u128 full trial / stdlib wheel]
   P5 --> G
   H -->|no| I[30030-wheel to 1e8 then AKS]
@@ -72,7 +82,8 @@ All of these reuse **our** sieves / `is_prime`. No external prime engine.
 | `prime_count(n)` | Sieve for $n\le 2\cdot10^7$; Lucy–Hedgehog up to $n\le 2.5\cdot10^{15}$; **Meissel–Lehmer** through $2^{64}-1$ |
 | `primes` / `primerange` | Cached odds-only Eratosthenes; **`primerange` yields** (256 KiB windows) |
 | `totient` / `primorial` / `divisors` | From `factorint`; `totient_range` is a linear sieve; primorial is a product tree |
-| `prime_factors` / `factorint` | 30-wheel trial, Fermat, deterministic Brent–Pollard ($c=1,2,\ldots$), then `is_prime` |
+| `prime_factors` / `factorint` | 30-wheel trial, Fermat, **two-band cubic search**, deterministic Brent–Pollard ($c=1,2,\ldots$), ECM, SIQS; each prime confirmed with `is_prime` |
+| `lehman_factor` | Rising-product 30-wheel to the cube-root budget, then integer-safe Lehman windows. Not the `is_prime` engine. [Cubic search](cubic-search.md) |
 | `is_perfect_power` / `is_prime_power` | Newton $k$-th roots; prime exponents only |
 
 ## Complexity (word operations)

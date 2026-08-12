@@ -24,7 +24,7 @@ Runnable tours: [`examples/basic_usage.py`](https://github.com/BurakAhmet/Best-P
 | Primality | `is_prime` (also list/array), `lab`, `primality_certificate`, `verify_certificate` |
 | Neighbours | `next_prime`, `prev_prime`, `next_primes`, `prev_primes`, `nth_prime` |
 | Count / list | `prime_count` (hard ceiling $2^{64}-1$), `primes`, `primerange` (generator) |
-| Factors / powers | `prime_factors`, `factorint` (ECM + SIQS), `is_perfect_power`, `is_prime_power` |
+| Factors / powers | `prime_factors`, `factorint` (cubic search + ECM + SIQS), `lehman_factor`, `is_perfect_power`, `is_prime_power` |
 | Multiplicative | `totient` / `euler_phi`, `totient_range`, `carmichael_lambda`, `primorial`, `divisors`, `divisor_count`, `divisor_sum`, `omega`, `bigomega`, `radical`, `is_squarefree`, `is_semiprime`, `is_carmichael` |
 | Modular | `gcd`, `egcd`, `modinv`, `crt`, `jacobi` |
 | Constants | `__version__`, `DEFAULT_N`, `PRIME_COUNT_MAX_N`, `TOTIENT_RANGE_MAX` |

@@ -61,6 +61,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "is_squarefree": (".ntheory", "is_squarefree"),
     "jacobi": (".ntheory", "jacobi"),
     "lab": (".is_prime", "lab"),
+    "lehman_factor": (".factor_lehman", "lehman_factor"),
     "main": (".is_prime", "main"),
     "modinv": (".ntheory", "modinv"),
     "next_prime": (".next_prime", "next_prime"),
@@ -104,6 +105,7 @@ __all__ = [
     "is_squarefree",
     "jacobi",
     "lab",
+    "lehman_factor",
     "main",
     "modinv",
     "next_prime",
@@ -134,6 +136,12 @@ def __getattr__(name: str) -> Any:
     for exp, (m, a) in _EXPORTS.items():
         if m == mod_name:
             globals()[exp] = getattr(mod, a)
+    # Sibling imports (factor_lehman → is_prime) bind the same way. Re-bind
+    # any export that is still a module so ``lehman_factor, is_prime`` works.
+    for exp, (m, a) in _EXPORTS.items():
+        cur = globals().get(exp)
+        if type(cur) is type(mod):
+            globals()[exp] = getattr(import_module(m, __name__), a)
     return globals()[name]
 
 

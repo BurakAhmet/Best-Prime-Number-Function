@@ -48,7 +48,7 @@ Native core: Linux CI builds `wheel_core.so`. macOS wants `brew install libomp`.
 | `primality_certificate(n)` / `verify_certificate(c)` | Pratt certificate, or a factor if composite. |
 | `next_prime` / `prev_prime` / `next_primes` / `prev_primes` | Neighbours; generators stream. Interval sieve while $\sqrt{\text{bound}}\le$ `NEXT_PRIME_SIEVE_ISQRT_MAX` ($2\cdot10^6$). |
 | `nth_prime(k)` / `prime_count(n)` / `primes` / `primerange` | $p_k$, $\pi(n)$ (**hard ceiling** `PRIME_COUNT_MAX_N = 2⁶⁴−1`), lists. |
-| `prime_factors` / `factorint` | Trial + Fermat + deterministic Brent + **ECM** + **SIQS**. |
+| `prime_factors` / `factorint` / `lehman_factor` | Trial + Fermat + **two-band cubic search** + deterministic Brent + **ECM** + **SIQS**. |
 | `totient` / `primorial` / `divisors` / `gcd` / `jacobi` / … | Exact arithmetic. Catalogue: [`docs/wiki/Library.md`](docs/wiki/Library.md). |
 | `lab(n)` | Diagnostics (`path`, timings). |
 
@@ -60,13 +60,13 @@ is_prime([17, 18, 19])                    # [True, False, True]
 next_prime(14, 3)                         # 23
 prime_count(10)                           # 4   — n > 2**64-1 raises ValueError
 primality_certificate(17)["kind"]         # 'pratt'
-is_prime(600000000000000000001)           # CLI default — 70-bit u128 trial
+is_prime(600000000000000000001)           # CLI default — 70-bit cubic C
 is_prime(18446744073709551557)            # largest prime < 2^64
 is_prime(9223372036854775783)             # near 2^63
 is_prime(2305843009213693951)             # M61 = 2^{61}-1
 ```
 
-CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `primality-certificate`, … Exit 0 = prime, 1 = not prime, 2 = bad input. Default `is-prime` yardstick is `600000000000000000001` (70-bit, OpenMP u128 full trial). Printed `TIME` is **end-to-end** (import + check).
+CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `primality-certificate`, … Exit 0 = prime, 1 = not prime, 2 = bad input. Default `is-prime` yardstick is `600000000000000000001` (70-bit, OpenMP cubic search). Printed `TIME` is **end-to-end** (import + check).
 
 ---
 
@@ -142,10 +142,13 @@ Linux/macOS **wheels** (v1.11.2+) ship `wheel_core.so`. A no-compiler or Windows
 is_prime(n)
   n < 10⁴              →  tiny pure-Python loop
   10⁴ ≤ n < 2⁶⁴
+       ├─ isqrt(n) ≥ 10⁷ and cubic C →  lehman_factor_u128 (hard 64-bit)
        ├─ wheel_core.so present  →  OpenMP C (precomputed primes / seg-primes + 2-adic trial)
        ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel (stdlib only)
        └─ else                   →  lazy NumPy/Numba 9699690-wheel
   n ≥ 2⁶⁴
+       ├─ OpenMP cubic search can finish (cube root ≤ 2·10⁷)
+       │                      →  lehman_factor_u128 (CLI default; no AKS)
        ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
        │                      →  OpenMP C full trial (u128 limbs; no AKS)
        ├─ same size, no .so  →  stdlib 9699690-wheel full trial
@@ -162,7 +165,10 @@ flowchart TD
   B -->|no| C{n < 10⁴}
   C -->|yes| P1[Pure-Python small loop]
   C -->|no| D{n < 2⁶⁴}
-  D -->|yes| E{wheel_core.so?}
+  D -->|yes| E0{isqrt ≥ 10⁷ and cubic C?}
+  E0 -->|yes| P7[OpenMP C cubic search]
+  P7 --> Z3
+  E0 -->|no| E{wheel_core.so?}
   E -->|yes| P2[OpenMP C — precomputed / seg-primes<br/>Linux/macOS wheels ship this]
   E -->|no| F{n ≤ 4·10¹²}
   F -->|yes| P3[Embedded 30030-wheel stdlib]
@@ -173,7 +179,12 @@ flowchart TD
   P4 --> G
   G -->|yes| Z1
   G -->|no| Z2[True]
-  D -->|no| H{isqrt n ≤ 2.5·10¹⁰ and ≤128-bit?}
+  D -->|no| H0{cubic C complete?}
+  H0 -->|yes| P6[OpenMP C cubic search<br/>CLI default]
+  P6 --> Z3{factor?}
+  Z3 -->|yes| Z1
+  Z3 -->|no| Z2
+  H0 -->|no| H{isqrt n ≤ 2.5·10¹⁰ and ≤128-bit?}
   H -->|yes| P5[OpenMP C u128 full trial / stdlib wheel]
   P5 --> G
   H -->|no| I[30030-wheel to 1e8 then AKS]
@@ -182,7 +193,7 @@ flowchart TD
   L -->|no| Z1
 ```
 
-Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on the 64-bit paths and on practical multi-limb sizes. Only still-larger inputs fall through to **AKS** (correct, but can be very slow).
+Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on the 64-bit paths. For $n\ge 2^{64}$ the CLI default uses a complete **cubic search** when the C core can finish; otherwise practical multi-limb trial, then **AKS**.
 
 `primality_certificate` / `factorint` sit on top of this predicate (Pratt; trial + Fermat + deterministic Brent + ECM + SIQS). They do not change the boolean contract.
 

@@ -29,8 +29,8 @@ all: $(DATA)/$(SO)
 $(DATA)/wheel_core.c:
 	python3 $(ROOT)/scripts/generate_wheel_core_c.py
 
-$(DATA)/$(SO): $(DATA)/wheel_core.c
-	$(CC) $(CFLAGS) $(ARCH) $(SOFLAGS) $(OPENMP) -o $@ $< $(LDFLAGS) $(OPENMP)
+$(DATA)/$(SO): $(DATA)/wheel_core.c $(DATA)/lehman_core.c
+	$(CC) $(CFLAGS) $(ARCH) $(SOFLAGS) $(OPENMP) -o $@ $(DATA)/wheel_core.c $(DATA)/lehman_core.c $(LDFLAGS) $(OPENMP)
 	# Also drop the historical ctypes name next to the library.
 	cp -f $@ $(DATA)/wheel_core$(suffix $(SO))
 
