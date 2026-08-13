@@ -18,11 +18,12 @@ Legacy `W30030` / `RES_TO_WI` load lazily for tests. Build the C core with `bash
 
 ## Large path — $n \ge 2^{64}$
 
-1. If the cubic budget applies ($4kn$ fits in 128 bits (no artificial cub cap), $4kn$ fits in 128 bits): **n−1 Pocklington** first (`u128_nm1`), else OpenMP **`lehman_factor_u128`** (`u128_lehman_c`) — the **CLI default** ladder (every $n$ with $4kn$ in 128 bits).
-2. Else if $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits:
+1. **n−1 Pocklington** first for every multi-limb hard $n$ (`u128_nm1`), including the **147-bit CLI default** — even when $4kn$ no longer fits in 128 bits (cubic C incomplete).
+2. Else if the cubic budget applies ($4kn$ fits in 128 bits): OpenMP **`lehman_factor_u128`** (`u128_lehman_c`) as complete fallback.
+3. Else if $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits:
    - Prefer OpenMP C **`is_prime_u128_core`** (same wheel / segmented-prime full trial as the 64-bit engine; limbs `lo`/`hi`).
    - Else stdlib **9699690-wheel** full trial in Python.
-3. For still-larger $n$: **30030-wheel** trial up to $\min(10^8,\lfloor\sqrt{n}\rfloor)$, then **AKS** if needed (Kronecker poly mul; correct, still slow for huge primes).
+4. For still-larger $n$: **30030-wheel** trial up to $\min(10^8,\lfloor\sqrt{n}\rfloor)$, then **AKS** if needed (Kronecker poly mul; correct, still slow for huge primes).
 
 ## Enumeration, factors, powers
 
