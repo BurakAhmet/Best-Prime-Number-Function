@@ -58,7 +58,7 @@ jobs:
           fi
           if [ "$WR_NAME" = "Auto-merge" ]; then
             if gh run view "$WR_ID" --repo "${{ github.repository }}" --log \
-                 | grep -q "Merged PR #"; then
+                 | grep -qE "Merged PR #|PAGES_PUBLISH_PLEASE"; then
               echo "publish=true" >> "$GITHUB_OUTPUT"
             else
               echo "Auto-merge $WR_ID did not merge a PR — skip"

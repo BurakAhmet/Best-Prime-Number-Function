@@ -31,6 +31,7 @@ permissions:
   contents: write
   pull-requests: write
   checks: read
+  actions: write
 
 jobs:
   merge:
@@ -169,6 +170,17 @@ jobs:
                 sha,
               });
               core.info(`Merged PR #${pr.number}`);
+              core.info(`PAGES_PUBLISH_PLEASE merged PR #${pr.number}`);
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  owner, repo,
+                  workflow_id: 'publish-wiki.yml',
+                  ref: 'main',
+                });
+                core.info('Dispatched Publish wiki');
+              } catch (pubErr) {
+                core.info('Publish wiki dispatch skipped: ' + pubErr.message);
+              }
               await github.rest.issues.createComment({
                 owner, repo, issue_number: pr.number,
                 body: '**Autonomous merge** completed after green **CI** and **Determinism** checks.',

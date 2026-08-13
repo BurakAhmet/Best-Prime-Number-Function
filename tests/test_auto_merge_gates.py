@@ -67,12 +67,25 @@ def test_determinism_workflow_publishes_required_gate_name() -> None:
         "determinism.yml must have a job named exactly Determinism "
         "(branch protection required context)"
     )
+    assert re.search(r"(?m)^\s+name:\s*Determinism\s*$", CI), (
+        "ci.yml must publish Determinism on PRs (determinism.yml is main-only)"
+    )
+    assert "pull_request:" not in DET.split("on:")[1].split("jobs:")[0]
 
 
 def test_determinism_tiers_matrix() -> None:
     assert "plan:" in DET
-    assert '["3.12"]' in DET
     assert "3.9" in DET
+
+
+def test_ci_folds_lint_into_linux_312() -> None:
+    assert "Lint (ruff + mypy)" in CI
+    assert CI.count("name: Lint (ruff + mypy)") == 1
+
+
+def test_auto_merge_dispatches_pages_publish() -> None:
+    assert "PAGES_PUBLISH_PLEASE" in AUTO_MERGE
+    assert "publish-wiki.yml" in AUTO_MERGE
 
 
 def test_auto_merge_embeds_required_test_regex() -> None:

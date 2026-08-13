@@ -179,7 +179,8 @@ def _factor_enough(n: int, *, parallel: bool) -> dict[int, int] | None:
     max_splits = 48
 
     def done() -> bool:
-        return _F_value(fac) > target
+        F = _F_value(fac)
+        return F > target or n < 2 * F * F * F
 
     if done():
         return fac
@@ -264,13 +265,14 @@ def nm1_primality(n: int, *, parallel: bool = True) -> Result:
     F = _F_value(fac)
     if F <= 1 or (n - 1) % F != 0:
         return None
-    if F * F <= n:  # need F > √n
+    sqrt_n = math.isqrt(n)
+    cubic = n < 2 * F * F * F
+    if F <= sqrt_n and not cubic:
         return None
 
     # Largest primes first → fewer witness conditions in practice
     primes = sorted(fac.keys(), reverse=True)
-    # Minimal prime set still giving product of powers > √n
-    target = math.isqrt(n)
+    target = sqrt_n if F > sqrt_n else _icbrt(n)
     used: list[int] = []
     prod = 1
     # Rebuild from largest primes with their full exponents in fac
@@ -284,7 +286,42 @@ def nm1_primality(n: int, *, parallel: bool = True) -> Result:
         if prod > target:
             break
 
-    return _pocklington(n, used)
+    decided = _pocklington(n, used)
+    if decided is True and prod <= sqrt_n and not _bls_cubic_ok(n, prod):
+        return None
+    return decided
+
+
+def _icbrt(n: int) -> int:
+    if n < 8:
+        return 0 if n < 1 else 1
+    x = 1 << ((n.bit_length() + 2) // 3)
+    while True:
+        y = (2 * x + n // (x * x)) // 3
+        if y >= x:
+            return x
+        x = y
+
+
+def _bls_cubic_ok(n: int, F: int) -> bool:
+    """BLS n^{1/3} extra: n < 2F³, R = rF+s, r odd or s²−4r not square."""
+    if F <= 1 or (n - 1) % F != 0:
+        return False
+    if n >= 2 * F * F * F:
+        return False
+    R = (n - 1) // F
+    if R <= 0 or math.gcd(F, R) != 1:
+        return False
+    r, s = divmod(R, F)
+    if not (0 < s < F):
+        return False
+    if r & 1:
+        return True
+    disc = s * s - 4 * r
+    if disc < 0:
+        return True
+    root = math.isqrt(disc)
+    return root * root != disc
 
 
 def nm1_ready(n: int) -> bool:
