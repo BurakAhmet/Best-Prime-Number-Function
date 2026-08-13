@@ -15,14 +15,15 @@ Cubic search (Lehman) is complete for every $n$ in budget: cost $\Theta(n^{1/3})
 
 Then every prime divisor of $n$ is $\equiv 1\pmod F$. With $F>\sqrt{n}$, $n$ is prime.
 
-When $n-1$ is smooth (including the CLI default $600000000000000000001$, where $n-1=2^{21}\cdot 3\cdot 5^{20}$), step 1 is microseconds and step 2 is a handful of modular exponentiations. Same machine class:
+When $n-1$ is smooth (e.g. $600000000000000000001$, where $n-1=2^{21}\cdot 3\cdot 5^{20}$), step 1 is microseconds and step 2 is a handful of modular exponentiations. The current CLI default $7000000000000000000037$ has a hostile $n-1$ and falls through to cubic. Same machine class:
 
 | Case | Cubic C (prior hard path) | n−1 proof |
 |------|--------------------------:|----------:|
-| CLI default (70-bit) | ~150 ms | **~0.2 ms** check / **~3 ms** e2e CLI |
+| Smooth 70-bit specimen | ~150 ms | **~0.2 ms** check / **~3 ms** e2e CLI |
 | M61 | ~33 ms | **~0.3 ms** |
 | near $2^{63}$ | ~37 ms | **~10 ms** |
 | largest prime $<2^{64}$ | ~55 ms | **~27 ms** |
+| CLI default (73-bit, hostile $n-1$) | — | inconclusive → **cubic ~0.3 s** |
 
 Hostile $n-1$ (large prime cofactor that will not split in budget) returns *inconclusive*; cubic search remains the complete fallback. No RNG. No Miller–Rabin as the engine: a failed Fermat check **proves composite**; a passed Fermat check is only a filter, not a primality claim.
 

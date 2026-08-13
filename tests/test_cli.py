@@ -61,18 +61,18 @@ class TestCliExitCodes:
 
 
 class TestCliDefault:
-    def test_package_default_is_70bit_u128_yardstick(self):
+    def test_package_default_is_73bit_hard_yardstick(self):
         assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 70
+        assert DEFAULT_N.bit_length() == 73
         assert DEFAULT_N > (1 << 64)
 
     def test_source_default_string_matches(self):
         src = IMPL.read_text(encoding="utf-8")
         assert "DEFAULT_N" in src
-        assert "600_000_000_000_000_000_001" in src or str(DEFAULT_CLI_N) in src
+        assert "7_000_000_000_000_000_000_037" in src or str(DEFAULT_CLI_N) in src
 
     @pytest.mark.slow
-    def test_no_args_checks_default_70bit_prime(self):
+    def test_no_args_checks_default_73bit_prime(self):
         r = _run(timeout=120.0)
         assert r.returncode == 0
         assert str(DEFAULT_CLI_N) in r.stdout

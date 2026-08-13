@@ -36,7 +36,7 @@ _PRODUCT_BATCH = 128
 # A full budget of k ≤ ceil(n^{1/3}) is complete (None ⇒ prime / 0 / 1)
 # only while the cube root is this small. 3e6 covers every 64-bit n
 # in pure Python. The OpenMP C core completes through ~20e6 (covers
-# the 70-bit CLI default).
+# the multi-limb CLI default).
 LEHMAN_COMPLETE_CUB_MAX = 3_000_000
 LEHMAN_COMPLETE_CUB_MAX_C = 20_000_000
 
@@ -197,7 +197,7 @@ def lehman_factor(
     With the default budget (``k_max is None`` and cube root under the
     complete cap) the search is *complete*: ``None`` means ``n`` is 0, 1,
     or prime. OpenMP C raises the cap to ``LEHMAN_COMPLETE_CUB_MAX_C``
-    so the 70-bit CLI default is a full proof. A smaller ``k_max`` is a
+    so the multi-limb CLI default is a full proof. A smaller ``k_max`` is a
     probe, not a primality proof.
 
     ``is_prime`` uses this when ``cubic_complete_ready`` is true: every

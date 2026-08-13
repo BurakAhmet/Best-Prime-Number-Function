@@ -26,7 +26,7 @@ which is O~(log n) modular exponentiations once n−1 is factored.
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import Optional
 
 # Fixed witness list for Pocklington (and Fermat prefilter). Deterministic.
 _BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
@@ -38,7 +38,9 @@ _TRIAL_BOUND = 1_000_000
 # without a quick split (avoids spending more than cubic on hostile n−1).
 _COFACTOR_BIT_GIVE_UP = 56
 
-Result = Literal[True, False] | None
+# True / False / None. Use Optional[bool] (not X | Y) so import works on 3.9:
+# PEP 604 unions are 3.10+, and this alias is evaluated at runtime.
+Result = Optional[bool]
 
 
 def _trial_split(m: int, bound: int) -> tuple[dict[int, int], int]:

@@ -33,10 +33,10 @@ WHEEL_MOD = 9_699_690
 WHEEL_NW = 1_658_880
 _WHEEL_START_I = 23
 _SMALL_LIMIT = 10_000
-# CLI default / hard yardstick: 70-bit prime (complete cubic C when
-# wheel_core.so exports lehman_factor_u128; else u128 trial).
+# CLI default / hard yardstick: 73-bit prime (n−1 often hostile → cubic C
+# when wheel_core.so exports lehman_factor_u128).
 # Largest prime < 2^64 stays a documented 64-bit specimen.
-DEFAULT_N = 600_000_000_000_000_000_001
+DEFAULT_N = 7_000_000_000_000_000_000_037
 # Stdlib wheel wins end-to-end TIME up to this n (avoids NumPy/Numba import).
 _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000

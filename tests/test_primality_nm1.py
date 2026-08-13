@@ -9,12 +9,14 @@ import pytest
 from best_prime.is_prime import DEFAULT_N, is_prime, lab
 from best_prime.primality_nm1 import nm1_primality, nm1_ready
 from tests.numbers import (
+    DEFAULT_CLI_N,
     LARGEST_PRIME_LT_2_64,
     MR_LIAR,
     NEAR_2_63_PRIME,
     P10_9_7,
     SEMIPRIME_1E9,
     SMALL_PRIMES,
+    SMOOTH_NM1_PRIME,
 )
 
 M61 = (1 << 61) - 1
@@ -34,11 +36,20 @@ class TestNm1Primality:
             r = nm1_primality(p)
             assert r is not False
 
-    def test_default_n_instant_proof(self):
+    def test_smooth_nm1_instant_proof(self):
+        # Former 70-bit default: n−1 = 2^21·3·5^20 is fully smooth.
+        assert nm1_ready(SMOOTH_NM1_PRIME)
+        assert nm1_primality(SMOOTH_NM1_PRIME) is True
+        assert is_prime(SMOOTH_NM1_PRIME) is True
+        assert lab(SMOOTH_NM1_PRIME)["path"] == "u128_nm1"
+
+    def test_default_n_uses_cubic_when_nm1_hostile(self):
+        # Current CLI default: 73-bit, n−1 has a large cofactor → cubic fallback.
+        assert DEFAULT_N == DEFAULT_CLI_N
         assert nm1_ready(DEFAULT_N)
-        assert nm1_primality(DEFAULT_N) is True
+        assert nm1_primality(DEFAULT_N) is None
         assert is_prime(DEFAULT_N) is True
-        assert lab(DEFAULT_N)["path"] == "u128_nm1"
+        assert lab(DEFAULT_N)["path"] in {"u128_lehman_c", "u128_nm1"}
 
     def test_m61(self):
         assert nm1_primality(M61) is True
@@ -69,12 +80,11 @@ class TestNm1Primality:
         assert lab(P10_9_7)["path"] in {"u64_wheel_c", "python_wheel", "u64_wheel_numba"}
 
     def test_serial_parallel_agree_hard(self):
-        for n in (M61, NEAR_2_63_PRIME, DEFAULT_N, SEMIPRIME_1E9):
+        for n in (M61, NEAR_2_63_PRIME, SMOOTH_NM1_PRIME, SEMIPRIME_1E9):
             assert nm1_primality(n, parallel=True) == nm1_primality(n, parallel=False)
             assert is_prime(n, parallel=True) is is_prime(n, parallel=False)
 
     def test_pocklington_math_on_smooth_nm1(self):
-        # DEFAULT_N − 1 = 2^21 · 3 · 5^20 is fully smooth.
-        n = DEFAULT_N
+        n = SMOOTH_NM1_PRIME
         assert n - 1 == (1 << 21) * 3 * 5**20
         assert math.isqrt(n) ** 2 < n

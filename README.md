@@ -60,13 +60,13 @@ is_prime([17, 18, 19])                    # [True, False, True]
 next_prime(14, 3)                         # 23
 prime_count(10)                           # 4   — n > 2**64-1 raises ValueError
 primality_certificate(17)["kind"]         # 'pratt'
-is_prime(600000000000000000001)           # CLI default — 70-bit cubic C
+is_prime(7000000000000000000037)           # CLI default — 73-bit cubic C
 is_prime(18446744073709551557)            # largest prime < 2^64
 is_prime(9223372036854775783)             # near 2^63
 is_prime(2305843009213693951)             # M61 = 2^{61}-1
 ```
 
-CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `primality-certificate`, … Exit 0 = prime, 1 = not prime, 2 = bad input. Default `is-prime` yardstick is `600000000000000000001` (70-bit; n−1 Pocklington when $n-1$ factors, else OpenMP cubic). Printed `TIME` is **end-to-end** (import + check).
+CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `primality-certificate`, … Exit 0 = prime, 1 = not prime, 2 = bad input. Default `is-prime` yardstick is `7000000000000000000037` (73-bit; n−1 then OpenMP cubic). Printed `TIME` is **end-to-end** (import + check).
 
 ---
 

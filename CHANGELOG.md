@@ -6,14 +6,15 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - **n−1 Pocklington primality** (`best_prime/primality_nm1.py`) on the hard path: factor $n-1$, prove prime with fixed bases. Deterministic; not Miller–Rabin. Complete cubic search remains the fallback when $n-1$ is hostile. Guide: `docs/guide/nm1-proof.md`.
+- Python **3.9 import fix**: type alias uses `Optional[bool]` (not `X | Y` at runtime) so hard-path imports do not crash on 3.9.
 - **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to $\lceil n^{1/3}\rceil$, then integer-safe Lehman windows. Complete through every 64-bit $n$; hard-path fallback and `factorint` splitter. Guide: `docs/guide/cubic-search.md`.
-- OpenMP **`lehman_factor_u128`** in `wheel_core.so`: complete cubic proof through the 70-bit CLI budget. Used when n−1 is inconclusive (`lab` paths `u64_lehman_c` / `u128_lehman_c`).
+- OpenMP **`lehman_factor_u128`** in `wheel_core.so`: complete cubic proof through the CLI hard budget (cube root ≤ 2·10⁷). Used when n−1 is inconclusive (`lab` paths `u64_lehman_c` / `u128_lehman_c`).
 
 ### Changed
 - Hard 64-bit / CLI-default `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit (e.g. $10^{9}+7$) stays `u64_wheel_c`.
 - Indicative same-machine wins vs pure cubic: CLI default e2e ~**3 ms** (was ~**130–150 ms**); M61 check ~**0.3 ms** (was ~**33 ms**); near $2^{63}$ ~**10 ms** (was ~**37 ms**).
 - CLI `is-prime` prints **`FACTOR:`** when the number is composite (one proper divisor).
-- CLI / `DEFAULT_N` is **`600000000000000000001`** (70-bit prime; $n-1=2^{21}\cdot 3\cdot 5^{20}$ is smooth — ideal for Pocklington). The largest prime $<2^{64}$ remains a documented 64-bit specimen.
+- CLI / `DEFAULT_N` is **`7000000000000000000037`** (73-bit prime; $n-1$ has a large cofactor so the path is usually cubic after a short n−1 attempt). The former 70-bit smooth-$n-1$ specimen `600000000000000000001` remains a documented n−1 benchmark. The largest prime $<2^{64}$ remains a documented 64-bit specimen.
 - Hard-path `wheel_core`: L1 tiles now cover primes $p<4096$ (was $256$), and 8-way wrap-mul trial is two GPR-friendly groups of 4 with an early exit between them.
 
 ### Docs
