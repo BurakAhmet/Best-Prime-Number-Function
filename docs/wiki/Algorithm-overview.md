@@ -18,7 +18,7 @@ Legacy `W30030` / `RES_TO_WI` load lazily for tests. Build the C core with `bash
 
 ## Large path — $n \ge 2^{64}$
 
-1. If the cubic budget applies (cube root $\le 2\cdot10^{7}$, $4kn$ fits in 128 bits): **n−1 Pocklington** first (`u128_nm1`), else OpenMP **`lehman_factor_u128`** (`u128_lehman_c`) — the **CLI default** ladder.
+1. If the cubic budget applies (cube root $\le 3\cdot10^{7}$, $4kn$ fits in 128 bits): **n−1 Pocklington** first (`u128_nm1`), else OpenMP **`lehman_factor_u128`** (`u128_lehman_c`) — the **CLI default** ladder.
 2. Else if $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits:
    - Prefer OpenMP C **`is_prime_u128_core`** (same wheel / segmented-prime full trial as the 64-bit engine; limbs `lo`/`hi`).
    - Else stdlib **9699690-wheel** full trial in Python.

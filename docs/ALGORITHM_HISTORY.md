@@ -617,7 +617,7 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 - **Band 1.** 30-wheel rising-product gcd (batches of 128) through the cube-root budget. One gcd proves a block has no factor — Pollard–Strassen / product-tree idea, no FFT, no RNG.
 - **Band 2.** Integer-safe Lehman windows on $4kn$ for $k=1,\ldots,\lceil n^{1/3}\rceil$. Overestimated extra so the Crandall–Pomerance interval is never short. $O(n^{1/3})$ instead of walking $(n^{1/3},\sqrt{n}]$.
 - **`factorint` / `_split`.** After Fermat, before Brent. Complete on every 64-bit composite; `k_max=100_000` probe for larger $n`.
-- **`is_prime`.** Complete cubic C for $n\ge 2^{64}$ (`u128_lehman_c`) and hard 64-bit $n$ with $\lfloor\sqrt{n}\rfloor\ge 10^{7}$ (`u64_lehman_c`). Mid-size 64-bit stays trial (`u64_wheel_c`). Completeness cap `LEHMAN_COMPLETE_CUB_MAX = 3·10^6` (Python) / `LEHMAN_COMPLETE_CUB_MAX_C = 2\cdot10^7` (C).
+- **`is_prime`.** Complete cubic C for $n\ge 2^{64}$ (`u128_lehman_c`) and hard 64-bit $n$ with $\lfloor\sqrt{n}\rfloor\ge 10^{7}$ (`u64_lehman_c`). Mid-size 64-bit stays trial (`u64_wheel_c`). Completeness cap `LEHMAN_COMPLETE_CUB_MAX = 3·10^6` (Python) / `LEHMAN_COMPLETE_CUB_MAX_C = 3\cdot10^7` (C; raised from $2\cdot10^7$ so $n$ just above $8\cdot10^{21}$ stays on cubic, not AKS).
 
 Indicative (pure Python, this machine class): $101\times 103$ instant; $(10^9+7)(10^9+9)$ tens of ms; $(2^{31}-1)\times$ next odd $\sim 80\,\mathrm{ms}$.
 

@@ -869,12 +869,18 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
         return _is_prime_big_full_trial(n, parallel)
-    # Larger: 30030-wheel factor scan, then AKS (correct; still slow for huge primes).
+    # Larger: 30030-wheel factor scan, Fermat composite filter, then AKS.
+    # Fermat failure is an exact composite proof (not a primality claim).
     bound = min(_AKS_TRIAL_BOUND, sq)
     if not _wheel_trial(n, _get_steps_30030(), 17, limit=bound):
         return False
     if bound >= sq:
         return True
+    for a in (2, 3, 5, 7, 11, 13):
+        if a % n == 0:
+            return n == a
+        if pow(a, n - 1, n) != 1:
+            return False
     return _aks_is_prime(n, parallel=parallel)
 
 

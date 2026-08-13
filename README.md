@@ -148,7 +148,7 @@ is_prime(n)
        ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel (stdlib only)
        └─ else                   →  lazy NumPy/Numba 9699690-wheel
   n ≥ 2⁶⁴
-       ├─ cubic budget (cube root ≤ 2·10⁷)
+       ├─ cubic budget (cube root ≤ 3·10⁷)
        │     →  n−1 Pocklington, else OpenMP cubic (CLI default)
        ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
        │                      →  OpenMP C full trial (u128 limbs; no AKS)
