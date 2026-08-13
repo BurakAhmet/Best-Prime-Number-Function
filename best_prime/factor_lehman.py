@@ -10,8 +10,9 @@ Reorganizes the classical interval [2, √n] instead of walking it:
   ``k ≤ n^{1/3}`` splits n. That replaces the long walk from n^{1/3}
   up to √n.
 
-Deterministic. No RNG. Not a Miller–Rabin test. Not the product
-``is_prime`` engine — 64-bit primality stays exact trial through √n.
+Deterministic. No RNG. Not a Miller–Rabin test. Mid-size 64-bit
+``is_prime`` stays exact trial through √n; on the hard path this module
+is the **fallback** after n−1 Pocklington (see ``primality_nm1``).
 
 Literature this synthesis sits on: Lehman 1974; Pollard 1974 / Strassen
 1977; Bernstein product/remainder trees; Hales–Hiary 2024 (Lehman for

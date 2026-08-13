@@ -11,7 +11,7 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 999999999989 | 12-digit prime | ~2–4 ms |
 | 2305843009213693951 | $2^{61}-1$ (M61) | ~0.10–0.12 s |
 | 9223372036854775783 | near $2^{63}$ | ~0.19–0.22 s |
-| 600000000000000000001 | CLI default (70-bit cubic C) | ~0.2 s |
+| 600000000000000000001 | CLI default (70-bit n−1 / cubic) | ~3 ms e2e |
 | 18446744073709551557 | largest prime $\lt 2^{64}$ | ~0.21–0.23 s |
 
 C core (v1.8.1+): precomputed primes $\le 2^{20}$ with 2-adic inverse trial for mid-size $n$; harder 64-bit paths use a **wheel-30** segmented sieve, **memcpy / OR presieve** ($7{\cdot}29$), **uint32 persisted byte-index marks**, **`DELTA[64]`/`ctzll` extract**, and **8-way 2-adic** (INV16) prime-only trial. Stdlib / Numba still keep the **30030** / **9699690** wheels.

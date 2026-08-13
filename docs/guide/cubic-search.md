@@ -1,6 +1,6 @@
 # Two-band cubic search
 
-A deterministic way to look for a factor of $n$ **without walking every integer up to** $\sqrt{n}$. `is_prime` uses it for hard 64-bit $n$ ($\lfloor\sqrt{n}\rfloor\ge 10^{7}$) and for $n\ge 2^{64}$ when the C core can finish (including the CLI default). Mid-size 64-bit $n$ stay on wheel trial (faster there).
+A deterministic way to look for a factor of $n$ **without walking every integer up to** $\sqrt{n}$. On the hard path, `is_prime` tries an [n−1 Pocklington](nm1-proof.md) proof first; **cubic search is the complete fallback** when $n-1$ is hostile (and the splitter used by `factorint`). Mid-size 64-bit $n$ stay on wheel trial.
 
 !!! warning "Restrictions first"
     For $n < 2^{64}$, `is_prime(n)` remains **exact trial division** through $\lfloor\sqrt{n}\rfloor$ (OpenMP precomputed / segmented primes, or a primorial wheel). This page does not change that contract. No stochastic Miller–Rabin. No external prime library.
@@ -30,7 +30,7 @@ Nothing reputable claims a new elementary test that beats “search up to $\sqrt
 
 Spectral “prime radars,” random-base quizzes, and range-limited witness lists are out of product policy (see [restrictions](restrictions.md)).
 
-The honest engineering conclusion: **the first algorithm that is both complete and implementable under this repository's rules is still Lehman's cubic split**, with a Pollard–Strassen-style product for the small band. The $n^{1/5}$ papers are the frontier; they are not a faster `is_prime`.
+The honest engineering conclusion for the **search** line: Lehman's cubic split (with a Pollard–Strassen-style product for the small band) is still the practical complete fallback. The orthogonal **n−1 proof** line often wins when $n-1$ factors — see [n−1 Pocklington](nm1-proof.md). The $n^{1/5}$ papers remain theoretical for this library.
 
 ## The two bands
 
@@ -76,7 +76,7 @@ Not a new complexity exponent. A synthesis that this repository can actually shi
 3. Wired into `factorint` *after* Fermat and *before* Brent / ECM / SIQS, so close factors stay on the cheap Fermat path and 64-bit composites get a complete cubic split.
 4. **Not** wired into `is_prime`. Replacing 64-bit trial with Lehman would change the documented correctness model. Guidelines forbid that.
 
-On this machine class, a 63-bit balanced semiprime (Mersenne $2^{31}-1$ times the next odd) splits in well under $0.1\,\mathrm{s}$ in pure Python. The OpenMP C core (`lehman_factor_u128`) is the **`is_prime` / CLI path** for $n\ge 2^{64}$ when it can finish: the 70-bit CLI default is ~**0.19 s**. 64-bit `is_prime` is still trial through $\sqrt{n}$.
+On this machine class, a 63-bit balanced semiprime (Mersenne $2^{31}-1$ times the next odd) splits in well under $0.1\,\mathrm{s}$ in pure Python. The OpenMP C core (`lehman_factor_u128`) is the hard-path **fallback** after n−1; the 70-bit CLI default is typically settled by Pocklington in a few milliseconds e2e when $n-1$ is smooth.
 
 ## API
 

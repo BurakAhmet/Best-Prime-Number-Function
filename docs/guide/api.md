@@ -22,7 +22,7 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 | Name | Meaning | Example |
 |------|---------|---------|
 | `__version__` | Installed package version | `"1.11.2"` |
-| `DEFAULT_N` | CLI default / 70-bit cubic-search yardstick | `600000000000000000001` |
+| `DEFAULT_N` | CLI default / 70-bit hard-path yardstick | `600000000000000000001` |
 | `PRIME_COUNT_MAX_N` | **Hard ceiling** for `prime_count` | $2^{64}-1$ |
 | `NEXT_PRIME_SIEVE_ISQRT_MAX` | Interval-sieve cap for next/prev | $2\cdot10^6$ |
 | `TOTIENT_RANGE_MAX` | Max $n$ for `totient_range` | $2\cdot10^{7}$ |
@@ -30,7 +30,7 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 ```python
 from best_prime import DEFAULT_N, PRIME_COUNT_MAX_N, __version__
 assert DEFAULT_N == 600000000000000000001
-assert is_prime(DEFAULT_N)  # wants wheel_core.so (cubic C path)
+assert is_prime(DEFAULT_N)  # n−1 proof; cubic C if n−1 is hostile
 ```
 
 ---
@@ -39,7 +39,7 @@ assert is_prime(DEFAULT_N)  # wants wheel_core.so (cubic C path)
 
 ### `is_prime(n, *, parallel=True) -> bool | list[bool]`
 
-`True` iff $n$ is prime. Fully deterministic: exact trial through $\sqrt{n}$ for mid-size 64-bit $n$; complete cubic search for hard 64-bit $n$ ($\lfloor\sqrt{n}\rfloor\ge 10^{7}$) and for $n\ge 2^{64}$ when the C core can finish; AKS only for huge $n$.
+`True` iff $n$ is prime. Fully deterministic: exact trial through $\sqrt{n}$ for mid-size 64-bit $n$; **n−1 Pocklington** then complete cubic search for hard 64-bit $n$ ($\lfloor\sqrt{n}\rfloor\ge 10^{7}$) and for $n\ge 2^{64}$ in budget; AKS only for huge $n$.
 
 ```python
 is_prime(17)                       # True
@@ -71,7 +71,7 @@ info["is_prime"], info["path"], info["isqrt"]
 # (True, 'u64_wheel_c', 31622)   # path depends on wheel_core.so
 ```
 
-Typical `path` values: `python_small`, `u64_wheel_c`, `u64_lehman_c`, `u128_lehman_c`, `u128_wheel_c`, `python_wheel`, `bigint_wheel`, `bigint_trial_or_aks`. See [Engines](engines.md).
+Typical `path` values: `python_small`, `u64_wheel_c`, `u64_nm1`, `u64_lehman_c`, `u128_nm1`, `u128_lehman_c`, `u128_wheel_c`, `python_wheel`, `bigint_wheel`, `bigint_trial_or_aks`. See [Engines](engines.md).
 
 ---
 

@@ -23,7 +23,7 @@ is-prime-power 8               # yes (exit 0)
 is-perfect-power 36            # yes (exit 0)
 ```
 
-`is-prime` with no argument defaults to the 70-bit prime `600000000000000000001` (OpenMP complete cubic search when `wheel_core.so` exports `lehman_factor_u128`). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
+`is-prime` with no argument defaults to the 70-bit prime `600000000000000000001` (n−1 Pocklington when $n-1$ factors; else OpenMP cubic when `wheel_core.so` exports `lehman_factor_u128`). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
 
 ## Exit codes (`is-prime` / power predicates)
 

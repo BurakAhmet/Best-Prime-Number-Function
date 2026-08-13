@@ -61,7 +61,7 @@ class TestCPathEngine:
         from best_prime.factor_lehman import _c_lehman_ready
 
         if _c_lehman_ready():
-            assert info["path"] == "u64_lehman_c"
+            assert info["path"] in {"u64_nm1", "u64_lehman_c"}
         else:
             assert info["path"] == "u64_wheel_c"
         assert info["is_prime"] is True
@@ -137,7 +137,7 @@ class TestCU128Path:
         from best_prime.factor_lehman import _c_lehman_ready
 
         if _c_lehman_ready():
-            assert info["path"] == "u128_lehman_c"
+            assert info["path"] in {"u128_nm1", "u128_lehman_c"}
         else:
             assert info["path"] == "u128_wheel_c"
         assert info["is_prime"] is True
@@ -160,6 +160,7 @@ class TestCU128Path:
         # 2^64 itself is composite power of two; path is big-int family.
         info = lab(1 << 64)
         assert info["path"] in {
+            "u128_nm1",
             "u128_lehman_c",
             "u128_wheel_c",
             "bigint_wheel",

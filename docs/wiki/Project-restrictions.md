@@ -9,8 +9,8 @@ These rules apply to **all** contributors and **automated agents**.
 3. **No prime libraries** as the implementation (e.g. primesieve, sympy.isprime as the engine).
 4. **Allowed:** NumPy / Numba, and our own compiled OpenMP helper (`wheel_core.so`), for speeding up *our* trial division.
 5. **Correctness model**
-   - $n \lt 2^{64}$: exact trial division up to $\lfloor\sqrt{n}\rfloor$ when $\lfloor\sqrt{n}\rfloor < 10^{7}$ (OpenMP **precomputed primes** / segmented primes, or primorial-wheel **30030** / **9699690**). Harder 64-bit $n$ ($\lfloor\sqrt{n}\rfloor \ge 10^{7}$) use the same complete OpenMP cubic search as the CLI default when `lehman_factor_u128` is present.
-   - $2^{64} \le n$ with a complete OpenMP cubic search (cube root $\le 2\cdot10^{7}$, $4kn$ fits in 128 bits): two-band Lehman in `wheel_core.so` (CLI default). Else $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): full trial via OpenMP **u128** core or stdlib wheel
+   - $n \lt 2^{64}$: exact trial division up to $\lfloor\sqrt{n}\rfloor$ when $\lfloor\sqrt{n}\rfloor < 10^{7}$ (OpenMP **precomputed primes** / segmented primes, or primorial-wheel **30030** / **9699690**). Harder 64-bit $n$ ($\lfloor\sqrt{n}\rfloor \ge 10^{7}$): **n−1 Pocklington** when $n-1$ factors, else complete OpenMP cubic search when `lehman_factor_u128` is present.
+   - $2^{64} \le n$ in cubic budget (cube root $\le 2\cdot10^{7}$, $4kn$ fits in 128 bits): same n−1 then cubic ladder (CLI default). Else $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): full trial via OpenMP **u128** core or stdlib wheel
    - still larger $n$: partial trial, then **AKS** (may be slow for huge primes)
 
 ## Why not “just use MR”?
