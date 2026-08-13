@@ -12,10 +12,12 @@ on:
       - "pyproject.toml"
       - ".github/workflows/publish-wiki.yml"
   workflow_dispatch:
-  # Auto-merge and Prime-of-the-day push with GITHUB_TOKEN, which does not
-  # start other `on: push` workflows. workflow_run is the supported hook.
+  # GITHUB_TOKEN merges do not start `on: push`. Auto-merge dispatches this
+  # workflow itself after a real merge — do NOT also hook Auto-merge here:
+  # workflow_run races the dispatch, concurrency cancels the real publish,
+  # and the skip-run wins. Prime of the day / Optimize still need this hook.
   workflow_run:
-    workflows: ["Auto-merge", "Prime of the day", "Optimize"]
+    workflows: ["Prime of the day", "Optimize"]
     types: [completed]
 
 permissions:
@@ -26,7 +28,8 @@ permissions:
 
 concurrency:
   group: pages-wiki
-  cancel-in-progress: true
+  # Never cancel an in-flight deploy (a skip-run was killing the dispatch).
+  cancel-in-progress: false
 
 jobs:
   gate:
@@ -54,16 +57,6 @@ jobs:
           fi
           if [ "$WR_NAME" = "Prime of the day" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ "$WR_NAME" = "Auto-merge" ]; then
-            if gh run view "$WR_ID" --repo "${{ github.repository }}" --log \
-                 | grep -qE "Merged PR #|PAGES_PUBLISH_PLEASE"; then
-              echo "publish=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Auto-merge $WR_ID did not merge a PR — skip"
-              echo "publish=false" >> "$GITHUB_OUTPUT"
-            fi
             exit 0
           fi
           if [ "$WR_NAME" = "Optimize" ]; then

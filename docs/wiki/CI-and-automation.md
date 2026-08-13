@@ -12,7 +12,7 @@
 | **Issue agent** | issue opened | Keyword answers + restrictions briefing + labels |
 | **PR agent** | PR open/sync | Briefing, Copilot review request (best-effort), **auto-approve same-repo PRs** |
 | **Project autonomy** | issues / PRs | Label kanban without a human-only lane |
-| **Publish wiki** | push to `docs/wiki/**` / `docs/guide/**` / `mkdocs.yml`; **workflow_run** after Auto-merge (only if it merged), Prime of the day, or Optimize (only if it merged); manual dispatch | Compile exhibit Markdown → HTML (KaTeX, lab) **and** MkDocs library guide at `/guide/`; deploy GitHub Pages. Needed because `GITHUB_TOKEN` merges do not start `on: push` workflows. |
+| **Publish wiki** | push to `docs/wiki/**` / `docs/guide/**` / `mkdocs.yml`; **dispatch from Auto-merge** after a real merge; **workflow_run** after Prime of the day or Optimize (if they merged); manual dispatch | Compile exhibit Markdown → HTML (KaTeX, lab) **and** MkDocs library guide at `/guide/`; deploy GitHub Pages. Auto-merge is not hooked via `workflow_run` (that race cancelled the dispatch). |
 | **Publish package** | release / manual | GHCR container (Packages section). Slim image needs `gcc` + `libc6-dev`. |
 | **Publish PyPI** | release / manual | sdist + **platform** wheels (`BEST_PRIME_REQUIRE_NATIVE=1`); attach to the GitHub Release; upload to PyPI if Trusted Publisher is configured |
 
