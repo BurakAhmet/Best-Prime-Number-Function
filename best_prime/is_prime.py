@@ -875,8 +875,8 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
         return _is_prime_big_full_trial(n, parallel)
-    # Larger: 30030-wheel factor scan, Fermat composite filter, then AKS.
-    # Fermat failure is an exact composite proof (not a primality claim).
+    # Larger: wheel trial, Fermat filter, bounded multiprecision cubic probe,
+    # then AKS. Probe is not a proof; a hit proves composite only.
     bound = min(_AKS_TRIAL_BOUND, sq)
     if not _wheel_trial(n, _get_steps_30030(), 17, limit=bound):
         return False
@@ -887,6 +887,19 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
             return n == a
         if pow(a, n - 1, n) != 1:
             return False
+    # Deterministic split attempt (Fermat / cubic probe / Brent / ECM).
+    # A factor proves composite without AKS. Primes fall through to AKS.
+    try:
+        from .primality_nm1 import _try_split_cofactor
+
+        if _try_split_cofactor(n, parallel=parallel) is not None:
+            return False
+    except Exception:
+        from .factor_lehman import LEHMAN_PROBE_K_MAX
+
+        if n.bit_length() <= 110:
+            if lehman_factor(n, k_max=LEHMAN_PROBE_K_MAX, parallel=parallel) is not None:
+                return False
     return _aks_is_prime(n, parallel=parallel)
 
 

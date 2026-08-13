@@ -74,8 +74,7 @@ def _cofactor_is_prime(c: int, *, parallel: bool) -> bool:
 
     Uses the full ``is_prime`` ladder (including n−1 Pocklington on the
     cofactor). Recursion is safe: every cofactor is strictly smaller than
-    the original n. Avoids proving large prime cofactors with a full cubic
-    search when their own n−1 is smooth (often 100× faster).
+    the original n.
     """
     if c < 2:
         return False
@@ -88,17 +87,62 @@ def _cofactor_is_prime(c: int, *, parallel: bool) -> bool:
     return bool(is_prime(c, parallel=parallel))
 
 
+def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
+    """Find a proper factor of composite ``c``, or None.
+
+    Uses Fermat, cubic (C when ``4·budget·c`` fits in 128 bits, else a
+    short multiprecision probe), deterministic Brent, then ECM.
+    """
+    from .factor_ecm import ecm_factor
+    from .factor_lehman import (
+        _c_lehman_ready,
+        _ceil_icbrt,
+        lehman_factor,
+    )
+    from .prime_factors import _brent, _fermat_split
+
+    f = _fermat_split(c)
+    if f is not None and 1 < f < c:
+        return f
+
+    cub = _ceil_icbrt(c)
+    if _c_lehman_ready() and c.bit_length() <= 128 and c > 1:
+        # Largest k with 4·k·c still in 128 bits.
+        max_k = ((1 << 128) - 1) // (4 * c)
+        budget = min(max_k, cub, 10_000_000)
+        if budget >= 16:
+            f = lehman_factor(c, k_max=int(budget), parallel=parallel)
+            if f is not None and 1 < f < c:
+                return f
+    else:
+        budget = min(cub, 100_000)
+        if budget >= 16:
+            f = lehman_factor(c, k_max=int(budget), parallel=parallel)
+            if f is not None and 1 < f < c:
+                return f
+
+    for cv in range(1, 48):
+        g = _brent(c, cv)
+        if 1 < g < c:
+            return g
+
+    f = ecm_factor(c)
+    if f is not None and 1 < f < c:
+        return f
+    return None
+
+
 def _factor_completely(m: int, *, parallel: bool) -> dict[int, int] | None:
     """Full prime factorization of m, or None if a cofactor will not split."""
-    from .factor_lehman import cubic_complete_ready, lehman_factor
-
     fac, rem = _trial_split(m, _TRIAL_BOUND)
     stack = [rem] if rem > 1 else []
+    # Bound effort: deep factoring of huge hostile n−1 must not hang next_prime.
+    splits = 0
+    max_splits = 32
     while stack:
         c = stack.pop()
         if c <= 1:
             continue
-        # Peel more small factors if the cofactor is still moderate.
         if c <= _TRIAL_BOUND * _TRIAL_BOUND:
             sub, r2 = _trial_split(c, _TRIAL_BOUND)
             for p, e in sub.items():
@@ -109,16 +153,11 @@ def _factor_completely(m: int, *, parallel: bool) -> dict[int, int] | None:
         if _cofactor_is_prime(c, parallel=parallel):
             fac[c] = fac.get(c, 0) + 1
             continue
-        # Composite: try a complete cubic split when the engine can finish.
-        if cubic_complete_ready(c):
-            f = lehman_factor(c, parallel=parallel)
-            if f is not None and 1 < f < c:
-                stack.append(f)
-                stack.append(c // f)
-                continue
-        if c.bit_length() > _COFACTOR_BIT_GIVE_UP:
+        # Composite — split before giving up (even for large bit length).
+        if splits >= max_splits:
             return None
-        f = lehman_factor(c, parallel=parallel)
+        splits += 1
+        f = _try_split_cofactor(c, parallel=parallel)
         if f is None or f <= 1 or f >= c:
             return None
         stack.append(f)

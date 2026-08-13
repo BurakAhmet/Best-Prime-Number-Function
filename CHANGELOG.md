@@ -11,6 +11,9 @@ All notable changes to this project are documented in this file.
 - OpenMP cubic completeness is **engine-limited only**: any $n$ with $4kn$ in 128 bits for $k\le\lceil n^{1/3}\rceil$ (no artificial cube-root product cap).
 - n−1 cofactor primality uses full `is_prime` (recursive Pocklington) instead of forcing cubic on large prime cofactors.
 - Multi-limb `is_prime` always tries **n−1 Pocklington** even when cubic C cannot run (`4kn` > 128 bits). Fixes `next_prime(10**29+1)` falling into AKS despite an easy next prime.
+- **Deep `next_prime` window sieve** (primes ≤ 500 000 mark adaptive windows; Fermat reject before `is_prime`).
+- **Multiprecision cubic** (Python `int` `4kn`) for complete proofs while `⌈n^{1/3}⌉ ≤ 8·10^6`; C still used when `4kn` fits in 128 bits.
+- Stronger n−1 factoring: Fermat + cubic (C budget) + Brent + ECM before giving up, so primes past the u128 wall with awkward `n−1` still get Pocklington (e.g. `next_prime(10**38+1)` ~0.15 s).
 
 ### Changed
 - Hard 64-bit / multi-limb `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit stays `u64_wheel_c`.

@@ -10,14 +10,14 @@ Reorganizes the classical interval [2, √n] instead of walking it:
   ``k ≤ n^{1/3}`` splits n. That replaces the long walk from n^{1/3}
   up to √n.
 
-Deterministic. No RNG. Not a Miller–Rabin test. Mid-size 64-bit
-``is_prime`` stays exact trial through √n; on the hard path this module
-is the **fallback** after n−1 Pocklington (see ``primality_nm1``).
+Engines:
 
-Literature this synthesis sits on: Lehman 1974; Pollard 1974 / Strassen
-1977; Bernstein product/remainder trees; Hales–Hiary 2024 (Lehman for
-power divisors); Harvey 2020 and Harvey–Hittmeir 2021 (theoretical
-n^{1/5}, not implemented here).
+* OpenMP C (``lehman_factor_u128``) when ``4·k·n`` fits in 128 bits.
+* **Multiprecision pure Python** (unlimited ``int`` for ``4kn``) for a
+  complete proof while ``⌈n^{1/3}⌉ ≤ LEHMAN_COMPLETE_CUB_MAX_MP``.
+* Bounded probe (``LEHMAN_PROBE_K_MAX``) before AKS to catch many composites.
+
+Deterministic. No RNG. Not Miller–Rabin.
 """
 
 from __future__ import annotations
@@ -29,19 +29,22 @@ from .is_prime import _load_c_core, _parse_n
 # 30-wheel steps starting at 7 (residues 1,7,11,13,17,19,23,29).
 _W30 = (4, 2, 4, 2, 4, 6, 2, 6)
 
-# Rising-product batch length. math.prod of this many ~n^{1/3} integers
-# stays cheap in CPython; one gcd then covers the block.
 _PRODUCT_BATCH = 128
 
-# A full budget of k ≤ ceil(n^{1/3}) is complete (None ⇒ prime / 0 / 1)
-# only while the cube root is this small.
-# - Pure Python: 3e6 covers every 64-bit n.
-# - OpenMP C: no artificial cub cap — completeness is gated only by
-#   4·k·n fitting in 128 bits (see _fits_c_lehman / cubic_complete_ready).
-#   LEHMAN_COMPLETE_CUB_MAX_C is kept as a documented upper bound on the
-#   uint64 cube-root domain of the C engine (~2^64−1), not a product limit.
+# Pure-Python complete budget (64-bit and multiprecision).
 LEHMAN_COMPLETE_CUB_MAX = 3_000_000
+# Multiprecision complete: Python int 4kn; practical wall-clock bound.
+LEHMAN_COMPLETE_CUB_MAX_MP = 8_000_000
+# C engine domain sentinel (uint64 k); real gate is 4kn ≤ 128 bits.
 LEHMAN_COMPLETE_CUB_MAX_C = (1 << 63) - 1
+# Incomplete cubic probe before AKS (factor finder, not a primality proof).
+# Keep small: multiprecision 4kn makes large k_max too expensive for next_prime.
+LEHMAN_PROBE_K_MAX = 50_000
+
+# Quadratic residues mod 64 (bit i set ⇒ i is a square mod 64).
+_SQ_OK_MOD64 = 0
+for _s in range(32):
+    _SQ_OK_MOD64 |= 1 << ((_s * _s) & 63)
 
 
 def _ceil_isqrt(n: int) -> int:
@@ -65,10 +68,19 @@ def _ceil_icbrt(n: int) -> int:
 
 def _lehman_extra(cub: int, k: int) -> int:
     """Integer overestimate of n^{1/6} / (4 √k), never short of the theorem."""
-    # Smallest e ≥ 0 with 16 k e² ≥ cub ≥ n^{1/3}.
     need = (cub + 16 * k - 1) // (16 * k)
     s = math.isqrt(need)
     return s if s * s == need else s + 1
+
+
+def _is_perfect_square(x: int) -> bool:
+    """Fast reject via mod-64 QR, then isqrt."""
+    if x < 0:
+        return False
+    if ((_SQ_OK_MOD64 >> (x & 63)) & 1) == 0:
+        return False
+    s = math.isqrt(x)
+    return s * s == x
 
 
 def _scan_batch(n: int, batch: list[int]) -> int | None:
@@ -110,25 +122,23 @@ def _rising_product_factor(n: int, limit: int) -> int | None:
     return None
 
 
-# Hard 64-bit is_prime uses cubic C only when trial is the slow path.
-# Mid-size (isqrt < 10^7, e.g. 10^9+7 / 12-digit) stays u64_wheel_c.
 U64_CUBIC_ISQRT_MIN = 10_000_000
 
 
 def cubic_complete_ready(n: int) -> bool:
-    """True when OpenMP C can finish a full cubic proof used by ``is_prime``.
+    """True when a complete cubic proof is available for ``is_prime``.
 
-    Gated only by the C engine: ``lehman_factor_u128`` present and
-    ``4·k·n`` fits in 128 bits for every ``k ≤ ⌈n^{1/3}⌉``. No separate
-    artificial cube-root product cap. Hard 64-bit only when
-    ``isqrt(n) ≥ U64_CUBIC_ISQRT_MIN`` (mid-size stays wheel trial).
+    * OpenMP C when ``4·k·n`` fits in 128 bits, or
+    * multiprecision pure Python when ``⌈n^{1/3}⌉ ≤ LEHMAN_COMPLETE_CUB_MAX_MP``.
+
+    Hard 64-bit only when ``isqrt(n) ≥ U64_CUBIC_ISQRT_MIN``.
     """
     cub = _ceil_icbrt(n)
-    if not (_c_lehman_ready() and _fits_c_lehman(n, cub)):
+    if n < (1 << 64) and math.isqrt(n) < U64_CUBIC_ISQRT_MIN:
         return False
-    if n >= (1 << 64):
+    if _c_lehman_ready() and _fits_c_lehman(n, cub):
         return True
-    return math.isqrt(n) >= U64_CUBIC_ISQRT_MIN
+    return cub <= LEHMAN_COMPLETE_CUB_MAX_MP
 
 
 def _fits_c_lehman(n: int, cub: int) -> bool:
@@ -170,22 +180,27 @@ def _c_lehman_factor(n: int, budget: int, *, parallel: bool) -> int | None:
 
 
 def _lehman_windows(n: int, cub: int, k_max: int) -> int | None:
-    """Lehman k-loop. ``k_max`` inclusive, already ≤ cub."""
+    """Multiprecision Lehman k-loop (Python int). ``k_max`` inclusive."""
     for k in range(1, k_max + 1):
         fourkn = 4 * k * n
         a0 = _ceil_isqrt(fourkn)
         extra = _lehman_extra(cub, k)
-        for a in range(a0, a0 + extra + 1):
-            b2 = a * a - fourkn
-            b = math.isqrt(b2)
-            if b * b != b2:
-                continue
-            g = math.gcd(a + b, n)
-            if 1 < g < n:
-                return g
-            g = math.gcd(abs(a - b), n)
-            if 1 < g < n:
-                return g
+        # Incremental a^2: start at a0^2, step 2a+1
+        a = a0
+        a2 = a0 * a0
+        a_end = a0 + extra
+        while a <= a_end:
+            b2 = a2 - fourkn
+            if _is_perfect_square(b2):
+                b = math.isqrt(b2)
+                g = math.gcd(a + b, n)
+                if 1 < g < n:
+                    return g
+                g = math.gcd(abs(a - b), n)
+                if 1 < g < n:
+                    return g
+            a2 += (a << 1) + 1
+            a += 1
     return None
 
 
@@ -194,15 +209,8 @@ def lehman_factor(
 ) -> int | None:
     """Return a nontrivial factor of ``n``, or ``None`` if none is found.
 
-    With the default budget (``k_max is None`` and cube root under the
-    complete cap) the search is *complete*: ``None`` means ``n`` is 0, 1,
-    or prime. OpenMP C raises the cap to ``LEHMAN_COMPLETE_CUB_MAX_C``
-    so the multi-limb CLI default is a full proof. A smaller ``k_max`` is a
-    probe, not a primality proof.
-
-    ``is_prime`` uses this when ``cubic_complete_ready`` is true: every
-    ``n ≥ 2^{64}`` in budget, and hard 64-bit n (``isqrt ≥ 10^7``).
-    Smaller 64-bit n stay exact trial through ``⌊√n⌋``.
+    Default budget is *complete* when the cube root is under the C / MP cap
+    (``None`` ⇒ 0, 1, or prime). A smaller ``k_max`` is a probe only.
     """
     n_int = _parse_n(n)
     if n_int < 4:
@@ -220,7 +228,10 @@ def lehman_factor(
 
     cub = _ceil_icbrt(n_int)
     use_c = _c_lehman_ready() and _fits_c_lehman(n_int, cub)
-    complete_cap = LEHMAN_COMPLETE_CUB_MAX_C if use_c else LEHMAN_COMPLETE_CUB_MAX
+    if use_c:
+        complete_cap = LEHMAN_COMPLETE_CUB_MAX_C
+    else:
+        complete_cap = LEHMAN_COMPLETE_CUB_MAX_MP
     if k_max is None:
         budget = cub if cub <= complete_cap else complete_cap
     else:

@@ -1,11 +1,16 @@
 """
 k-th prime strictly greater than n.
 
-Candidate generation is deterministic: a tiny prime table for small n, an
-interval sieve when k is large and √bound is practical, otherwise the
-project's 30030-wheel (coprime to 2·3·5·7·11·13) plus a short prefilter of
-our own small primes. Exact primality is always delegated to ``is_prime``
-(OpenMP C / stdlib wheel / Numba / AKS) — no Miller–Rabin, no prime libraries.
+Candidate generation is deterministic:
+
+* tiny prime table for small n
+* full interval sieve when k is large and √bound is practical
+* **deep window sieve** for large n (primes ≤ 500_000 mark a short
+  adaptive window; only survivors call ``is_prime``)
+* 30030-wheel + deep prefilter as final fallback
+
+Exact primality is always delegated to ``is_prime`` (OpenMP C / n−1 /
+cubic / multiprecision cubic / AKS) — no Miller–Rabin, no prime libraries.
 
 End-to-end CLI ``TIME`` starts at import (``t0``) and stops after the answer.
 """
@@ -37,19 +42,20 @@ from .prime_sieve import (  # noqa: E402
     _sieve_primes_upto,
 )
 
-# 2·3·5·7·11·13. Wheel numbers start at 17; 2,3,5,7,11,13 are handled first.
 _W30030 = 30_030
 _RES_INVALID = 0xFFFF
-# Prefilter primes (already past the wheel primes) before calling is_prime.
+# Legacy short prefilter (kept for tests / small path).
 _PREFILTER_LIMIT = 1_021
-# Interval sieve: only when k is large enough to repay setup and √hi is cheap.
+# Deep sieve / prefilter: primes up to this mark composites in next_prime windows.
+_DEEP_PRIME_LIMIT = 500_000
 _SIEVE_MIN_K = 8
-# Interval sieve only while √(upper bound) stays at or below this.
-# Larger k / n fall back to a 30030-wheel + is_prime walk (still exact).
 NEXT_PRIME_SIEVE_ISQRT_MAX = 2_000_000
 _SIEVE_ISQRT_MAX = NEXT_PRIME_SIEVE_ISQRT_MAX
+# Window sieve kicks in once n is past the full-interval sieve regime.
+_WINDOW_SIEVE_MIN_N = 1_000_000
 
 _prefilter: tuple[int, ...] | None = None
+_deep_primes: tuple[int, ...] | None = None
 _res30030: array | None = None
 
 
@@ -63,6 +69,14 @@ def _get_prefilter() -> tuple[int, ...]:
     if _prefilter is None:
         _prefilter = tuple(p for p in _sieve_primes_upto(_PREFILTER_LIMIT) if p >= 17)
     return _prefilter
+
+
+def _get_deep_primes() -> tuple[int, ...]:
+    """Primes ≤ _DEEP_PRIME_LIMIT for window sieving / deep prefilter."""
+    global _deep_primes
+    if _deep_primes is None:
+        _deep_primes = tuple(_sieve_primes_upto(_DEEP_PRIME_LIMIT))
+    return _deep_primes
 
 
 def _get_res_30030() -> array:
@@ -81,7 +95,6 @@ def _align_wheel30030(cand: int) -> tuple[int, int]:
     """Next 30030-wheel number ≥ cand and its step index."""
     res = _get_res_30030()
     r = cand % _W30030
-    # cand ≥ 17 after the small-prime special cases, so we stay on the wheel.
     while res[r] == _RES_INVALID:
         cand += 1
         r += 1
@@ -96,10 +109,18 @@ def _span_guess(n: int, k: int) -> int:
     lnk = math.log(max(k, 2))
     span = int(k * (ln + lnk + 4)) + 32
     if n < 20 and k >= 6:
-        # Dusart-style p_k < k (ln k + ln ln k) plus slack; hi must reach p_k.
         pk = int(k * (lnk + math.log(lnk) + 2)) + 16
         span = max(span, pk - n)
     return max(span, 48)
+
+
+def _window_span(n: int, k: int) -> int:
+    """Adaptive window length for deep sieving after large n."""
+    ln = math.log(max(n, 3))
+    # Expected k gaps ~ k ln n; pad heavily for large prime gaps / safety.
+    span = int(k * ln * 12.0) + 4096
+    # Cap memory (byte per odd in the window ≈ span/2 bytes).
+    return max(4096, min(span, 8_000_000))
 
 
 def _try_interval(n: int, k: int) -> int | None:
@@ -125,12 +146,81 @@ def _try_interval(n: int, k: int) -> int | None:
     return None
 
 
+def _sieve_odd_window(lo: int, hi: int, primes: tuple[int, ...]) -> list[int]:
+    """Return odd integers in [lo, hi) not divisible by any prime in ``primes``
+    with p² ≤ hi−1 (and p ≤ last deep prime)."""
+    if hi <= lo:
+        return []
+    if lo < 3:
+        lo = 3
+    if lo % 2 == 0:
+        lo += 1
+    # index i ↔ value lo + 2*i  (odds only)
+    nbits = (hi - lo + 1) // 2
+    if nbits <= 0:
+        return []
+    mark = bytearray(nbits)  # 0 = candidate, 1 = composite
+    limit = math.isqrt(max(hi - 1, 1))
+    for p in primes:
+        if p < 3:
+            continue
+        if p > limit:
+            break
+        # First multiple of p at or after lo that is ≥ p² and odd.
+        start = ((lo + p - 1) // p) * p
+        pp = p * p
+        if start < pp:
+            start = pp
+        if start % 2 == 0:
+            start += p  # p is odd ⇒ start becomes odd
+        if start >= hi:
+            continue
+        idx0 = (start - lo) // 2
+        # Odd multiples: start, start+2p, … → index step p
+        for idx in range(idx0, nbits, p):
+            mark[idx] = 1
+    out: list[int] = []
+    append = out.append
+    for i, m in enumerate(mark):
+        if not m:
+            append(lo + (i << 1))
+    return out
+
+
+def _next_prime_window(n: int, k: int, parallel: bool) -> int | None:
+    """Deep window sieve + is_prime on survivors. None if abandoned."""
+    if n < _WINDOW_SIEVE_MIN_N:
+        return None
+    primes = _get_deep_primes()
+    found = 0
+    lo = n + 1
+    span = _window_span(n, k)
+    for _expand in range(48):
+        hi = lo + span
+        for c in _sieve_odd_window(lo, hi, primes):
+            if c <= n:
+                continue
+            # Cheap Fermat reject before full is_prime (exact composite).
+            if c > 2 and pow(2, c - 1, c) != 1:
+                continue
+            if is_prime(c, parallel=parallel):
+                found += 1
+                if found == k:
+                    return c
+        lo = hi
+        # Grow window if the gap was larger than expected.
+        span = min(span + (span >> 1), 16_000_000)
+    return None
+
+
 def _next_prime_wheel(n: int, k: int, parallel: bool) -> int:
+    """30030-wheel + deep prime prefilter + is_prime."""
     steps = _get_steps_30030()
     nW = len(steps)
     cand, wi = _align_wheel30030(n + 1)
-    pre = _get_prefilter()
-    # When n ≥ _SMALL_LIMIT, cand > _PREFILTER_LIMIT, so cand % p == 0 ⇒ composite.
+    # Prefer deep primes when available; fall back to short prefilter.
+    deep = _get_deep_primes()
+    pre = tuple(p for p in deep if p >= 17) if deep else _get_prefilter()
     found = 0
     while True:
         lim = math.isqrt(cand)
@@ -143,6 +233,9 @@ def _next_prime_wheel(n: int, k: int, parallel: bool) -> int:
             if cand % p == 0:
                 composite = True
                 break
+        if not composite and not proven:
+            if cand > 2 and pow(2, cand - 1, cand) != 1:
+                composite = True
         if not composite and (proven or is_prime(cand, parallel=parallel)):
             found += 1
             if found == k:
@@ -157,6 +250,11 @@ def _next_after(n: int, k: int, parallel: bool) -> int:
     got = _try_interval(n, k)
     if got is not None:
         return got
+    # Deep window sieve for large n (avoids full is_prime on most composites).
+    if n >= _WINDOW_SIEVE_MIN_N:
+        got = _next_prime_window(n, k, parallel)
+        if got is not None:
+            return got
     return _next_prime_wheel(n, k, parallel)
 
 
@@ -166,13 +264,11 @@ def next_primes(n: int | str, k: int | None = None, *, parallel: bool = True):
     If ``k`` is a positive int, stop after ``k`` primes. If ``k`` is
     ``None``, the iterator is unbounded (caller must break). Large ``k``
     uses an interval sieve only while ``√bound ≤ NEXT_PRIME_SIEVE_ISQRT_MAX``;
-    otherwise each candidate is a 30030-wheel number checked with
-    ``is_prime`` (exact, Θ(k · √p) in the worst case).
+    otherwise deep window sieve / wheel + ``is_prime``.
     """
     if k is not None:
         k_int = _parse_k(k)
         n_int = _parse_n(n)
-        # One interval/table call for a finite batch.
         p = next_prime(n_int, 1, parallel=parallel)
         yield p
         for _ in range(k_int - 1):
