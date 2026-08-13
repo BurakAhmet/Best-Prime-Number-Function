@@ -47,6 +47,38 @@
     return x;
   }
 
+  function icbrt(n) {
+    if (n < 8n) return n < 1n ? 0n : 1n;
+    let x = 1n << BigInt(Math.floor((bitLength(n) + 2) / 3));
+    for (;;) {
+      const y = (2n * x + n / (x * x)) / 3n;
+      if (y >= x) return x;
+      x = y;
+    }
+  }
+
+  function isSquare(n) {
+    if (n < 0n) return false;
+    const s = isqrt(n);
+    return s * s === n;
+  }
+
+  /**
+   * BLS n^{1/3} extra (t5k / BLS75): n-1 = F R, n < 2 F^3,
+   * R = r F + s with 0 < s < F, and (r odd or s²−4r not square).
+   */
+  function blsCubicOk(n, F) {
+    if (F <= 1n || (n - 1n) % F !== 0n) return false;
+    if (n >= 2n * F * F * F) return false;
+    const R = (n - 1n) / F;
+    if (R <= 0n || gcd(F, R) !== 1n) return false;
+    const r = R / F;
+    const s = R % F;
+    if (s <= 0n || s >= F) return false;
+    if ((r & 1n) === 1n) return true;
+    return !isSquare(s * s - 4n * r);
+  }
+
   function gcd(a, b) {
     a = a < 0n ? -a : a;
     b = b < 0n ? -b : b;
@@ -154,6 +186,16 @@
         /* ignore */
       }
     }
+  }
+
+  function fermatSaysComposite(n) {
+    if (n < 2n) return true;
+    for (let i = 0; i < 6; i++) {
+      const a = BASES[i];
+      if (a % n === 0n) return n !== a;
+      if (powBig(a, n - 1n, n) !== 1n) return true;
+    }
+    return false;
   }
 
   /** Proper factor of a known composite, or null. */
@@ -320,7 +362,7 @@
     // Stop button still aborts via shouldStop in the caller.
     const fermatRounds = bits > 140 ? 8192 : bits > 100 ? 4096 : 2048;
     // Brent finds small/medium factors; huge cofactors go to ECM quickly.
-    const brentCurves = bits > 140 ? 16n : bits > 100 ? 32n : 64n;
+    const brentCurves = bits > 200 ? 0n : bits > 140 ? 16n : bits > 100 ? 32n : 64n;
     const brentMaxR = bits > 140 ? (1n << 18n) : bits > 100 ? (1n << 20n) : BRENT_MAX_R;
     const p1B1 = bits > 140 ? 1_000_000 : bits > 100 ? 500_000 : P1_B1;
 
@@ -341,7 +383,9 @@
     f = pollardP1(c, p1B1);
     if (f && f > 1n && f < c) return f;
 
-    f = ecmFactor(c, onTick, shouldStop);
+    f = ecmFactor(c, onTick, shouldStop, 6);
+    if (f && f > 1n && f < c) return f;
+    f = ecmFactor(c, onTick, shouldStop, 806);
     if (f && f > 1n && f < c) return f;
     return null;
   }
@@ -358,9 +402,10 @@
     ];
     // 22-digit factors of ~170-bit n−1 cofactors (hard55 exhibit).
     return [
-      { B1: 11_000, curves: 200 },
-      { B1: 25_000, curves: 200 },
-      { B1: 50_000, curves: 300 },
+      { B1: 2_000, curves: 40 },
+      { B1: 11_000, curves: 160 },
+      { B1: 25_000, curves: 220 },
+      { B1: 50_000, curves: 280 },
     ];
   }
 
@@ -415,11 +460,11 @@
   }
 
   /** Deterministic Montgomery ECM (Suyama σ = 6, 7, …). No RNG. */
-  function ecmFactor(n, onTick, shouldStop) {
+  function ecmFactor(n, onTick, shouldStop, sigma0) {
     if (n < 4n || (n & 1n) === 0n) return n % 2n === 0n && n > 2n ? 2n : null;
     const bits = bitLength(n);
     const phases = ecmPhases(bits);
-    let sigmaBase = 6;
+    let sigmaBase = sigma0 == null ? 6 : sigma0;
     let doneCurves = 0;
     let totalCurves = 0;
     for (let p = 0; p < phases.length; p++) totalCurves += phases[p].curves;
@@ -560,7 +605,8 @@
     const maxSplits = 48;
 
     function doneFac() {
-      return FValue(fac) > target;
+      const F = FValue(fac);
+      return F > target || n < 2n * F * F * F;
     }
     if (doneFac()) return fac;
 
@@ -575,6 +621,25 @@
         continue;
       }
       c = sub.rem;
+      // If Fermat fails, c is composite — split before a useless n−1 recurse.
+      // If Fermat holds, c may be prime; do not ECM a probable prime first.
+      if (
+        splits < maxSplits &&
+        isqrt(c) > COFACTOR_TRIAL_ISQRT &&
+        fermatSaysComposite(c)
+      ) {
+        splits++;
+        emit(onTick, "split", BigInt(splits), BigInt(maxSplits), {
+          bits: String(bitLength(c)),
+        });
+        const f = trySplitCofactor(c, onTick, shouldStop);
+        if (f && f > 1n && f < c) {
+          const lo = f < c / f ? f : c / f;
+          stack.push(c / lo);
+          stack.push(lo);
+          continue;
+        }
+      }
       if (cofactorIsPrime(c, depth, onTick, shouldStop)) {
         fac.set(c, (fac.get(c) || 0) + 1);
         if (doneFac()) return fac;
@@ -587,8 +652,9 @@
       });
       const f = trySplitCofactor(c, onTick, shouldStop);
       if (f === null || f <= 1n || f >= c) return null;
-      stack.push(f);
-      stack.push(c / f);
+      const lo = f < c / f ? f : c / f;
+      stack.push(c / lo);
+      stack.push(lo);
     }
     return doneFac() ? fac : null;
   }
@@ -656,12 +722,14 @@
 
     const F = FValue(fac);
     if (F <= 1n || (n - 1n) % F !== 0n) return { prime: null, factor: null };
-    if (F * F <= n) return { prime: null, factor: null };
+    const sqrtN = isqrt(n);
+    const cubic = n < 2n * F * F * F;
+    if (F <= sqrtN && !cubic) return { prime: null, factor: null };
 
     const primes = Array.from(fac.keys()).sort(function (a, b) {
       return a === b ? 0 : a > b ? -1 : 1;
     });
-    const target = isqrt(n);
+    const target = F > sqrtN ? sqrtN : icbrt(n);
     const used = [];
     let prod = 1n;
     for (let i = 0; i < primes.length; i++) {
@@ -680,6 +748,9 @@
       if (prod > target) break;
     }
     const pk = pocklington(n, used, onTick);
+    if (pk.ok === true && prod <= sqrtN) {
+      if (!blsCubicOk(n, prod)) return { prime: null, factor: pk.factor || null };
+    }
     return { prime: pk.ok, factor: pk.factor || null };
   }
 
@@ -821,6 +892,8 @@
 
   const api = {
     isqrt: isqrt,
+    icbrt: icbrt,
+    blsCubicOk: blsCubicOk,
     checkPrime: checkPrime,
     ecmFactor: ecmFactor,
     umod64: umod64,
@@ -936,6 +1009,11 @@
     // docs/wiki/assets/checker-worker.js must not hard-ban by digit length.
     assert(typeof TRIAL_SOFT_ISQRT === "bigint", "soft trial budget");
     assert(typeof COFACTOR_TRIAL_ISQRT === "bigint", "cofactor trial budget");
+    const huge = 10n ** 96n + 127n;
+    const Fbls =
+      2n * 55667n * 195376548589n * 323382331513450093n;
+    assert(blsCubicOk(huge, Fbls), "BLS cubic extra must settle 10^96+127");
+    assert(!blsCubicOk(huge, 2n * 55667n), "too-small F must fail BLS");
 
     const overSafe = 59n * (MAX_SAFE / 59n + 11n);
     assert(overSafe > MAX_SAFE && overSafe < TWO64, "u64 fixture range");

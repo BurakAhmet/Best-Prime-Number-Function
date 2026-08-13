@@ -2,8 +2,8 @@
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| **CI** | push / PR | **Tiered:** PR code → Linux 3.12 tests + lint + perf; PR docs-only → required-check stubs; **main** → full OS/Python matrix, Docker, wheel smoke, no-compiler, attestation |
-| **Determinism** | push / PR | **Tiered:** PR → Python 3.12 only; main → 3.9/3.11/3.12; docs-only → green **Determinism** gate without suite |
+| **CI** | push / PR | **Tiered:** PR code → Linux 3.12 tests + lint + determinism trials + perf; PR docs-only → required-check stubs; **main** → 3.9/3.12/3.13 + macOS/Windows, Docker, wheel smoke, no-compiler, attestation |
+| **Determinism** | push to `main` | Multi-version repeated trials (PR determinism runs inside the CI Linux 3.12 job) |
 | **Auto-merge** | PR / check_suite | Squash-merge **same-repo** PRs when **required** gates are green (not the full matrix) |
 | **Prime of the day** | daily 12:00 UTC / manual | Deterministic date→`n` challenge via `lab()`; upserts issue labeled `prime-of-the-day` |
 | **Optimize** | daily 05:00 UTC / manual | Baseline on the **Optimization log** issue; hunt the compile-time catalog; open a dated **Optimization round** issue and assign **Copilot** (needs `COPILOT_ASSIGN_TOKEN`); catalog/Copilot PRs labeled `optimize/candidate` are examined (interleaved A/B + tests) and squash-merged only if still faster. Generic Auto-merge skips these PRs. |

@@ -7,7 +7,7 @@ import math
 import pytest
 
 from best_prime.is_prime import DEFAULT_N, is_prime, lab
-from best_prime.primality_nm1 import nm1_primality, nm1_ready
+from best_prime.primality_nm1 import _bls_cubic_ok, nm1_primality, nm1_ready
 from tests.numbers import (
     DEFAULT_CLI_N,
     LARGEST_PRIME_LT_2_64,
@@ -89,3 +89,13 @@ class TestNm1Primality:
         n = SMOOTH_NM1_PRIME
         assert n - 1 == (1 << 21) * 3 * 5**20
         assert math.isqrt(n) ** 2 < n
+
+    def test_bls_cubic_extra_10_96_plus_127(self):
+        # 97-digit prime 10^96+127: F from the three small n−1 primes is
+        # below √n but above n^{1/3}; BLS extra must accept it.
+        n = 10**96 + 127
+        F = 2 * 55667 * 195376548589 * 323382331513450093
+        assert n < 2 * F * F * F
+        assert F * F <= n
+        assert _bls_cubic_ok(n, F)
+        assert not _bls_cubic_ok(n, 2 * 55667)
