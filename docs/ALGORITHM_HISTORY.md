@@ -716,7 +716,6 @@ Recorded so agents and humans do not “rediscover” them:
 | `best_prime/prime_factors.py` | Trial + Fermat + cubic search + deterministic Brent |
 | `best_prime/factor_lehman.py` | Two-band cubic split (rising-product + Lehman) |
 | `best_prime/primality_nm1.py` | n−1 Pocklington hard-path proof |
-
 | `best_prime/factor_ecm.py` | Deterministic ECM |
 | `best_prime/factor_siqs.py` | Deterministic SIQS |
 | `best_prime/prime_power.py` | Perfect powers / prime powers |

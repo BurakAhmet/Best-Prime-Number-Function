@@ -7,7 +7,7 @@
 
 ## Interactive lab
 
-Today’s CI specimen sits above the bench. Type any $n$ for an exact 30-wheel trial in this tab (not the OpenMP C core). Long runs show the wheel-30 orrery; the result is a downloadable trial certificate. 64-bit $n$ such as $9223372036854775783$ is in range — hard primes can take minutes; the Python library is much faster.
+Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **n−1 Pocklington** when $n-1$ factors, else exact 30-wheel trial. The CLI default $100000000000000000000000000000000000000000031$ (147-bit) is in range. Long pure-trial runs show the wheel-30 orrery; the result is a downloadable certificate. Hostile 64-bit primes can still take minutes; the Python library is faster on those.
 
 <!-- acta-specimen -->
 

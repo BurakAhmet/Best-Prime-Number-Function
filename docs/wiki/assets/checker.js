@@ -1,10 +1,13 @@
-/* Deterministic 30-wheel lab UI. Long trials run in checker-worker.js. */
+/* Deterministic lab UI. Heavy work runs in checker-worker.js
+ * (n−1 Pocklington when n−1 factors, else 30-wheel trial). */
 (function () {
   const WARN_ISQRT = 8_000_000n;
+  /** Only refuse before the worker when pure trial would be absurd. */
   const REFUSE_ISQRT = 20_000_000_000n;
+  const TWO64 = 1n << 64n;
   const ORRERY_ISQRT = 100_000n;
   const WHEEL30 = [1, 7, 11, 13, 17, 19, 23, 29];
-  const DOCTRINE = "deterministic trial · no stochastic Miller–Rabin";
+  const DOCTRINE = "deterministic · n−1 Pocklington / trial · no stochastic Miller–Rabin";
 
   function $(sel, root) {
     return (root || document).querySelector(sel);
@@ -49,7 +52,7 @@
 
   function certificateText(state) {
     const lines = [
-      "DETERMINISTIC TRIAL RECORD",
+      "DETERMINISTIC PRIMORUM RECORD",
       "Best-Prime-Number-Function",
       "",
       "n = " + state.n,
@@ -58,7 +61,7 @@
       "path = " + state.path,
     ];
     if (state.factor != null) lines.push("factor = " + state.factor.toString());
-    else if (state.prime) lines.push("factor = none ≤ √n");
+    else if (state.prime) lines.push("factor = none (proof path: " + state.path + ")");
     lines.push("time_ms = " + Number(state.ms).toFixed(2));
     if (state.note) lines.push("note = " + state.note);
     lines.push("");
@@ -121,7 +124,7 @@
       xmlEscape(verdict) +
       "</text>\n" +
       '<text x="56" y="136" font-size="14" fill="#5c6778" ' +
-      'font-family="Times New Roman, STIX Two Text, serif">Deterministic trial record</text>\n' +
+      'font-family="Times New Roman, STIX Two Text, serif">Deterministic primality record</text>\n' +
       dl +
       "\n" +
       '<line x1="56" y1="' +
@@ -206,8 +209,9 @@
           <button type="button" class="primary" id="lab-go">Check</button>
           <button type="button" id="lab-stop" disabled>Stop</button>
         </div>
-        <p class="lab-hint">Exact 30-wheel trial in this tab (not the OpenMP C core).
-          64-bit <em>n</em> is allowed — hard primes can take minutes. Stop anytime.</p>
+        <p class="lab-hint">Deterministic lab in this tab (not the OpenMP C core):
+          <strong>n−1 Pocklington</strong> when <em>n</em>−1 factors, else exact 30-wheel trial.
+          CLI default (147-bit) is supported. Hard hostile primes can still take minutes. Stop anytime.</p>
         <figure class="lab-orrery" id="lab-orrery" hidden>
           ${orrerySvg()}
           <figcaption>residue <span id="orrery-res">—</span> (mod 30)</figcaption>
@@ -268,7 +272,7 @@
       const verdict = state.prime ? "Prime" : "Composite";
       out.className = "lab-out show cert " + (state.prime ? "yes" : "no");
       out.innerHTML = `<article class="cert-card">
-        <p class="cert-kicker">Deterministic trial record</p>
+        <p class="cert-kicker">Deterministic primality record</p>
         <p class="verdict">${verdict}</p>
         <dl>
           <dt>n</dt><dd>${escapeHtml(state.n)}</dd>
@@ -345,22 +349,25 @@
       }
 
       const limit = isqrt(n);
-      if (limit > REFUSE_ISQRT) {
+      // Multi-limb / hard n: try the worker (n−1 first). Only refuse absurd pure-trial sizes up front.
+      const multiLimb = n >= TWO64;
+      if (!multiLimb && limit > REFUSE_ISQRT) {
         hideOrrery();
         renderSimple(
           "no",
           "Too large here",
           `<dl><dt>n</dt><dd>${escapeHtml(n.toString())}</dd>
           <dt>⌊√n⌋</dt><dd>${fmt(limit)}</dd>
-          <dt>note</dt><dd>√n is too large for a tab. Use the Python / OpenMP library.</dd></dl>`
+          <dt>note</dt><dd>√n is too large for pure trial in a tab. Use the Python / OpenMP library.</dd></dl>`
         );
         return;
       }
-      if (limit > WARN_ISQRT) {
+      // Warn only when we expect a long pure trial (64-bit hard, not multi-limb n−1 path).
+      if (!multiLimb && limit > WARN_ISQRT) {
         const ok = window.confirm(
           "⌊√n⌋ ≈ " +
             fmt(limit) +
-            ". Exact 30-wheel trial may take minutes in the browser " +
+            ". If n−1 is hostile, exact 30-wheel trial may take minutes in the browser " +
             "(background worker; Stop is available). Continue?"
         );
         if (!ok) return;

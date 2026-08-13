@@ -1,6 +1,8 @@
-/* Deterministic 30-wheel trial for the Pages lab (not the OpenMP C core).
- * Loaded as a Web Worker from checker.js; also runnable via
- *   node docs/wiki/assets/checker-worker.js --self-test
+/* Deterministic primality lab worker (Pages).
+ * Mirrors the library ladder in-browser:
+ *   small precheck → n−1 Pocklington (when n−1 factors) → 30-wheel trial → refuse.
+ * Not the OpenMP C core; no stochastic Miller–Rabin.
+ * Self-test: node docs/wiki/assets/checker-worker.js --self-test
  */
 (function (g) {
   const STEPS = [4, 2, 4, 2, 4, 6, 2, 6];
@@ -9,10 +11,20 @@
   const SMALL_N = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53];
   const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
   const TWO64 = 1n << 64n;
-  /** Confirm in the UI above this √n (still exact; just slow). */
+  const BASES = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n];
+  /** Confirm in the UI when pure trial would be long. */
   const WARN_ISQRT = 8_000_000n;
-  /** Browser demo hard stop — far above any 64-bit n (√(2^64-1) ≈ 2^32). */
+  /** Pure 30-wheel hard stop (√n). n−1 may still settle larger n. */
   const REFUSE_ISQRT = 20_000_000_000n;
+  /** Try n−1 once √n is past mid-size wheel comfort (or multi-limb). */
+  const NM1_ISQRT = 10_000_000n;
+  const TRIAL_BOUND_DEFAULT = 100_000;
+  const TRIAL_BOUND_MID = 1_000_000;
+  const TRIAL_BOUND_BIG = 5_000_000;
+  const P1_B1 = 100_000;
+
+  let _primesCache = null;
+  let _primesCacheLimit = 0;
 
   function isqrt(n) {
     if (n < 2n) return n;
@@ -25,13 +37,62 @@
     return x;
   }
 
-  /** (hi<<32 | lo) % d for uint32 hi/lo and Number d in [1, 2^53). */
+  function gcd(a, b) {
+    a = a < 0n ? -a : a;
+    b = b < 0n ? -b : b;
+    while (b !== 0n) {
+      const t = a % b;
+      a = b;
+      b = t;
+    }
+    return a;
+  }
+
   function umod64(lo, hi, d) {
     let r = (hi >>> 16) % d;
     r = (r * 65536 + (hi & 0xffff)) % d;
     r = (r * 65536 + (lo >>> 16)) % d;
     r = (r * 65536 + (lo & 0xffff)) % d;
     return r;
+  }
+
+  function primesUpto(limit) {
+    const need = Math.min(Math.max(2, limit | 0), TRIAL_BOUND_BIG);
+    if (_primesCache && _primesCacheLimit >= need) {
+      return _primesCache;
+    }
+    const n = need;
+    const sieve = new Uint8Array(n + 1);
+    sieve.fill(1);
+    sieve[0] = 0;
+    sieve[1] = 0;
+    for (let i = 2; i * i <= n; i++) {
+      if (!sieve[i]) continue;
+      for (let j = i * i; j <= n; j += i) sieve[j] = 0;
+    }
+    const out = [];
+    for (let i = 2; i <= n; i++) if (sieve[i]) out.push(i);
+    _primesCache = out;
+    _primesCacheLimit = n;
+    return out;
+  }
+
+  function adaptiveTrialBound(m) {
+    const bits = bitLength(m);
+    if (bits <= 40) return TRIAL_BOUND_DEFAULT;
+    if (bits <= 80) return TRIAL_BOUND_MID;
+    return TRIAL_BOUND_BIG;
+  }
+
+  function bitLength(n) {
+    if (n <= 0n) return 0;
+    let b = 0;
+    let x = n;
+    while (x > 0n) {
+      x >>= 1n;
+      b++;
+    }
+    return b;
   }
 
   function done(prime, path, factor, note, limit, t0) {
@@ -43,6 +104,308 @@
       ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
       note: note,
     };
+  }
+
+  function trialSplit(m, bound) {
+    const fac = new Map();
+    if (m <= 1n) return { fac: fac, rem: m };
+    let x = m;
+    const primes = primesUpto(bound);
+    for (let k = 0; k < primes.length; k++) {
+      const p = BigInt(primes[k]);
+      if (p > BigInt(bound) || p * p > x) break;
+      if (x % p === 0n) {
+        let e = 0;
+        while (x % p === 0n) {
+          x /= p;
+          e++;
+        }
+        fac.set(p, (fac.get(p) || 0) + e);
+        if (x === 1n) break;
+      }
+    }
+    return { fac: fac, rem: x };
+  }
+
+  function FValue(fac) {
+    let prod = 1n;
+    for (const [q, e] of fac) {
+      for (let i = 0; i < e; i++) prod *= q;
+    }
+    return prod;
+  }
+
+  function fermatSplit(n, rounds) {
+    rounds = rounds || 65536;
+    if (n < 4n || (n & 1n) === 0n) return null;
+    let a = isqrt(n);
+    if (a * a < n) a += 1n;
+    for (let i = 0; i < rounds; i++) {
+      const b2 = a * a - n;
+      const b = isqrt(b2);
+      if (b * b === b2 && b !== 0n) {
+        const f = a - b;
+        if (f > 1n && f < n) return f;
+      }
+      a += 1n;
+    }
+    return null;
+  }
+
+  function brent(n, c, x0) {
+    if (x0 === undefined) x0 = 2n;
+    let y = x0 % n;
+    let g = 1n;
+    let q = 1n;
+    let ys = y;
+    let r = 1n;
+    const m = 512n;
+    let x = y;
+    const maxR = 1n << 18n; // browser-friendly cap
+    while (g === 1n && r <= maxR) {
+      x = y;
+      for (let i = 0n; i < r; i++) y = (y * y + c) % n;
+      let k = 0n;
+      while (k < r && g === 1n) {
+        ys = y;
+        let lim = r - k;
+        if (lim > m) lim = m;
+        for (let i = 0n; i < lim; i++) {
+          y = (y * y + c) % n;
+          let diff = x - y;
+          if (diff < 0n) diff = -diff;
+          q = (q * diff) % n;
+        }
+        g = gcd(q, n);
+        k += m;
+      }
+      r <<= 1n;
+    }
+    if (g === 1n) return n;
+    if (g === n) {
+      for (;;) {
+        ys = (ys * ys + c) % n;
+        let diff = x - ys;
+        if (diff < 0n) diff = -diff;
+        g = gcd(diff, n);
+        if (g > 1n) break;
+      }
+    }
+    return g;
+  }
+
+  function pollardP1(n, B1) {
+    B1 = B1 || P1_B1;
+    if (n < 4n || (n & 1n) === 0n) return (n & 1n) === 0n && n > 2n ? 2n : null;
+    let a = 2n;
+    const primes = primesUpto(B1);
+    for (let k = 0; k < primes.length; k++) {
+      const p = primes[k];
+      if (p > B1) break;
+      let pe = p;
+      while (pe <= Math.floor(B1 / p)) pe *= p;
+      a = modPow(a, BigInt(pe), n);
+      if (a === 0n) return null;
+    }
+    const g = gcd(a - 1n, n);
+    if (g > 1n && g < n) return g;
+    return null;
+  }
+
+  function modPow(base, exp, mod) {
+    return powBig(base, exp, mod);
+  }
+
+  function powBig(base, exp, mod) {
+    // BigInt ** works in modern engines; use binary for portability.
+    let b = ((base % mod) + mod) % mod;
+    let e = exp;
+    let r = 1n;
+    while (e > 0n) {
+      if (e & 1n) r = (r * b) % mod;
+      b = (b * b) % mod;
+      e >>= 1n;
+    }
+    return r;
+  }
+
+  function trySplitCofactor(c) {
+    const bound = adaptiveTrialBound(c);
+    const ts = trialSplit(c, bound);
+    if (ts.fac.size) {
+      // return a proper factor
+      let minP = null;
+      for (const p of ts.fac.keys()) {
+        if (minP === null || p < minP) minP = p;
+      }
+      if (minP !== null && minP < c) return minP;
+    }
+    if (ts.rem > 1n && ts.rem < c) return ts.rem;
+
+    let f = fermatSplit(c, 4096);
+    if (f && f > 1n && f < c) return f;
+
+    for (let cv = 1n; cv <= 32n; cv++) {
+      const g = brent(c, cv);
+      if (g > 1n && g < c) return g;
+    }
+
+    f = pollardP1(c);
+    if (f && f > 1n && f < c) return f;
+    return null;
+  }
+
+  /** Exact trial for moderate n (√n as Number or BigInt). */
+  function trialIsPrime(n, onTick, shouldStop) {
+    if (n < 2n) return false;
+    if (n < 4n) return true;
+    if ((n & 1n) === 0n) return false;
+    for (let k = 0; k < SMALL.length; k++) {
+      const p = SMALL[k];
+      if (n === p) return true;
+      if (n % p === 0n) return false;
+      if (p * p > n) return true;
+    }
+    const limit = isqrt(n);
+    if (limit > REFUSE_ISQRT) return null; // unknown
+    if (n <= MAX_SAFE) {
+      const r = trialNumber(Number(n), Number(limit), 0, onTick, shouldStop);
+      if (r.aborted) return null;
+      return r.prime === true;
+    }
+    if (n < TWO64) {
+      const r = trialU64(n, Number(limit), limit, 0, onTick, shouldStop);
+      if (r.aborted) return null;
+      return r.prime === true;
+    }
+    const r = trialBig(n, limit, 0, onTick, shouldStop);
+    if (r.aborted) return null;
+    return r.prime === true;
+  }
+
+  function cofactorIsPrime(c, depth, onTick, shouldStop) {
+    if (c < 2n) return false;
+    if (c < 4n) return true;
+    if ((c & 1n) === 0n) return c === 2n;
+    const lim = isqrt(c);
+    // Small enough for exact trial in the tab.
+    if (lim <= 50_000_000n) {
+      const t = trialIsPrime(c, onTick, shouldStop);
+      return t === true;
+    }
+    // Recursive n−1 (depth-capped).
+    if (depth < 6) {
+      const r = nm1Primality(c, depth + 1, onTick, shouldStop);
+      if (r === true) return true;
+      if (r === false) return false;
+    }
+    return false;
+  }
+
+  function factorEnough(n, depth, onTick, shouldStop) {
+    const target = isqrt(n);
+    let m = n - 1n;
+    const fac = new Map();
+    const bound = adaptiveTrialBound(m);
+    const peeled = trialSplit(m, bound);
+    for (const [p, e] of peeled.fac) fac.set(p, (fac.get(p) || 0) + e);
+    const stack = [];
+    if (peeled.rem > 1n) stack.push(peeled.rem);
+    let splits = 0;
+    const maxSplits = 48;
+
+    function doneFac() {
+      return FValue(fac) > target;
+    }
+    if (doneFac()) return fac;
+
+    while (stack.length && !doneFac()) {
+      if (shouldStop && shouldStop()) return null;
+      let c = stack.pop();
+      if (c <= 1n) continue;
+      const sub = trialSplit(c, adaptiveTrialBound(c));
+      for (const [p, e] of sub.fac) fac.set(p, (fac.get(p) || 0) + e);
+      if (sub.rem === 1n) {
+        if (doneFac()) return fac;
+        continue;
+      }
+      c = sub.rem;
+      if (cofactorIsPrime(c, depth, onTick, shouldStop)) {
+        fac.set(c, (fac.get(c) || 0) + 1);
+        if (doneFac()) return fac;
+        continue;
+      }
+      if (splits >= maxSplits) return null;
+      splits++;
+      const f = trySplitCofactor(c);
+      if (f === null || f <= 1n || f >= c) return null;
+      stack.push(f);
+      stack.push(c / f);
+    }
+    return doneFac() ? fac : null;
+  }
+
+  function pocklington(n, primesOfF) {
+    const fermatOk = new Map();
+    for (let qi = 0; qi < primesOfF.length; qi++) {
+      const q = primesOfF[qi];
+      let found = false;
+      for (let ai = 0; ai < BASES.length; ai++) {
+        const a = BASES[ai];
+        if (a % n === 0n) return n === a ? true : false;
+        let ok = fermatOk.get(a);
+        if (ok === undefined) {
+          ok = powBig(a, n - 1n, n) === 1n;
+          fermatOk.set(a, ok);
+        }
+        if (!ok) return false;
+        if (gcd(powBig(a, (n - 1n) / q, n) - 1n, n) === 1n) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) return null;
+    }
+    return true;
+  }
+
+  /** True / False / null (inconclusive). */
+  function nm1Primality(n, depth, onTick, shouldStop) {
+    if (depth === undefined) depth = 0;
+    if (n < 2n) return false;
+    if (n === 2n || n === 3n || n === 5n || n === 7n) return true;
+    if ((n & 1n) === 0n || n % 3n === 0n || n % 5n === 0n) return false;
+
+    for (let i = 0; i < 6; i++) {
+      const a = BASES[i];
+      if (a % n === 0n) return n === a;
+      if (powBig(a, n - 1n, n) !== 1n) return false;
+    }
+
+    const fac = factorEnough(n, depth, onTick, shouldStop);
+    if (!fac) return null;
+
+    const F = FValue(fac);
+    if (F <= 1n || (n - 1n) % F !== 0n) return null;
+    if (F * F <= n) return null;
+
+    const primes = Array.from(fac.keys()).sort(function (a, b) {
+      return a === b ? 0 : a > b ? -1 : 1;
+    });
+    const target = isqrt(n);
+    const used = [];
+    let prod = 1n;
+    for (let i = 0; i < primes.length; i++) {
+      const q = primes[i];
+      const e = fac.get(q);
+      for (let j = 0; j < e; j++) {
+        if (prod > target) break;
+        prod *= q;
+      }
+      used.push(q);
+      if (prod > target) break;
+    }
+    return pocklington(n, used);
   }
 
   function checkPrime(n, onTick, shouldStop) {
@@ -59,6 +422,35 @@
     }
 
     const limit = isqrt(n);
+
+    // Hard / multi-limb: n−1 Pocklington first (same idea as the Python library).
+    if (n >= TWO64 || limit >= NM1_ISQRT) {
+      if (onTick) onTick(0n, limit);
+      const decided = nm1Primality(n, 0, onTick, shouldStop);
+      if (shouldStop && shouldStop()) return { aborted: true };
+      if (decided === true) {
+        return done(
+          true,
+          "n-1-pocklington",
+          null,
+          "n−1 Pocklington proof (browser; no RNG)",
+          limit,
+          t0
+        );
+      }
+      if (decided === false) {
+        return done(
+          false,
+          "n-1-pocklington",
+          null,
+          "failed fixed-base Fermat / Pocklington filter (composite)",
+          limit,
+          t0
+        );
+      }
+      // inconclusive → trial if budget allows
+    }
+
     if (limit > REFUSE_ISQRT) {
       return {
         prime: null,
@@ -66,7 +458,8 @@
         factor: null,
         isqrt: limit.toString(),
         ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
-        note: "√n is too large for a tab. Use the Python / OpenMP library.",
+        note:
+          "n−1 was inconclusive and √n is too large for pure trial in a tab. Use the Python / OpenMP library.",
       };
     }
 
@@ -117,9 +510,7 @@
         if (onTick) onTick(i, limitNum);
       }
     }
-    let si = 0;
-    // i ≡ 59 ≡ 29 (mod 30); STEPS[6] starts the 59→61 step. After full +30 cycles, si stays 6.
-    si = 6;
+    let si = 6;
     while (i <= limitNum) {
       if (umod64(lo, hi, i) === 0) return done(false, "wheel-30", i, "30-wheel trial division", limitB, t0);
       i += STEPS[si];
@@ -149,8 +540,10 @@
     isqrt: isqrt,
     checkPrime: checkPrime,
     umod64: umod64,
+    nm1Primality: nm1Primality,
     WARN_ISQRT: WARN_ISQRT,
     REFUSE_ISQRT: REFUSE_ISQRT,
+    NM1_ISQRT: NM1_ISQRT,
     SMALL_N: SMALL_N,
   };
 
@@ -207,6 +600,8 @@
   function selfTest() {
     const knownPrime = [
       2n, 3n, 5n, 17n, 53n, 59n, 97n, 1000000007n, 1000000009n, 2147483647n,
+      600000000000000000001n, // smooth n−1 specimen
+      100000000000000000000000000000000000000000031n, // CLI DEFAULT_N 147-bit
     ];
     const knownComp = [
       [4n, 2n],
@@ -228,10 +623,15 @@
     assert(checkPrime(0n).prime === false, "0");
     assert(checkPrime(1n).prime === false, "1");
 
+    const def = 100000000000000000000000000000000000000000031n;
+    const rd = checkPrime(def);
+    assert(rd.prime === true, "DEFAULT_N prime");
+    assert(rd.path === "n-1-pocklington", "DEFAULT_N path " + rd.path);
+
     const hard = 9223372036854775783n;
     const lim = isqrt(hard);
     assert(lim === 3037000499n, "isqrt(near-2^63) = " + lim);
-    assert(lim <= REFUSE_ISQRT, "REFUSE_ISQRT still blocks near-2^63");
+    assert(lim <= REFUSE_ISQRT, "REFUSE_ISQRT still allows near-2^63 trial");
     assert(lim > WARN_ISQRT, "WARN_ISQRT should flag near-2^63 as slow");
 
     const overSafe = 59n * (MAX_SAFE / 59n + 11n);
