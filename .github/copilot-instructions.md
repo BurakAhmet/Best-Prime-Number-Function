@@ -54,6 +54,6 @@ Forbidden as the engine: stochastic primality tests, external prime libraries.
 - `docs/guide/` — MkDocs library docs (Pages `/guide/`)
 - `.github/workflows/` — CI, determinism, issue/PR agents
 
-- On Linux CI after `compile_wheel_core.sh`, `lab(10**9+7)['path']` must be `u64_wheel_c`; hard 64-bit (`isqrt ≥ 10^7`, e.g. near 2^63) must be `u64_lehman_c` when `lehman_factor_u128` is exported. Practical multi-limb sizes in the cubic budget use `u128_lehman_c`.
+- On Linux CI after `compile_wheel_core.sh`, `lab(10**9+7)['path']` must be `u64_wheel_c`; hard 64-bit (`isqrt ≥ 10^7`, e.g. near 2^63) must be `u64_nm1` or `u64_lehman_c` when the cubic C core is present. Multi-limb CLI default uses `u128_nm1` or `u128_lehman_c`.
 - Primary perf metric is e2e CLI TIME (`compare_e2e.py`).
 - Mark multi-second multi-limb primes with `@pytest.mark.slow` if added beyond existing C-path coverage.

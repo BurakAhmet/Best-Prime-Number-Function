@@ -139,9 +139,12 @@ jobs:
           assert _load_c_core(), "wheel_core.so missing after compile_wheel_core.sh"
           info = lab(1_000_000_007)
           assert info["path"] == "u64_wheel_c", info
+          # Hard 64-bit: n−1 Pocklington when it settles, else cubic.
           info2 = lab(9_223_372_036_854_775_783)
-          assert info2["path"] == "u64_lehman_c" and info2["is_prime"] is True, info2
-          print("C path OK:", info["path"], info2["path"])
+          assert info2["path"] in {"u64_nm1", "u64_lehman_c"} and info2["is_prime"] is True, info2
+          info3 = lab(7_000_000_000_000_000_000_037)
+          assert info3["path"] in {"u128_nm1", "u128_lehman_c"} and info3["is_prime"] is True, info3
+          print("C path OK:", info["path"], info2["path"], info3["path"])
           PY
 
       - name: Smoke CLI
