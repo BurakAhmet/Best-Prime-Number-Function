@@ -44,9 +44,9 @@ class TestNm1Primality:
         assert lab(SMOOTH_NM1_PRIME)["path"] == "u128_nm1"
 
     def test_default_n_pocklington(self):
-        # Current CLI default: 130-bit; n−1 factors via trial+Brent → Pocklington.
+        # Current CLI default: 133-bit; n−1 factors via trial+Brent → Pocklington.
         assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 130
+        assert DEFAULT_N.bit_length() == 133
         assert nm1_ready(DEFAULT_N)
         assert nm1_primality(DEFAULT_N) is True
         assert is_prime(DEFAULT_N) is True

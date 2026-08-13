@@ -24,7 +24,7 @@ pytest -q -m "not slow"
 pytest -q                                          # includes @pytest.mark.slow + Hypothesis
 NUMBA_NUM_THREADS=2 python benchmarks/check_determinism.py
 NUMBA_NUM_THREADS=$(nproc) python benchmarks/compare_speed.py
-python -m best_prime --lab 1000000000000000000000000000000000000003
+python -m best_prime --lab 10000000000000000000000000000000000000121
 python -m best_prime --lab --json 97
 ```
 

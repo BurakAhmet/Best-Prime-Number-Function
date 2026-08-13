@@ -76,7 +76,7 @@ Not a new complexity exponent. A synthesis that this repository can actually shi
 3. Wired into `factorint` *after* Fermat and *before* Brent / ECM / SIQS, so close factors stay on the cheap Fermat path and 64-bit composites get a complete cubic split.
 4. **Not** wired into `is_prime`. Replacing 64-bit trial with Lehman would change the documented correctness model. Guidelines forbid that.
 
-On this machine class, a 63-bit balanced semiprime (Mersenne $2^{31}-1$ times the next odd) splits in well under $0.1\,\mathrm{s}$ in pure Python. The OpenMP C core (`lehman_factor_u128`) is the hard-path **fallback** after n−1; smooth $n-1$ specimens settle via Pocklington in milliseconds, while the current 130-bit CLI default usually runs the full cubic proof (~0.3 s class).
+On this machine class, a 63-bit balanced semiprime (Mersenne $2^{31}-1$ times the next odd) splits in well under $0.1\,\mathrm{s}$ in pure Python. The OpenMP C core (`lehman_factor_u128`) is the hard-path **fallback** after n−1; smooth $n-1$ specimens settle via Pocklington in milliseconds, while the current 133-bit CLI default usually runs the full cubic proof (~0.3 s class).
 
 ## API
 

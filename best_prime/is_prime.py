@@ -33,9 +33,9 @@ WHEEL_MOD = 9_699_690
 WHEEL_NW = 1_658_880
 _WHEEL_START_I = 23
 _SMALL_LIMIT = 10_000
-# CLI default / hard yardstick: 130-bit prime (n−1 Pocklington path).
+# CLI default / hard yardstick: 133-bit prime (n−1 Pocklington path).
 # Largest prime < 2^64 stays a documented 64-bit specimen.
-DEFAULT_N = 1_000_000_000_000_000_000_000_000_000_000_000_000_003
+DEFAULT_N = 10_000_000_000_000_000_000_000_000_000_000_000_000_121
 # Stdlib wheel wins end-to-end TIME up to this n (avoids NumPy/Numba import).
 _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000

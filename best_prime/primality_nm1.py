@@ -117,8 +117,13 @@ def _cofactor_is_prime(c: int, *, parallel: bool) -> bool:
 def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
     """Find a proper factor of composite ``c``, or None.
 
-    Quick prime trial first, then Fermat, cubic (C when ``4·budget·c``
-    fits in 128 bits), deterministic Brent, then ECM.
+    Order tuned for n−1 cofactors of multi-limb primes:
+
+    1. prime trial (≤5e6)
+    2. Fermat near-square split
+    3. deterministic Brent (often finds ~1e9 factors in tens of ms)
+    4. short cubic probe (avoid multi-second C k-loops that miss medium factors)
+    5. ECM
     """
     from .factor_ecm import ecm_factor
     from .factor_lehman import (
@@ -131,10 +136,8 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
     # Cheap peel of medium prime factors before heavy methods.
     fac, rem = _trial_split(c, _adaptive_trial_bound(c))
     if rem != c and rem > 1 and rem < c:
-        # Return smallest prime factor found.
         return min(fac)
     if rem == 1 and fac:
-        # c fully factored by trial; return any prime factor.
         return min(fac)
     if fac and rem > 1:
         return min(fac)
@@ -143,26 +146,28 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
     if f is not None and 1 < f < c:
         return f
 
+    # Brent before cubic: cubic with large 4kn-limited budgets is slow and
+    # often misses unbalanced ~1e9 factors that Brent finds quickly.
+    for cv in range(1, 64):
+        g = _brent(c, cv)
+        if 1 < g < c:
+            return g
+
     cub = _ceil_icbrt(c)
+    # Keep cubic probe short on multiprecision / large-limb numbers.
     if _c_lehman_ready() and c.bit_length() <= 128 and c > 1:
-        # Largest k with 4·k·c still in 128 bits.
         max_k = ((1 << 128) - 1) // (4 * c)
-        budget = min(max_k, cub, 10_000_000)
+        budget = min(max_k, cub, 100_000)
         if budget >= 16:
             f = lehman_factor(c, k_max=int(budget), parallel=parallel)
             if f is not None and 1 < f < c:
                 return f
     else:
-        budget = min(cub, 100_000)
+        budget = min(cub, 50_000)
         if budget >= 16:
             f = lehman_factor(c, k_max=int(budget), parallel=parallel)
             if f is not None and 1 < f < c:
                 return f
-
-    for cv in range(1, 48):
-        g = _brent(c, cv)
-        if 1 < g < c:
-            return g
 
     f = ecm_factor(c)
     if f is not None and 1 < f < c:

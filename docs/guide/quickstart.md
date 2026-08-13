@@ -33,7 +33,7 @@ info = lab(10**9 + 7)
 Hard 64-bit specimens (want `wheel_core.so`):
 
 ```python
-is_prime(1000000000000000000000000000000000000003)       # True  — CLI default (73-bit)
+is_prime(10000000000000000000000000000000000000121)       # True  — CLI default (73-bit)
 is_prime(18446744073709551557)        # True  — largest prime < 2^64
 is_prime(9223372036854775783)         # True  — near 2^63
 is_prime("100000000000000000039")     # True  — ~10^20, u128 path
