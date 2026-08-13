@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file.
 - **n−1 Pocklington primality** (`best_prime/primality_nm1.py`) on the hard path: factor $n-1$, prove prime with fixed bases. Deterministic; not Miller–Rabin. Complete cubic search remains the fallback when $n-1$ is hostile. Guide: `docs/guide/nm1-proof.md`.
 - Python **3.9 import fix**: type alias uses `Optional[bool]` (not `X | Y` at runtime) so hard-path imports do not crash on 3.9.
 - **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to $\lceil n^{1/3}\rceil$, then integer-safe Lehman windows. Complete through every 64-bit $n$; hard-path fallback and `factorint` splitter. Guide: `docs/guide/cubic-search.md`.
-- OpenMP **`lehman_factor_u128`** in `wheel_core.so`: complete cubic proof through the CLI hard budget (cube root ≤ **3·10⁷**, was 2·10⁷). Used when n−1 is inconclusive (`lab` paths `u64_lehman_c` / `u128_lehman_c`). The old 2·10⁷ cap put $n>(2\cdot10^{7})^{3}=8\cdot10^{21}$ on the AKS path, so `next_prime(8000000000000000000001)` hung while `next_prime(7000000000000000000001)` finished in ~0.3 s.
+- OpenMP **`lehman_factor_u128`** complete cubic budget raised to cube root ≤ **2·10⁹** (`LEHMAN_COMPLETE_CUB_MAX_C`; was 3·10⁷ / earlier 2·10⁷). Covers complete hard-path proofs for $n$ up to about **8·10²⁷** while $4kn$ still fits in 128 bits. Near the edge a prime proof can take tens of seconds to minutes (cost $\sim n^{1/3}$). Used when n−1 is inconclusive.
 
 ### Changed
 - Hard 64-bit / CLI-default `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit (e.g. $10^{9}+7$) stays `u64_wheel_c`.

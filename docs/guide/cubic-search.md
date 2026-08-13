@@ -47,7 +47,7 @@ Write $c = \lceil n^{1/3}\rceil$.
 
 **Band 2.** If every prime factor exceeds $c$, then $n$ is either prime or a product of two integers in $(c, n^{2/3}]$. Lehman's theorem supplies a $k \le c$ such that $4kn = a^2 - b^2$ with $a$ in a window of length about $n^{1/6}/(4\sqrt{k})$ above $\lceil\sqrt{4kn}\rceil$. Summing those window lengths is $O(n^{1/3})$. Finding a square $a^2 - 4kn$ yields $\gcd(a \pm b, n)$.
 
-Together the two bands are a complete deterministic split for every $n$ whose cube root is at most `LEHMAN_COMPLETE_CUB_MAX` ($3\cdot 10^6$, which covers all 64-bit $n$). Larger $n$ can pass an explicit `k_max` and get a bounded probe, not a proof.
+Together the two bands are a complete deterministic split for every $n$ whose cube root is at most the complete budget: pure Python `LEHMAN_COMPLETE_CUB_MAX` ($3\cdot 10^6$, all 64-bit $n$), or OpenMP C `LEHMAN_COMPLETE_CUB_MAX_C` ($2\cdot 10^9$, about $n\le 8\cdot 10^{27}$ when $4kn$ fits in 128 bits). Larger $n$ can pass an explicit `k_max` and get a bounded probe, not a proof.
 
 Integer arithmetic only: $\lceil n^{1/3}\rceil$ by Newton, window length by an *overestimate* of $n^{1/6}/(4\sqrt{k})$ so a floored extra never misses the existence interval.
 

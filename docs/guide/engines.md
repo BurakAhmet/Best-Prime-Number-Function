@@ -15,7 +15,7 @@ is_prime(n)
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
-         ├─ cubic budget (cube root ≤ 3·10⁷)
+         ├─ cubic budget (cube root ≤ 2·10⁹)
          │              → n−1 Pocklington, else lehman_factor_u128 (CLI default)
          ├─ isqrt(n) ≤ 2.5·10¹⁰ (≤128-bit) → OpenMP u128 full trial / stdlib wheel
          └─ larger still            → 30030-wheel to 1e8 → AKS if needed

@@ -34,12 +34,13 @@ _W30 = (4, 2, 4, 2, 4, 6, 2, 6)
 _PRODUCT_BATCH = 128
 
 # A full budget of k ≤ ceil(n^{1/3}) is complete (None ⇒ prime / 0 / 1)
-# only while the cube root is this small. 3e6 covers every 64-bit n
-# in pure Python. The OpenMP C core completes through ~30e6 so
-# n just above (2·10^7)^3 = 8·10^21 (e.g. next_prime(8e21+1)) still
-# uses cubic rather than falling into AKS.
+# only while the cube root is this small.
+# - Pure Python: 3e6 covers every 64-bit n.
+# - OpenMP C: 2e9 covers n up to ~8e27 (and 4·k·n still fits in 128 bits).
+#   Cost scales ~Θ(n^{1/3}); near the edge a prime proof can take tens of
+#   seconds to a few minutes. Beyond this, is_prime falls back to trial / AKS.
 LEHMAN_COMPLETE_CUB_MAX = 3_000_000
-LEHMAN_COMPLETE_CUB_MAX_C = 30_000_000
+LEHMAN_COMPLETE_CUB_MAX_C = 2_000_000_000
 
 
 def _ceil_isqrt(n: int) -> int:
