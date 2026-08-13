@@ -135,8 +135,19 @@
 .viz-track { fill: rgba(27, 36, 55, 0.08); }
 .viz-fill { fill: var(--accent); }
 .viz-fill-alt { fill: var(--forest); opacity: 0.45; }
-.viz-curve { fill: none; stroke: var(--ink); stroke-width: 1.3; opacity: 0.55; }
-.viz-point { fill: var(--accent); }
+.viz-curve {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.55;
+}
+.viz-point {
+  fill: var(--accent);
+  stroke: #fffdf7;
+  stroke-width: 1.2;
+}
 .viz-orbit { fill: none; stroke: rgba(27, 36, 55, 0.25); stroke-width: 1.2; }
 .viz-hare { fill: var(--accent); }
 .viz-tort { fill: var(--forest); }

@@ -288,7 +288,7 @@
         <figure class="lab-viz" data-phase="ecm" hidden>
           <svg viewBox="0 0 200 88" aria-hidden="true">
             <text class="viz-title" x="4" y="14">Montgomery ECM  (Suyama σ)</text>
-            <path class="viz-curve" d="M12 70 C 50 10, 90 10, 100 40 S 150 78, 188 28"/>
+            <path id="viz-ecm-path" class="viz-curve" d="M12 70 C 50 10, 90 10, 100 40 S 150 78, 188 28"/>
             <circle class="viz-point" id="viz-ecm-pt" cx="12" cy="70" r="4.5"/>
             <text class="viz-mono" id="viz-ecm-sigma" x="8" y="84">σ = —</text>
           </svg>
@@ -404,11 +404,18 @@
       } else if (phase === "ecm") {
         const tot = Number(msg.limit) || 1;
         const i = Number(msg.i) || 0;
-        const t = Math.min(1, i / tot);
+        const t = Math.min(1, Math.max(0, i / tot));
         const pt = $("#viz-ecm-pt", root);
-        if (pt) {
-          pt.setAttribute("cx", String(12 + t * 176));
-          pt.setAttribute("cy", String(70 - Math.sin(t * Math.PI) * 48));
+        const curve = $("#viz-ecm-path", root);
+        if (pt && curve && typeof curve.getTotalLength === "function") {
+          const len = curve.getTotalLength();
+          const p = curve.getPointAtLength(t * len);
+          pt.setAttribute("cx", String(p.x));
+          pt.setAttribute("cy", String(p.y));
+        } else if (pt) {
+          // jsdom / no SVG geometry: stay on the start point
+          pt.setAttribute("cx", "12");
+          pt.setAttribute("cy", "70");
         }
         const sg = $("#viz-ecm-sigma", root);
         if (sg) {
