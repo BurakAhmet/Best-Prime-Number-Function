@@ -7,6 +7,7 @@ All notable changes to this project are documented in this file.
 ### Changed
 - **PR CI is tiered:** pull requests run Linux 3.12 tests + lint + perf (docs-only PRs only stub the required check names). Full OS/Python matrix, Docker, wheel smoke, and attestation run on `main`. Auto-merge waits only for branch-protection gates (`Tests (ubuntu-latest / Python 3.12)` + `Determinism`).
 - Pages interactive lab uses **Montgomery ECM (Suyama)** on hostile $n-1$, so $10^{54}+31$ proves prime in-tab (~1–2 min) instead of returning inconclusive.
+- Pages lab prints a **factor** for composites and shows a live stage panel that mirrors the engine (precheck, Fermat, split, Brent, $p-1$, ECM, Pocklington, 30-wheel).
 
 ### Docs
 - Wiki CI page and Home lab copy describe the PR/main split and in-browser ECM.

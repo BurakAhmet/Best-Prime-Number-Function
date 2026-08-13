@@ -7,7 +7,7 @@
 
 ## Interactive lab
 
-Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **n−1 Pocklington** when $n-1$ factors (trial / Brent / $p-1$ / **Montgomery ECM**), else exact 30-wheel trial. No digit-length limit: smooth $n-1$ (CLI default 147-bit) is typically sub-second; hostile $n-1$ (e.g. $10^{54}+31$) can take a minute or two of background ECM. If a proof is still impractical, the lab reports **inconclusive** rather than spinning forever. Long runs show the wheel-30 orrery; results are downloadable certificates.
+Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **n−1 Pocklington** when $n-1$ factors (trial / Brent / $p-1$ / **Montgomery ECM**), else exact 30-wheel trial. Composites print a **factor**. The stage panel mirrors the live engine (precheck, Fermat, cofactor split, Brent, $p-1$, ECM, Pocklington $F$ vs $\sqrt{n}$, 30-wheel). No digit-length limit: smooth $n-1$ is typically sub-second; hostile $n-1$ (e.g. $10^{54}+31$) can take a minute or two of ECM. If a proof is still impractical, the lab reports **inconclusive** rather than spinning forever. Results are downloadable certificates.
 
 <!-- acta-specimen -->
 
