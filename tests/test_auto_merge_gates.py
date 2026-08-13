@@ -86,6 +86,13 @@ def test_ci_folds_lint_into_linux_312() -> None:
 def test_auto_merge_dispatches_pages_publish() -> None:
     assert "PAGES_PUBLISH_PLEASE" in AUTO_MERGE
     assert "publish-wiki.yml" in AUTO_MERGE
+    pub = (ROOT / ".github/workflows/publish-wiki.yml").read_text(encoding="utf-8")
+    # Dispatch is the Auto-merge path; a second workflow_run cancelled it.
+    wr = pub.split("workflow_run:")[1].split("types:")[0]
+    assert "Prime of the day" in wr
+    assert "Optimize" in wr
+    assert "Auto-merge" not in wr
+    assert "cancel-in-progress: false" in pub
 
 
 def test_auto_merge_embeds_required_test_regex() -> None:
