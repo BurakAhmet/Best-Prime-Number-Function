@@ -47,7 +47,7 @@ _RES_INVALID = 0xFFFF
 # Legacy short prefilter (kept for tests / small path).
 _PREFILTER_LIMIT = 1_021
 # Deep sieve / prefilter: primes up to this mark composites in next_prime windows.
-_DEEP_PRIME_LIMIT = 500_000
+_DEEP_PRIME_LIMIT = 1_000_000
 _SIEVE_MIN_K = 8
 NEXT_PRIME_SIEVE_ISQRT_MAX = 2_000_000
 _SIEVE_ISQRT_MAX = NEXT_PRIME_SIEVE_ISQRT_MAX
@@ -200,8 +200,12 @@ def _next_prime_window(n: int, k: int, parallel: bool) -> int | None:
         for c in _sieve_odd_window(lo, hi, primes):
             if c <= n:
                 continue
-            # Cheap Fermat reject before full is_prime (exact composite).
-            if c > 2 and pow(2, c - 1, c) != 1:
+            # Cheap multi-base Fermat reject (exact composite if any fails).
+            if c > 2 and (
+                pow(2, c - 1, c) != 1
+                or pow(3, c - 1, c) != 1
+                or pow(5, c - 1, c) != 1
+            ):
                 continue
             if is_prime(c, parallel=parallel):
                 found += 1
@@ -234,7 +238,11 @@ def _next_prime_wheel(n: int, k: int, parallel: bool) -> int:
                 composite = True
                 break
         if not composite and not proven:
-            if cand > 2 and pow(2, cand - 1, cand) != 1:
+            if cand > 2 and (
+                pow(2, cand - 1, cand) != 1
+                or pow(3, cand - 1, cand) != 1
+                or pow(5, cand - 1, cand) != 1
+            ):
                 composite = True
         if not composite and (proven or is_prime(cand, parallel=parallel)):
             found += 1

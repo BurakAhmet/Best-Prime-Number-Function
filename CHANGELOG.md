@@ -18,8 +18,11 @@ All notable changes to this project are documented in this file.
 ### Changed
 - Hard 64-bit / multi-limb `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit stays `u64_wheel_c`.
 - CLI / `DEFAULT_N` is **`10000000000000000000000000000000000000121`** (133-bit; n−1 Pocklington). E2E CLI **TIME ~0.4 s** on this machine (target ≤3 s), via prime trial + **Brent-before-cubic** splits of $n-1$ cofactors. Former smooth specimen `600000000000000000001` remains `SMOOTH_NM1_PRIME` in tests.
-- n−1 cofactor split order: trial → Fermat → **Brent** → short cubic probe → ECM (avoids multi-second C Lehman k-loops that miss ~1e9 factors).
-- CLI `is-prime` prints **`FACTOR:`** when composite.
+- n−1 cofactor split order: trial → Fermat → **Brent** → p−1 → short cubic → ECM (avoids multi-second C Lehman k-loops that miss ~1e9 factors).
+- **Partial Pocklington**: factor only until $F>\sqrt{n}$ (no need to finish $R=(n-1)/F$).
+- **Pollard p−1** stage-1 on n−1 cofactors; faster Brent (batch product, m=512).
+- `next_prime` deep sieve to **1e6** primes + bases 2/3/5 Fermat reject.
+- `lab()` no longer double-runs the hard path for path labeling.- CLI `is-prime` prints **`FACTOR:`** when composite.
 
 ### Docs
 - README / wiki / guide: n−1 + cubic dispatch; new `nm1-proof.md`.

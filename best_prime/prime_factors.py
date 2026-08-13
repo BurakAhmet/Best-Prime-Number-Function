@@ -145,15 +145,21 @@ def _fermat_split(n: int, rounds: int = 65_536) -> int | None:
 
 
 def _brent(n: int, c: int, x0: int = 2) -> int:
-    """Deterministic Brent–Pollard cycle. Returns a divisor of n (maybe n)."""
+    """Deterministic Brent–Pollard cycle. Returns a divisor of n (maybe n).
+
+    Product-of-differences + rarer GCDs (m=512) cuts modular GCDs on
+    multi-limb n−1 cofactors without changing the fixed trajectory.
+    """
     y = x0 % n
     g = 1
     q = 1
     ys = y
     r = 1
-    m = 128
+    m = 512
     x = y
-    while g == 1:
+    # Cap growth so hostile composites do not run unbounded on next_prime.
+    max_r = 1 << 22
+    while g == 1 and r <= max_r:
         x = y
         for _ in range(r):
             y = (y * y + c) % n
@@ -165,10 +171,15 @@ def _brent(n: int, c: int, x0: int = 2) -> int:
                 lim = m
             for _ in range(lim):
                 y = (y * y + c) % n
-                q = (q * abs(x - y)) % n
+                diff = x - y
+                if diff < 0:
+                    diff = -diff
+                q = (q * diff) % n
             g = math.gcd(q, n)
             k += m
         r <<= 1
+    if g == 1:
+        return n
     if g == n:
         while True:
             ys = (ys * ys + c) % n

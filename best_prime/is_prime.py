@@ -851,7 +851,7 @@ def _hard_path_prime(n: int, *, parallel: bool) -> bool:
     return lehman_factor(n, parallel=parallel) is None
 
 
-def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
+def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> bool:
     """Primality for n >= 2^64. n−1 / cubic C when complete; else trial or AKS."""
     for p in _PRECHECK_BIG:
         if n == p:
@@ -865,9 +865,10 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
 
     # n−1 Pocklington whenever it settles — even past the u128 cubic wall
     # (4kn > 128 bits). Skipping it sent easy primes (smooth-ish n−1) into AKS.
-    decided = nm1_primality(n, parallel=parallel)
-    if decided is not None:
-        return decided
+    if not skip_nm1:
+        decided = nm1_primality(n, parallel=parallel)
+        if decided is not None:
+            return decided
 
     if cubic_complete_ready(n):
         return lehman_factor(n, parallel=parallel) is None
@@ -968,46 +969,63 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
     """Diagnostic: path, isqrt, result, elapsed ms for the check only."""
     n_int = _parse_n(n)
     path: str
+    t1 = time.perf_counter()
+
     if n_int < _SMALL_LIMIT:
         path = "python_small"
+        prime = _is_prime_small(n_int)
     elif n_int < (1 << 64):
-        from .factor_lehman import cubic_complete_ready
-
-        if cubic_complete_ready(n_int):
-            # Prefer nm1 label when the prover settles; else cubic.
-            from .primality_nm1 import nm1_primality
-
-            decided = nm1_primality(n_int, parallel=parallel)
-            path = "u64_nm1" if decided is not None else "u64_lehman_c"
-        elif _load_c_core():
-            path = "u64_wheel_c"
-        elif n_int <= _PURE_WHEEL_MAX_N:
-            path = "python_wheel"
-        else:
-            path = "u64_wheel_numba"
-    else:
-        sq = math.isqrt(n_int) if n_int >= 2 else 0
-        lib = _load_c_core()
         from .factor_lehman import cubic_complete_ready
         from .primality_nm1 import nm1_primality
 
-        # n−1 is tried for all multi-limb n (not only when cubic is ready).
+        if cubic_complete_ready(n_int):
+            decided = nm1_primality(n_int, parallel=parallel)
+            if decided is not None:
+                path = "u64_nm1"
+                prime = decided
+            else:
+                path = "u64_lehman_c"
+                from .factor_lehman import lehman_factor
+
+                prime = lehman_factor(n_int, parallel=parallel) is None
+        elif _load_c_core():
+            path = "u64_wheel_c"
+            prime = _is_prime_u64(n_int, parallel)
+        elif n_int <= _PURE_WHEEL_MAX_N:
+            path = "python_wheel"
+            prime = _is_prime_python_wheel(n_int)
+        else:
+            path = "u64_wheel_numba"
+            prime = _is_prime_u64(n_int, parallel)
+    else:
+        sq = math.isqrt(n_int) if n_int >= 2 else 0
+        lib = _load_c_core()
+        from .factor_lehman import cubic_complete_ready, lehman_factor
+        from .primality_nm1 import nm1_primality
+
         decided = nm1_primality(n_int, parallel=parallel)
         if decided is not None:
             path = "u128_nm1"
+            prime = decided
         elif cubic_complete_ready(n_int):
             path = "u128_lehman_c"
-        elif (
-            sq <= _MAX_FULL_TRIAL_ISQRT
-            and n_int.bit_length() <= 128
-            and lib
-            and hasattr(lib, "is_prime_u128_core")
-        ):
-            path = "u128_wheel_c"
-        elif sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
-            path = "bigint_wheel"
+            prime = lehman_factor(n_int, parallel=parallel) is None
         else:
-            path = "bigint_trial_or_aks"
+            # Mirror _is_prime_big after nm1 without re-running n−1.
+            prime = _is_prime_big(n_int, parallel=parallel, skip_nm1=True)
+            if (
+                sq <= _MAX_FULL_TRIAL_ISQRT
+                and n_int.bit_length() <= 128
+                and lib
+                and hasattr(lib, "is_prime_u128_core")
+            ):
+                path = "u128_wheel_c"
+            elif sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
+                path = "bigint_wheel"
+            else:
+                path = "bigint_trial_or_aks"
+
+    elapsed_ms = (time.perf_counter() - t1) * 1000.0
     info = {
         "n": n_int,
         "bit_length": n_int.bit_length(),
@@ -1030,11 +1048,7 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         info["isqrt"] = math.isqrt(n_int)
     else:
         info["isqrt"] = None
-    t1 = time.perf_counter()
-    # lab() already ran nm1 when predicting the hard path; re-run is_prime
-    # for the timed result (still the public predicate).
-    prime = is_prime(n_int, parallel=parallel)
-    info["elapsed_ms"] = (time.perf_counter() - t1) * 1000.0
+    info["elapsed_ms"] = elapsed_ms
     info["e2e_ms"] = (time.perf_counter_ns() - t0) / 1e6
     info["is_prime"] = prime
     notes = {
