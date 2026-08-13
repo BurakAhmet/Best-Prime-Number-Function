@@ -1,4 +1,10 @@
-# Auto-merge same-repo PRs when CI + Determinism (and performance if present) are green.
+# Auto-merge same-repo PRs when required gates are green:
+#   - Tests (ubuntu-latest / Python 3.12)  [branch protection]
+#   - Determinism                          [branch protection gate job]
+#   - E2E performance (if reported; soft when absent/skipped)
+#
+# Do NOT wait for the full OS/Python matrix — PR-lite CI only runs the required
+# test cell; full matrix is main-only.
 #
 # Do NOT use workflow_run: when Copilot (or other bots) finish CI, those Auto-merge runs
 # sit in conclusion=action_required and never execute without a human approval click.
@@ -96,21 +102,27 @@ jobs:
                 name: c.name, status: c.status, conclusion: c.conclusion,
               })), null, 2));
 
-              // Must match both legacy "Tests (Python 3.12)" and
-              // cross-platform "Tests (ubuntu-latest / Python 3.12)".
-              const testJobs = runs.filter(c => /^Tests\s*\(.*Python/i.test(c.name));
-              const detJobs = runs.filter(c => /determinism/i.test(c.name));
+              // Only branch-protection / merge-required checks — not the full matrix.
+              // Legacy: "Tests (Python 3.12)"; current: "Tests (ubuntu-latest / Python 3.12)".
+              const requiredTestRe = /^Tests\s*\((?:ubuntu-latest\s*\/\s*)?Python\s*3\.12\)$/i;
+              const testJobs = runs.filter(c => requiredTestRe.test(c.name));
+              // Gate job is literally named "Determinism" (not matrix cell names).
+              const detJobs = runs.filter(c => /^Determinism$/i.test(c.name));
               const perf = runs.filter(c => /Performance/i.test(c.name));
               const pendingGate = [...testJobs, ...detJobs, ...perf].filter(c =>
                 c.status !== 'completed'
               );
 
-              testsGreen = testJobs.length >= 1 && testJobs.every(c =>
-                c.status === 'completed' && c.conclusion === 'success');
-              detGreen = detJobs.length >= 1 && detJobs.every(c =>
-                c.status === 'completed' && c.conclusion === 'success');
-              perfOk = perf.length === 0 || perf.every(c =>
-                c.status === 'completed' && (c.conclusion === 'success' || c.conclusion === 'skipped'));
+              // A skipped twin of the same check name (if: false job) must not
+              // block merge when another run with that name succeeded.
+              const ok = (c) =>
+                c.status === 'completed' &&
+                (c.conclusion === 'success' || c.conclusion === 'skipped' || c.conclusion === 'neutral');
+              const succeeded = (c) =>
+                c.status === 'completed' && c.conclusion === 'success';
+              testsGreen = testJobs.some(succeeded) && testJobs.every(ok);
+              detGreen = detJobs.some(succeeded) && detJobs.every(ok);
+              perfOk = perf.length === 0 || perf.every(ok);
 
               if (testsGreen && detGreen && perfOk && pendingGate.length === 0) break;
 
@@ -122,12 +134,12 @@ jobs:
                 return;
               }
 
-              core.info(`Waiting for gates (tests=${testsGreen} det=${detGreen} perf=${perfOk} pending=${pendingGate.length})`);
+              core.info(`Waiting for required gates only (tests=${testsGreen} det=${detGreen} perf=${perfOk} pending=${pendingGate.length})`);
               await new Promise(r => setTimeout(r, 20000));
             }
 
             if (!testsGreen || !detGreen || !perfOk) {
-              core.info(`Gates not green after wait (tests=${testsGreen} det=${detGreen} perf=${perfOk})`);
+              core.info(`Required gates not green after wait (tests=${testsGreen} det=${detGreen} perf=${perfOk})`);
               return;
             }
 

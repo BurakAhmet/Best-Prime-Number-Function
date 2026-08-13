@@ -1,5 +1,8 @@
 # Ensures every push/PR remains deterministic: same inputs always yield the same
 # boolean result across repeated serial and parallel calls.
+#
+# PR-lite: Python 3.12 only. Full multi-version matrix on push to main.
+# Docs-only PRs: gate job still reports the required "Determinism" check as green.
 name: Determinism
 
 on:
@@ -17,13 +20,37 @@ env:
   OMP_NUM_THREADS: "2"
 
 jobs:
+  plan:
+    name: Plan determinism scope
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+      full: ${{ steps.scope.outputs.full }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        run: bash scripts/ci_change_scope.sh "$GITHUB_OUTPUT"
+      - id: matrix
+        run: |
+          if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
+            matrix='["3.9","3.11","3.12"]'
+          else
+            matrix='["3.12"]'
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   determinism:
     name: Repeated-trial determinism (Python ${{ matrix.python-version }})
+    needs: [plan]
+    if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.11", "3.12"]
+        python-version: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v4
@@ -68,15 +95,26 @@ jobs:
   gate:
     name: Determinism
     if: always()
-    needs: [determinism]
+    needs: [plan, determinism]
     runs-on: ubuntu-latest
     steps:
-      - name: Require matrix success
+      - name: Require matrix success (or docs-only skip)
         run: |
-          case "${{ needs.determinism.result }}" in
+          code="${{ needs.plan.outputs.code }}"
+          result="${{ needs.determinism.result }}"
+          if [ "$code" = "false" ]; then
+            echo "Docs/meta-only change — Determinism suite skipped; gate green."
+            exit 0
+          fi
+          case "$result" in
             success) echo "Determinism matrix green" ;;
+            skipped)
+              # Matrix job skipped unexpectedly while code=true
+              echo "Determinism matrix skipped while code changes present" >&2
+              exit 1
+              ;;
             *)
-              echo "Determinism matrix: ${{ needs.determinism.result }}" >&2
+              echo "Determinism matrix: $result" >&2
               exit 1
               ;;
           esac

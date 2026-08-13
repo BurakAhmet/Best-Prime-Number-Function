@@ -208,9 +208,11 @@
           <button type="button" id="lab-stop" disabled>Stop</button>
         </div>
         <p class="lab-hint">Deterministic lab in this tab (not the OpenMP C core):
-          <strong>n−1 Pocklington</strong> when <em>n</em>−1 factors, else exact 30-wheel trial.
-          <strong>No digit-length limit.</strong> Smooth <em>n</em>−1 multi-limb primes (e.g. CLI default) finish fast;
-          hostile <em>n</em>−1 may be inconclusive here without spinning forever. Stop anytime.</p>
+          <strong>n−1 Pocklington</strong> when <em>n</em>−1 factors (trial / Brent / p−1 / <strong>ECM</strong>),
+          else exact 30-wheel trial.
+          <strong>No digit-length limit.</strong> Smooth <em>n</em>−1 (e.g. CLI default) is typically sub-second;
+          hostile <em>n</em>−1 (e.g. the 55-digit exhibit) can take a minute or two of background ECM.
+          Stop anytime.</p>
         <figure class="lab-orrery" id="lab-orrery" hidden>
           ${orrerySvg()}
           <figcaption>residue <span id="orrery-res">—</span> (mod 30)</figcaption>
@@ -385,9 +387,19 @@
             const lim = BigInt(msg.limit);
             const pct = lim === 0n ? 100 : Number((i * 1000n) / lim) / 10;
             barFill.style.width = Math.min(100, pct) + "%";
-            const res = Number(i % 30n);
-            setOrrery(res, true);
-            renderBusy({ n: n.toString(), isqrt: fmt(lim), i: fmt(i) });
+            const factoring = lim > 0n && lim <= 10000n;
+            if (factoring) {
+              hideOrrery();
+              renderBusy({
+                n: n.toString(),
+                isqrt: fmt(isqrt(n)),
+                i: "n−1 ECM curve " + fmt(i) + " / " + fmt(lim),
+              });
+            } else {
+              const res = Number(i % 30n);
+              setOrrery(res, true);
+              renderBusy({ n: n.toString(), isqrt: fmt(lim), i: fmt(i) });
+            }
           } catch (_) {
             /* ignore malformed progress */
           }
@@ -418,7 +430,7 @@
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
               <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">There is no maximum digit length. When n−1 cannot be factored enough for a Pocklington proof and pure trial is impractical (~⌊√n⌋ steps), the lab stops rather than spinning forever. The Python library can run longer factoring (ECM/SIQS).</p>`
+              <p class="lab-hint">There is no maximum digit length. The tab already runs trial, Brent, p−1, and Montgomery ECM on <em>n</em>−1. If that still cannot build a Pocklington <em>F</em> and pure trial is impractical (~⌊√n⌋ steps), the lab stops rather than spinning forever. The Python library can run longer SIQS / more ECM curves.</p>`
             );
           } else {
             renderCert({
