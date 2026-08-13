@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to $\lceil n^{1/3}\rceil$, then integer-safe Lehman windows. Complete through every 64-bit $n$; hard-path fallback and `factorint` splitter. Guide: `docs/guide/cubic-search.md`.
 - OpenMP cubic completeness is **engine-limited only**: any $n$ with $4kn$ in 128 bits for $k\le\lceil n^{1/3}\rceil$ (no artificial cube-root product cap).
 - n−1 cofactor primality uses full `is_prime` (recursive Pocklington) instead of forcing cubic on large prime cofactors.
+- Multi-limb `is_prime` always tries **n−1 Pocklington** even when cubic C cannot run (`4kn` > 128 bits). Fixes `next_prime(10**29+1)` falling into AKS despite an easy next prime.
 
 ### Changed
 - Hard 64-bit / multi-limb `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit stays `u64_wheel_c`.

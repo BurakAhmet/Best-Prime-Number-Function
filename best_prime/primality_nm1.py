@@ -204,11 +204,13 @@ def nm1_primality(n: int, *, parallel: bool = True) -> Result:
 
 
 def nm1_ready(n: int) -> bool:
-    """Whether the hard path should try n−1 before cubic search.
+    """Whether multi-limb / hard paths should try n−1.
 
-    Same size class as complete cubic: hard 64-bit and n ≥ 2^64 in budget.
-    Mid-size 64-bit stays on wheel trial (n−1 factoring is not cheaper there).
+    True for every ``n ≥ 2^{64}``, and for hard 64-bit n in the cubic size
+    class (``isqrt ≥ 10^7`` with C core). Mid-size 64-bit stays on wheel trial.
     """
+    if n >= (1 << 64):
+        return True
     from .factor_lehman import cubic_complete_ready
 
     return cubic_complete_ready(n)

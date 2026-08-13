@@ -860,10 +860,17 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
             return False
         if p * p > n:
             return True
-    from .factor_lehman import cubic_complete_ready
+    from .factor_lehman import cubic_complete_ready, lehman_factor
+    from .primality_nm1 import nm1_primality
+
+    # n−1 Pocklington whenever it settles — even past the u128 cubic wall
+    # (4kn > 128 bits). Skipping it sent easy primes (smooth-ish n−1) into AKS.
+    decided = nm1_primality(n, parallel=parallel)
+    if decided is not None:
+        return decided
 
     if cubic_complete_ready(n):
-        return _hard_path_prime(n, parallel=parallel)
+        return lehman_factor(n, parallel=parallel) is None
     sq = math.isqrt(n)
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
@@ -969,12 +976,14 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         sq = math.isqrt(n_int) if n_int >= 2 else 0
         lib = _load_c_core()
         from .factor_lehman import cubic_complete_ready
+        from .primality_nm1 import nm1_primality
 
-        if cubic_complete_ready(n_int):
-            from .primality_nm1 import nm1_primality
-
-            decided = nm1_primality(n_int, parallel=parallel)
-            path = "u128_nm1" if decided is not None else "u128_lehman_c"
+        # n−1 is tried for all multi-limb n (not only when cubic is ready).
+        decided = nm1_primality(n_int, parallel=parallel)
+        if decided is not None:
+            path = "u128_nm1"
+        elif cubic_complete_ready(n_int):
+            path = "u128_lehman_c"
         elif (
             sq <= _MAX_FULL_TRIAL_ISQRT
             and n_int.bit_length() <= 128

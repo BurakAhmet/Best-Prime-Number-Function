@@ -93,10 +93,10 @@ class TestLabContract:
         assert info["bit_length"] == 67
 
     def test_huge_path_is_aks_family(self):
-        # isqrt(7·10^50) ≫ 2.5e10 → partial-trial / AKS band; factor 7 is instant.
+        # isqrt(7·10^50) ≫ 2.5e10; small factor / n−1 settles before AKS.
         n = 7 * 10**50
         info = lab(n)
-        assert info["path"] == "bigint_trial_or_aks"
+        assert info["path"] in {"u128_nm1", "bigint_trial_or_aks"}
         assert info["is_prime"] is False
 
     def test_path_stable_across_repeated_calls(self):
