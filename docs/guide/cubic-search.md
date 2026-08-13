@@ -1,6 +1,6 @@
 # Two-band cubic search
 
-A deterministic way to look for a factor of $n$ **without walking every integer up to** $\sqrt{n}$. `is_prime` uses it for hard 64-bit $n$ ($\lfloor\sqrt{n}\rfloor\ge 10^{7}$) and for $n\ge 2^{64}$ when the C core can finish (including the CLI default). Mid-size 64-bit $n$ stay on wheel trial (faster there).
+A deterministic way to look for a factor of $n$ **without walking every integer up to** $\sqrt{n}$. On the hard path, `is_prime` tries an [n−1 Pocklington](nm1-proof.md) proof first; **cubic search is the complete fallback** when $n-1$ is hostile (and the splitter used by `factorint`). Mid-size 64-bit $n$ stay on wheel trial.
 
 !!! warning "Restrictions first"
     For $n < 2^{64}$, `is_prime(n)` remains **exact trial division** through $\lfloor\sqrt{n}\rfloor$ (OpenMP precomputed / segmented primes, or a primorial wheel). This page does not change that contract. No stochastic Miller–Rabin. No external prime library.
@@ -30,7 +30,7 @@ Nothing reputable claims a new elementary test that beats “search up to $\sqrt
 
 Spectral “prime radars,” random-base quizzes, and range-limited witness lists are out of product policy (see [restrictions](restrictions.md)).
 
-The honest engineering conclusion: **the first algorithm that is both complete and implementable under this repository's rules is still Lehman's cubic split**, with a Pollard–Strassen-style product for the small band. The $n^{1/5}$ papers are the frontier; they are not a faster `is_prime`.
+The honest engineering conclusion for the **search** line: Lehman's cubic split (with a Pollard–Strassen-style product for the small band) is still the practical complete fallback. The orthogonal **n−1 proof** line often wins when $n-1$ factors — see [n−1 Pocklington](nm1-proof.md). The $n^{1/5}$ papers remain theoretical for this library.
 
 ## The two bands
 
@@ -47,7 +47,7 @@ Write $c = \lceil n^{1/3}\rceil$.
 
 **Band 2.** If every prime factor exceeds $c$, then $n$ is either prime or a product of two integers in $(c, n^{2/3}]$. Lehman's theorem supplies a $k \le c$ such that $4kn = a^2 - b^2$ with $a$ in a window of length about $n^{1/6}/(4\sqrt{k})$ above $\lceil\sqrt{4kn}\rceil$. Summing those window lengths is $O(n^{1/3})$. Finding a square $a^2 - 4kn$ yields $\gcd(a \pm b, n)$.
 
-Together the two bands are a complete deterministic split for every $n$ whose cube root is at most `LEHMAN_COMPLETE_CUB_MAX` ($3\cdot 10^6$, which covers all 64-bit $n$). Larger $n$ can pass an explicit `k_max` and get a bounded probe, not a proof.
+Together the two bands are a complete deterministic split for every $n$ whose cube root is at most the complete budget: pure Python `LEHMAN_COMPLETE_CUB_MAX` ($3\cdot 10^6$, all 64-bit $n$), or OpenMP C `LEHMAN_COMPLETE_CUB_MAX_C` ($2^{63}-1$ (sentinel; clamp is $4kn$), about $n\le 8\cdot 10^{27}$ when $4kn$ fits in 128 bits). Larger $n$ can pass an explicit `k_max` and get a bounded probe, not a proof.
 
 Integer arithmetic only: $\lceil n^{1/3}\rceil$ by Newton, window length by an *overestimate* of $n^{1/6}/(4\sqrt{k})$ so a floored extra never misses the existence interval.
 
@@ -76,7 +76,7 @@ Not a new complexity exponent. A synthesis that this repository can actually shi
 3. Wired into `factorint` *after* Fermat and *before* Brent / ECM / SIQS, so close factors stay on the cheap Fermat path and 64-bit composites get a complete cubic split.
 4. **Not** wired into `is_prime`. Replacing 64-bit trial with Lehman would change the documented correctness model. Guidelines forbid that.
 
-On this machine class, a 63-bit balanced semiprime (Mersenne $2^{31}-1$ times the next odd) splits in well under $0.1\,\mathrm{s}$ in pure Python. The OpenMP C core (`lehman_factor_u128`) is the **`is_prime` / CLI path** for $n\ge 2^{64}$ when it can finish: the 70-bit CLI default is ~**0.19 s**. 64-bit `is_prime` is still trial through $\sqrt{n}$.
+On this machine class, a 63-bit balanced semiprime (Mersenne $2^{31}-1$ times the next odd) splits in well under $0.1\,\mathrm{s}$ in pure Python. The OpenMP C core (`lehman_factor_u128`) is the hard-path **fallback** after n−1; smooth $n-1$ specimens settle via Pocklington in milliseconds, while the current 84-bit CLI default usually runs the full cubic proof (~0.3 s class).
 
 ## API
 

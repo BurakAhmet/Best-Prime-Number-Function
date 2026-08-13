@@ -7,6 +7,7 @@
 * [**Library reference**](Library)
 * [Project restrictions](Project-restrictions)
 * [Algorithm overview](Algorithm-overview)
+* [n−1 Pocklington](https://burakahmet.github.io/Best-Prime-Number-Function/guide/nm1-proof/)
 * [Cubic search](https://burakahmet.github.io/Best-Prime-Number-Function/guide/cubic-search/)
 * [**Algorithm history**](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)
 * [CI and automation](CI-and-automation)

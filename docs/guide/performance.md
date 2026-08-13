@@ -14,8 +14,8 @@ Both in-process baselines are **deterministic** (no Miller–Rabin).
 | Input size | Typical engine (with `.so`) | Notes |
 |------------|----------------------------|--------|
 | Tiny / moderate | Python loop or stdlib wheel | Sub-ms to tens of ms |
-| Hard 64-bit primes | OpenMP `u64_lehman_c` | ~30–55 ms (was ~80–230 ms trial) |
-| Up to about $10^{20}$ when cubic C can finish | OpenMP `u128_lehman_c` | ~0.2 s on the CLI default |
+| Hard 64-bit primes | n−1 `u64_nm1` (else cubic) | ~0.3–30 ms check (was ~30–55 ms cubic) |
+| Up to about $10^{20}$ in cubic budget | n−1 `u128_nm1` (else cubic) | ~3 ms e2e CLI default (was ~0.15 s cubic) |
 | Else practical $\sqrt{n}$ (≤128-bit) | OpenMP `u128_wheel_c` | Seconds, not AKS |
 | Huge primes, no small factors | Partial trial → **AKS** | Correct but can be very slow |
 
@@ -31,7 +31,8 @@ End-to-end CLI `TIME` on a dev machine (`compare_e2e.py`, best of several runs; 
 | $10^9+7$ | 1000000007 | ~2–3 ms |
 | 12-digit prime | 999999999989 | ~2–4 ms |
 | Near $2^{63}$ | 9223372036854775783 | ~0.19–0.22 s |
-| CLI default (70-bit cubic C) | 600000000000000000001 | ~0.2 s |
+| CLI default (84-bit cubic) | 10000000000000000000000013 | ~0.3 s check / e2e |
+
 | Largest prime $<2^{64}$ | 18446744073709551557 | ~0.21–0.23 s |
 | Mersenne M61 | $2^{61}-1$ | ~0.10–0.12 s |
 

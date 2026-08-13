@@ -7,8 +7,9 @@ so import, table load, JIT, and the check all count. Heavy dependencies
 
 Tiered engines: tiny Python loop; 64-bit OpenMP C (precomputed-prime trial +
 wheel-30 segmented sieve with persisted marks) with stdlib/Numba wheel
-fallbacks; ``n ≥ 2^{64}`` complete cubic search when the OpenMP C core
-can finish (CLI default), else u128 / stdlib full trial; AKS only for huge n.
+fallbacks; hard 64-bit / ``n ≥ 2^{64}`` try **n−1 Pocklington** first
+(when n−1 factors), else complete cubic search when the OpenMP C core can
+finish (CLI default), else u128 / stdlib full trial; AKS only for huge n.
 
 Restrictions: deterministic; no stochastic Miller–Rabin; no prime libraries.
 """
@@ -32,10 +33,9 @@ WHEEL_MOD = 9_699_690
 WHEEL_NW = 1_658_880
 _WHEEL_START_I = 23
 _SMALL_LIMIT = 10_000
-# CLI default / hard yardstick: 70-bit prime (complete cubic C when
-# wheel_core.so exports lehman_factor_u128; else u128 trial).
+# CLI default / hard yardstick: 84-bit prime (n−1 factors; Pocklington path).
 # Largest prime < 2^64 stays a documented 64-bit specimen.
-DEFAULT_N = 600_000_000_000_000_000_001
+DEFAULT_N = 10_000_000_000_000_000_000_000_013
 # Stdlib wheel wins end-to-end TIME up to this n (avoids NumPy/Numba import).
 _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000
@@ -840,8 +840,19 @@ def _is_prime_big_full_trial(n: int, parallel: bool) -> bool:
     return _wheel_trial(n, _get_steps_9699690(), _WHEEL_START_I)
 
 
+def _hard_path_prime(n: int, *, parallel: bool) -> bool:
+    """Hard 64-bit / multi-limb: n−1 Pocklington, else complete cubic search."""
+    from .factor_lehman import lehman_factor
+    from .primality_nm1 import nm1_primality
+
+    decided = nm1_primality(n, parallel=parallel)
+    if decided is not None:
+        return decided
+    return lehman_factor(n, parallel=parallel) is None
+
+
 def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
-    """Primality for n >= 2^64. Cubic C when complete; else trial or AKS."""
+    """Primality for n >= 2^64. n−1 / cubic C when complete; else trial or AKS."""
     for p in _PRECHECK_BIG:
         if n == p:
             return True
@@ -850,6 +861,13 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
         if p * p > n:
             return True
     from .factor_lehman import cubic_complete_ready, lehman_factor
+    from .primality_nm1 import nm1_primality
+
+    # n−1 Pocklington whenever it settles — even past the u128 cubic wall
+    # (4kn > 128 bits). Skipping it sent easy primes (smooth-ish n−1) into AKS.
+    decided = nm1_primality(n, parallel=parallel)
+    if decided is not None:
+        return decided
 
     if cubic_complete_ready(n):
         return lehman_factor(n, parallel=parallel) is None
@@ -857,22 +875,41 @@ def _is_prime_big(n: int, *, parallel: bool = True) -> bool:
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
         return _is_prime_big_full_trial(n, parallel)
-    # Larger: 30030-wheel factor scan, then AKS (correct; still slow for huge primes).
+    # Larger: wheel trial, Fermat filter, bounded multiprecision cubic probe,
+    # then AKS. Probe is not a proof; a hit proves composite only.
     bound = min(_AKS_TRIAL_BOUND, sq)
     if not _wheel_trial(n, _get_steps_30030(), 17, limit=bound):
         return False
     if bound >= sq:
         return True
+    for a in (2, 3, 5, 7, 11, 13):
+        if a % n == 0:
+            return n == a
+        if pow(a, n - 1, n) != 1:
+            return False
+    # Deterministic split attempt (Fermat / cubic probe / Brent / ECM).
+    # A factor proves composite without AKS. Primes fall through to AKS.
+    try:
+        from .primality_nm1 import _try_split_cofactor
+
+        if _try_split_cofactor(n, parallel=parallel) is not None:
+            return False
+    except Exception:
+        from .factor_lehman import LEHMAN_PROBE_K_MAX
+
+        if n.bit_length() <= 110:
+            if lehman_factor(n, k_max=LEHMAN_PROBE_K_MAX, parallel=parallel) is not None:
+                return False
     return _aks_is_prime(n, parallel=parallel)
 
 
 def _is_prime_one(n_int: int, parallel: bool) -> bool:
     if n_int < _SMALL_LIMIT:
         return _is_prime_small(n_int)
-    from .factor_lehman import cubic_complete_ready, lehman_factor
+    from .factor_lehman import cubic_complete_ready
 
     if cubic_complete_ready(n_int):
-        return lehman_factor(n_int, parallel=parallel) is None
+        return _hard_path_prime(n_int, parallel=parallel)
     if n_int < (1 << 64):
         # Prefer OpenMP .so whenever present (fast in-process + solid e2e).
         if _load_c_core():
@@ -930,13 +967,18 @@ def _isqrt_u64(n):
 def lab(n: int | str, *, parallel: bool = True) -> dict:
     """Diagnostic: path, isqrt, result, elapsed ms for the check only."""
     n_int = _parse_n(n)
+    path: str
     if n_int < _SMALL_LIMIT:
         path = "python_small"
     elif n_int < (1 << 64):
         from .factor_lehman import cubic_complete_ready
 
         if cubic_complete_ready(n_int):
-            path = "u64_lehman_c"
+            # Prefer nm1 label when the prover settles; else cubic.
+            from .primality_nm1 import nm1_primality
+
+            decided = nm1_primality(n_int, parallel=parallel)
+            path = "u64_nm1" if decided is not None else "u64_lehman_c"
         elif _load_c_core():
             path = "u64_wheel_c"
         elif n_int <= _PURE_WHEEL_MAX_N:
@@ -947,8 +989,13 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         sq = math.isqrt(n_int) if n_int >= 2 else 0
         lib = _load_c_core()
         from .factor_lehman import cubic_complete_ready
+        from .primality_nm1 import nm1_primality
 
-        if cubic_complete_ready(n_int):
+        # n−1 is tried for all multi-limb n (not only when cubic is ready).
+        decided = nm1_primality(n_int, parallel=parallel)
+        if decided is not None:
+            path = "u128_nm1"
+        elif cubic_complete_ready(n_int):
             path = "u128_lehman_c"
         elif (
             sq <= _MAX_FULL_TRIAL_ISQRT
@@ -972,8 +1019,10 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
                 "u64_wheel_numba",
                 "u64_wheel_c",
                 "u64_lehman_c",
+                "u64_nm1",
                 "u128_wheel_c",
                 "u128_lehman_c",
+                "u128_nm1",
             }
         ),
     }
@@ -982,6 +1031,8 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
     else:
         info["isqrt"] = None
     t1 = time.perf_counter()
+    # lab() already ran nm1 when predicting the hard path; re-run is_prime
+    # for the timed result (still the public predicate).
     prime = is_prime(n_int, parallel=parallel)
     info["elapsed_ms"] = (time.perf_counter() - t1) * 1000.0
     info["e2e_ms"] = (time.perf_counter_ns() - t0) / 1e6
@@ -990,8 +1041,10 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "python_small": "Pure-Python trial division for tiny n (no NumPy/Numba).",
         "python_wheel": "Embedded 30030-wheel trial division (stdlib, best e2e TIME).",
         "u64_wheel_c": "OpenMP C: precomputed-prime trial and/or wheel-30 segmented prime trial (no Numba JIT).",
+        "u64_nm1": "n−1 Pocklington proof for hard 64-bit n (isqrt ≥ 10^7); cubic fallback if n−1 is hostile.",
         "u64_lehman_c": "OpenMP C complete cubic search for hard 64-bit n (isqrt ≥ 10^7).",
         "u64_wheel_numba": "Numba 9699690-wheel trial division up to isqrt(n).",
+        "u128_nm1": "n−1 Pocklington proof for n ≥ 2^64 (CLI default); cubic fallback if n−1 is hostile.",
         "u128_lehman_c": "OpenMP C complete cubic search for n ≥ 2^64 (CLI default; no AKS).",
         "u128_wheel_c": "OpenMP C full trial for 65–128-bit n (wheel / seg-primes; no AKS).",
         "bigint_wheel": "Stdlib 9699690-wheel full trial for moderate big ints (no AKS).",
@@ -1127,11 +1180,26 @@ def _main_simple(argv: list[str]) -> int:
 
     factor: int | None = None
     from .factor_lehman import cubic_complete_ready, lehman_factor
+    from .primality_nm1 import nm1_primality
 
     if cubic_complete_ready(n):
-        factor = lehman_factor(n, parallel=parallel)
-        prime = factor is None
+        # n−1 Pocklington first (often << cubic); cubic for hostile n−1 / factors.
+        decided = nm1_primality(n, parallel=parallel)
+        if decided is True:
+            prime = True
+            factor = None
+        elif decided is False:
+            prime = False
+            factor = lehman_factor(n, parallel=parallel)
+            if factor is None:
+                factor = _one_factor(n, parallel=parallel)
+        else:
+            factor = lehman_factor(n, parallel=parallel)
+            prime = factor is None
         threads = _thread_count if parallel and _thread_count else 1
+        # Ensure OpenMP thread count is visible even when nm1 never loads the .so.
+        if parallel and _load_c_core():
+            threads = _thread_count
         _print_result(str(n) if positional else arg, prime, threads, factor)
         return 0 if prime else 1
 

@@ -112,8 +112,11 @@ class TestEdgeCases:
         assert next_prime(14) == 17
 
     def test_lazy_export_from_is_prime(self):
-        import best_prime.is_prime as ip
+        # Package attribute best_prime.is_prime is the function; load the module
+        # by name so we exercise is_prime.__getattr__ lazy next_prime.
+        import importlib
 
+        ip = importlib.import_module("best_prime.is_prime")
         assert ip.next_prime(14) == 17
         assert ip.next_prime(14, 3) == 23
 

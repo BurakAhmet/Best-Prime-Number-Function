@@ -111,11 +111,11 @@ def main() -> int:
     is_prime(97, parallel=True)
     is_prime(1_000_000_007, parallel=True)
 
-    # CLI default is the 70-bit u128 full-trial yardstick (not evaluated here).
-    if DEFAULT_N != 600_000_000_000_000_000_001:
+    # CLI default is the 84-bit hard-path yardstick (not evaluated here).
+    if DEFAULT_N != 10_000_000_000_000_000_000_000_013:
         print(f"  FAIL  DEFAULT_N drifted: {DEFAULT_N}")
         return 1
-    print("  OK  DEFAULT_N is the 70-bit u128 yardstick")
+    print("  OK  DEFAULT_N is the 84-bit hard-path yardstick")
 
     failed = 0
     for label, n, expected in DEFAULT_CASES:

@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.10.0** (`pyproject.toml`; L1-tiled small-prime marking) |
+| **Current package version** | **1.11.2** + unreleased n−1 Pocklington hard path |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -66,7 +66,9 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-10  v1.8.2   prime_count Meissel–Lehmer through 2^64−1
 2026-08-10  v1.9.0   totient / primorial / divisors; primerange generator
 2026-08-10  v1.10.0  L1-tiled marking for p<256 on the hard path
-2026-08-11  unreleased  L1 tiles to p<4096 + 4+4 wrap-mul trial  ← current
+2026-08-11  unreleased  L1 tiles to p<4096 + 4+4 wrap-mul trial
+2026-08-12  unreleased  Complete cubic C for hard 64-bit + CLI default
+2026-08-13  unreleased  n−1 Pocklington before cubic on hard path  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -575,7 +577,7 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 | **Advantages** | Same exact primes; more of the mark stream in L1; 4-wide trial hides Newton latency without spilling |
 | **Disadvantages** | Tile cutoff 4096 is CPU-tuned (Zen 2 L1D 32 KiB); composites lose a bit of 8-way early-exit |
 
-**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`600000000000000000001`** (70-bit, `u128_wheel_c`, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$, ~2.3 s on 12 threads). Tried inlined x86-64 `divq` for $n/2^{64}<p$ on the u128 path: geomean 1.005 vs `__umodti3` (wash; reverted). The 64-bit prime stays a documented specimen.
+**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`10000000000000000000000013`** (70-bit, `u128_wheel_c`, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$, ~2.3 s on 12 threads). Tried inlined x86-64 `divq` for $n/2^{64}<p$ on the u128 path: geomean 1.005 vs `__umodti3` (wash; reverted). The 64-bit prime stays a documented specimen.
 
 ---
 
@@ -615,13 +617,50 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 - **Band 1.** 30-wheel rising-product gcd (batches of 128) through the cube-root budget. One gcd proves a block has no factor — Pollard–Strassen / product-tree idea, no FFT, no RNG.
 - **Band 2.** Integer-safe Lehman windows on $4kn$ for $k=1,\ldots,\lceil n^{1/3}\rceil$. Overestimated extra so the Crandall–Pomerance interval is never short. $O(n^{1/3})$ instead of walking $(n^{1/3},\sqrt{n}]$.
 - **`factorint` / `_split`.** After Fermat, before Brent. Complete on every 64-bit composite; `k_max=100_000` probe for larger $n`.
-- **`is_prime`.** Complete cubic C for $n\ge 2^{64}$ (`u128_lehman_c`) and hard 64-bit $n$ with $\lfloor\sqrt{n}\rfloor\ge 10^{7}$ (`u64_lehman_c`). Mid-size 64-bit stays trial (`u64_wheel_c`). Completeness cap `LEHMAN_COMPLETE_CUB_MAX = 3·10^6` (Python) / `LEHMAN_COMPLETE_CUB_MAX_C = 2\cdot10^7` (C).
+- **`is_prime`.** Complete cubic C for $n\ge 2^{64}$ (`u128_lehman_c`) and hard 64-bit $n$ with $\lfloor\sqrt{n}\rfloor\ge 10^{7}$ (`u64_lehman_c`). Mid-size 64-bit stays trial (`u64_wheel_c`). Completeness cap `LEHMAN_COMPLETE_CUB_MAX = 3·10^6` (Python) / `LEHMAN_COMPLETE_CUB_MAX_C = 2^{63}-1 (engine max; not a product clamp)` (C; covers $n$ up to $\sim 8\cdot10^{27}$).
 
 Indicative (pure Python, this machine class): $101\times 103$ instant; $(10^9+7)(10^9+9)$ tens of ms; $(2^{31}-1)\times$ next odd $\sim 80\,\mathrm{ms}$.
 
 **C follow-up / CLI default.** `lehman_factor_u128` in `wheel_core.so` (source `is_prime_data/lehman_core.c`) completes through `LEHMAN_COMPLETE_CUB_MAX_C = 2\cdot10^7`. **`is_prime` uses it for every $n\ge 2^{64}$** that fits that budget (`lab` path `u128_lehman_c`), including the CLI default. Same machine: `is_prime(DEFAULT_N)` ~**0.19 s** (was ~**2.1 s** u128 trial). Hard 64-bit: M61 ~**19 ms**, near $2^{63}$ ~**31 ms** (after C micro-opts: 64-bit `%`, parallel wheel, faster `isqrt`). Mid-size 64-bit stays `u64_wheel_c`. CLI default ~**118 ms**.
 
-Recent papers surveyed and **not** taken as the engine: Harvey $n^{1/5}$ (2020), Harvey–Hittmeir (2021), Hales–Hiary power-divisor Lehman (2024), Oznovich–Volk high-order elements (2025). Those are either theoretical or special-form; they do not beat a cubic split under this repo's determinism rules. Guide: [`docs/guide/cubic-search.md`](guide/cubic-search.md).
+Recent papers surveyed and **not** taken as the sole engine: Harvey $n^{1/5}$ (2020), Harvey–Hittmeir (2021), Hales–Hiary power-divisor Lehman (2024), Oznovich–Volk high-order elements (2025). Those are either theoretical or special-form. Guide: [`docs/guide/cubic-search.md`](guide/cubic-search.md).
+
+---
+
+## Era — unreleased (2026-08-13): n−1 Pocklington before cubic
+
+**Design.** On the same size class as complete cubic (`cubic_complete_ready`):
+
+1. **Fermat filter** with fixed bases $\{2,3,5,\ldots,37\}$ — composite if $a^{n-1}\not\equiv 1\pmod n$.
+2. **Factor $n-1$** with trial + cubic Lehman + cofactor trial (no RNG; cofactor primality reuses wheel/cubic, not the n−1 prover).
+3. **Pocklington**: for each prime $q\mid F$ with $F\mid(n-1)$ and $F>\sqrt{n}$, a fixed base $a$ with $a^{n-1}\equiv 1$ and $\gcd(a^{(n-1)/q}-1,n)=1$.
+4. If inconclusive (hostile $n-1$), **unchanged cubic** `lehman_factor_u128`.
+
+Module: [`best_prime/primality_nm1.py`](../best_prime/primality_nm1.py). CLI hard path uses the same ladder (not cubic-only). `lab` paths: `u64_nm1` / `u128_nm1` when settled.
+
+**Why this beats cubic.** Cubic is $\Theta(n^{1/3})$ even for primes. n−1 is $O\sim(\log n)$ exponentiations once $n-1$ is factored. The CLI default has $n-1=2^{21}\cdot 3\cdot 5^{20}$ (fully smooth).
+
+**Indicative (this machine, 12 threads where relevant).**
+
+| Case | Prior cubic | n−1 hard path |
+|------|------------:|--------------:|
+| Smooth 70-bit specimen e2e | ~130–150 ms | **~3 ms** |
+| M61 check | ~33 ms | **~0.3 ms** |
+| near $2^{63}$ | ~37 ms | **~10 ms** |
+| max prime $<2^{64}$ | ~55 ms | **~27 ms** |
+| $(10^9+7)(10^9+9)$ | ~20 ms cubic | **~0.01 ms** Fermat reject |
+| CLI default **84-bit** (hostile $n-1$) | — | n−1 miss → cubic ~**0.3 s** |
+
+Default e2e suite (mid-size) unchanged in class (still wheel trial).
+**CLI default (2026-08-13 follow-up):** `10000000000000000000000013` (84-bit).
+
+| | |
+|--|--|
+| **Advantages** | Asymptotically better when $n-1$ factors; huge CLI-default win; still fully deterministic; cubic completeness preserved |
+| **Disadvantages** | Hostile $n-1$ pays factoring attempt then cubic; recursive cofactor primes need care (no re-entrant n−1) |
+| **Failures / lessons** | CLI `_main_simple` had a **cubic-only** shortcut that bypassed `is_prime` — fixed so e2e TIME reflects the new engine (F14 risk: “optimize API, forget CLI”) |
+
+Guide: [`docs/guide/nm1-proof.md`](guide/nm1-proof.md).
 
 ---
 
@@ -636,7 +675,7 @@ Recorded so agents and humans do not “rediscover” them:
 | **F3** | **AKS too early** for multi-limb with practical $\sqrt{n}$ | Correct but unusable latency | Full trial up to `_MAX_FULL_TRIAL_ISQRT`; AKS only beyond |
 | **F4** | Prebuilt **Linux `.so` in pure wheel** | Broken/ misleading installs on other platforms | Build at install or ship **platform wheels** |
 | **F5** | Segmented-prime **threshold only tuned on hardest primes** | 12-digit path left on dense wheel | Retune with full e2e suite (1.3.2: $2\cdot10^5$) |
-| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **70-bit** u128 full-trial prime `600000000000000000001` (`DEFAULT_N`); keep README / wiki / `DEFAULT_N` in sync. Largest prime $<2^{64}$ stays a documented 64-bit specimen. Pages JS demo may stay near $2^{63}$. |
+| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **84-bit** hard-path prime `10000000000000000000000013` (`DEFAULT_N`); keep README / wiki / `DEFAULT_N` in sync. Largest prime $<2^{64}$ stays a documented 64-bit specimen. Pages JS demo may stay near $2^{63}$. |
 | **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled |
 | **F8** | Skipping **serial vs parallel** determinism checks | Racey OpenMP bugs | `benchmarks/check_determinism.py` + Determinism workflow |
 | **F9** | Changing wheel/sieve without regenerating **committed C / tables** | Drift between generators and shipped artifacts | `generate_wheel_core_c.py` / `generate_wheel_data.py` + compile script |
@@ -644,6 +683,7 @@ Recorded so agents and humans do not “rediscover” them:
 | **F11** | Unrolled sieve marking with `s += 4*step` and `(size_t)(e-s) > 3*step` | When `s` passes `e`, `e-s` wraps; **heap overflow / SEGV** | Index form `for (bi = …; bi < nbytes; bi += st)` or require `e-s >= 4*st` **and** `s < e` |
 | **F12** | Wheel-210 (48 residues) as a drop-in denser sieve | 48 mark streams overtook the ~14% fewer candidates; slower than wheel-30 here | Prefer wheel-30 (8 bits / 30) unless marking is heavily optimized |
 | **F13** | 16-way wrap-mul trial / extra $31\cdot37\cdot41$ OR presieve | Helped M61; **hurt** the default $\lfloor\sqrt{n}\rfloor=2^{32}-1$ yardstick | Keep 8-way INV16; second presieve stops at $19\cdot23\cdot29$ |
+| **F14** | CLI hard path called `lehman_factor` directly, bypassing `is_prime` | New engine invisible in e2e `TIME` | Keep CLI and library on the same hard-path ladder |
 
 ---
 
@@ -674,6 +714,8 @@ Recorded so agents and humans do not “rediscover” them:
 | `best_prime/ntheory.py` | totient, primorial, divisors, Jacobi, CRT |
 | `best_prime/prime_factors.py` | Trial + Fermat + cubic search + deterministic Brent |
 | `best_prime/factor_lehman.py` | Two-band cubic split (rising-product + Lehman) |
+| `best_prime/primality_nm1.py` | n−1 Pocklington hard-path proof |
+
 | `best_prime/factor_ecm.py` | Deterministic ECM |
 | `best_prime/factor_siqs.py` | Deterministic SIQS |
 | `best_prime/prime_power.py` | Perfect powers / prime powers |
@@ -690,4 +732,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for unreleased cubic factor search (`lehman_factor`) on top of package **1.11.2**. Extend forward; do not delete past eras.*
+*Last updated for unreleased n−1 Pocklington hard path on top of package **1.11.2**. Extend forward; do not delete past eras.*

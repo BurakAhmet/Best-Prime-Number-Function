@@ -5,18 +5,23 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
-- **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to $\lceil n^{1/3}\rceil$, then integer-safe Lehman windows. Complete through every 64-bit $n$; not a replacement for `is_prime`'s trial-to-$\sqrt{n}$ contract. `factorint` runs it after Fermat and before Brent. Guide: `docs/guide/cubic-search.md`.
-- OpenMP **`lehman_factor_u128`** in `wheel_core.so`: complete cubic proof through the 70-bit CLI default (`600000000000000000001`). **`is_prime` / CLI use it for $n\ge 2^{64}$** when the C core can finish (`lab` path `u128_lehman_c`). In-process ~**0.19 s** vs the old u128 trial ~**2.1 s**. 64-bit `is_prime` is still trial to $\sqrt{n}$.
+- **n−1 Pocklington primality** (`best_prime/primality_nm1.py`) on the hard path: factor $n-1$, prove prime with fixed bases. Deterministic; not Miller–Rabin. Complete cubic search remains the fallback when $n-1$ is hostile. Guide: `docs/guide/nm1-proof.md`.
+- Python **3.9 import fix**: type alias uses `Optional[bool]` (not `X | Y` at runtime) so hard-path imports do not crash on 3.9.
+- **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to $\lceil n^{1/3}\rceil$, then integer-safe Lehman windows. Complete through every 64-bit $n$; hard-path fallback and `factorint` splitter. Guide: `docs/guide/cubic-search.md`.
+- OpenMP cubic completeness is **engine-limited only**: any $n$ with $4kn$ in 128 bits for $k\le\lceil n^{1/3}\rceil$ (no artificial cube-root product cap).
+- n−1 cofactor primality uses full `is_prime` (recursive Pocklington) instead of forcing cubic on large prime cofactors.
+- Multi-limb `is_prime` always tries **n−1 Pocklington** even when cubic C cannot run (`4kn` > 128 bits). Fixes `next_prime(10**29+1)` falling into AKS despite an easy next prime.
+- **Deep `next_prime` window sieve** (primes ≤ 500 000 mark adaptive windows; Fermat reject before `is_prime`).
+- **Multiprecision cubic** (Python `int` `4kn`) for complete proofs while `⌈n^{1/3}⌉ ≤ 8·10^6`; C still used when `4kn` fits in 128 bits.
+- Stronger n−1 factoring: Fermat + cubic (C budget) + Brent + ECM before giving up, so primes past the u128 wall with awkward `n−1` still get Pocklington (e.g. `next_prime(10**38+1)` ~0.15 s).
 
 ### Changed
-- Hard 64-bit `is_prime` ($\lfloor\sqrt{n}\rfloor \ge 10^{7}$) uses the same OpenMP cubic search as the CLI default (`u64_lehman_c`). Mid-size 64-bit (e.g. $10^{9}+7$) stays `u64_wheel_c`.
-- Faster cubic C: 64-bit remainders, parallel 30-wheel, cheaper 128-bit `isqrt`. M61 ~**19 ms** (was ~29 ms), CLI default ~**118 ms** (was ~180 ms).
-- CLI `is-prime` prints **`FACTOR:`** when the number is composite (one proper divisor).
-- CLI / `DEFAULT_N` is now **`600000000000000000001`** (70-bit prime; OpenMP u128 full trial, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$). The largest prime $<2^{64}$ remains a documented 64-bit specimen.
-- Hard-path `wheel_core`: L1 tiles now cover primes $p<4096$ (was $256$), and 8-way wrap-mul trial is two GPR-friendly groups of 4 with an early exit between them. Interleaved A/B ~**4%** geomean on the hard 64-bit set (max $<2^{64}$ ~**4–6%**).
+- Hard 64-bit / multi-limb `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit stays `u64_wheel_c`.
+- CLI / `DEFAULT_N` is **`10000000000000000000000013`** (84-bit; n−1 Pocklington). E2E CLI **~7 ms** on this machine (target ≤299 ms). Former smooth specimen `600000000000000000001` remains `SMOOTH_NM1_PRIME` in tests.
+- CLI `is-prime` prints **`FACTOR:`** when composite.
 
 ### Docs
-- README restores **Objective** / **Mission** and updates the `is_prime` dispatch flowchart for shipped Linux/macOS wheels and the u128 / AKS split.
+- README / wiki / guide: n−1 + cubic dispatch; new `nm1-proof.md`.
 
 ## [1.11.2] — 2026-08-11
 

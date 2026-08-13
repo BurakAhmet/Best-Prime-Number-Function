@@ -4,7 +4,7 @@ After `pip install`, the same programs as `python -m best_prime` / `python -m be
 
 ```bash
 is-prime 97
-is-prime 600000000000000000001
+is-prime 10000000000000000000000013
 best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 next-prime 100                 # 101 (smallest prime > 100)
@@ -23,7 +23,7 @@ is-prime-power 8               # yes (exit 0)
 is-perfect-power 36            # yes (exit 0)
 ```
 
-`is-prime` with no argument defaults to the 70-bit prime `600000000000000000001` (OpenMP complete cubic search when `wheel_core.so` exports `lehman_factor_u128`). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
+`is-prime` with no argument defaults to the 84-bit prime `10000000000000000000000013` (n−1 attempt then OpenMP cubic when `wheel_core.so` exports `lehman_factor_u128`). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
 
 ## Exit codes (`is-prime` / power predicates)
 
@@ -38,7 +38,7 @@ is-perfect-power 36            # yes (exit 0)
 `TIME` on the CLI is **end-to-end** (import + tables/native load + check), not a warm hot-loop. That is the [primary performance metric](performance.md).
 
 ```text
-TEST:    600000000000000000001 (21 chars)
+TEST:    10000000000000000000000013 (22 chars)
 THREADS: 12
 RESULT:  prime
 TIME:    2307170444 ns  (2307.170444 ms)

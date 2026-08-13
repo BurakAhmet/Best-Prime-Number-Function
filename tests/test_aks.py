@@ -85,7 +85,8 @@ class TestHugePreAks:
     def test_smooth_huge_composite_is_fast(self):
         n = 100003 * 10**40
         info = lab(n)
-        assert info["path"] == "bigint_trial_or_aks"
+        # n−1 / Fermat often settles multi-limb composites before AKS.
+        assert info["path"] in {"u128_nm1", "bigint_trial_or_aks"}
         assert info["is_prime"] is False
         assert info["elapsed_ms"] < 50.0
 

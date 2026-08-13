@@ -70,6 +70,7 @@ class TestLabContract:
     def test_two_pow_64_not_u64_path(self):
         info = lab(1 << 64)
         assert info["path"] in {
+            "u128_nm1",
             "u128_lehman_c",
             "u128_wheel_c",
             "bigint_wheel",
@@ -84,17 +85,18 @@ class TestLabContract:
         from best_prime.factor_lehman import _c_lehman_ready
 
         if _c_lehman_ready():
-            assert info["path"] == "u128_lehman_c"
+            # n−1 Pocklington when it settles; else cubic.
+            assert info["path"] in {"u128_nm1", "u128_lehman_c"}
         else:
             assert info["path"] == "u128_wheel_c"
         assert info["is_prime"] is True
         assert info["bit_length"] == 67
 
     def test_huge_path_is_aks_family(self):
-        # isqrt(7·10^50) ≫ 2.5e10 → partial-trial / AKS band; factor 7 is instant.
+        # isqrt(7·10^50) ≫ 2.5e10; small factor / n−1 settles before AKS.
         n = 7 * 10**50
         info = lab(n)
-        assert info["path"] == "bigint_trial_or_aks"
+        assert info["path"] in {"u128_nm1", "bigint_trial_or_aks"}
         assert info["is_prime"] is False
 
     def test_path_stable_across_repeated_calls(self):
@@ -108,13 +110,14 @@ class TestLabContract:
         assert a["is_prime"] is b["is_prime"]
         assert a["path"] == b["path"]
 
-    def test_hard_64bit_uses_cubic_when_c_ready(self):
+    def test_hard_64bit_uses_nm1_or_cubic_when_c_ready(self):
         info = lab(SEMIPRIME_1E9)
         from best_prime.factor_lehman import _c_lehman_ready
 
         assert info["is_prime"] is False
         if _c_lehman_ready():
-            assert info["path"] == "u64_lehman_c"
+            # Fermat filter on n−1 path usually settles composites.
+            assert info["path"] in {"u64_nm1", "u64_lehman_c"}
         elif _load_c_core():
             assert info["path"] == "u64_wheel_c"
 
@@ -127,6 +130,6 @@ class TestLabContract:
             from best_prime.factor_lehman import _c_lehman_ready
 
             if _c_lehman_ready():
-                assert info["path"] == "u64_lehman_c"
+                assert info["path"] in {"u64_nm1", "u64_lehman_c"}
             else:
                 assert info["path"] == "u64_wheel_c"

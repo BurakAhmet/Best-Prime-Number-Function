@@ -8,13 +8,15 @@ CLI **`TIME` is end-to-end** (import → answer). Dispatch is tiered to minimize
 is_prime(n)
     ├─ n < 10⁴         → pure-Python small loop
     ├─ n < 2⁶⁴
-    │    ├─ isqrt ≥ 10⁷ and cubic C → lehman_factor_u128
+    │    ├─ isqrt ≥ 10⁷ and cubic budget
+    │    │              → n−1 Pocklington, else lehman_factor_u128
     │    ├─ wheel_core.so → OpenMP C precomputed primes / seg-primes
     │    │                 (Linux/macOS wheels ship this; else compile locally)
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
-         ├─ cubic C can finish (cube root ≤ 2·10⁷) → lehman_factor_u128 (CLI default)
+         ├─ cubic budget (4·k·n fits in 128 bits (no artificial cub cap))
+         │              → n−1 Pocklington, else lehman_factor_u128 (CLI default)
          ├─ isqrt(n) ≤ 2.5·10¹⁰ (≤128-bit) → OpenMP u128 full trial / stdlib wheel
          └─ larger still            → 30030-wheel to 1e8 → AKS if needed
 ```
@@ -26,8 +28,8 @@ flowchart TD
   B -->|no| C{n < 10^4}
   C -->|yes| P1[Pure-Python small loop]
   C -->|no| D{n < 2^64}
-  D -->|yes| E0{isqrt ≥ 10^7 and cubic C?}
-  E0 -->|yes| P7[OpenMP C cubic search]
+  D -->|yes| E0{isqrt ≥ 10^7 and cubic budget?}
+  E0 -->|yes| P7[n−1 Pocklington then cubic fallback]
   P7 --> Z3
   E0 -->|no| E{wheel_core.so?}
   E -->|yes| P2[OpenMP C — precomputed / seg-primes<br/>Linux/macOS wheels ship this]
@@ -40,9 +42,9 @@ flowchart TD
   P4 --> G
   G -->|yes| Z1
   G -->|no| Z2[True]
-  D -->|no| H0{cubic C complete?}
-  H0 -->|yes| P6[OpenMP C cubic search]
-  P6 --> Z3{factor?}
+  D -->|no| H0{cubic budget complete?}
+  H0 -->|yes| P6[n−1 Pocklington then cubic]
+  P6 --> Z3{factor / composite?}
   Z3 -->|yes| Z1
   Z3 -->|no| Z2
   H0 -->|no| H{isqrt n ≤ 2.5·10^10 and ≤128-bit?}
@@ -64,7 +66,12 @@ flowchart TD
 3. Else if $n \le 4\cdot10^{12}$: **embedded 30030-wheel** (stdlib only).
 4. Else: lazy **Numba** `9699690`-wheel.
 
-### Large path — $n \ge 2^{64}$
+### Hard path — cubic budget (hard 64-bit and many $n \ge 2^{64}$)
+
+1. **n−1 Pocklington** ([guide](nm1-proof.md)): factor $n-1$, prove prime with fixed bases. `lab` paths `u64_nm1` / `u128_nm1`.
+2. Else **OpenMP cubic search** (`lehman_factor_u128`): complete $O(n^{1/3})$ fallback. Paths `u64_lehman_c` / `u128_lehman_c`.
+
+### Large path — $n \ge 2^{64}$ outside cubic budget
 
 1. If $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits (covers e.g. primes near $10^{20}$): OpenMP **`is_prime_u128_core`**, else stdlib 9699690-wheel.
 2. Still larger: 30030-wheel trial up to $\min(10^8,\lfloor\sqrt{n}\rfloor)$, then **AKS** if needed (Kronecker poly mul).
@@ -83,7 +90,7 @@ All of these reuse **our** sieves / `is_prime`. No external prime engine.
 | `primes` / `primerange` | Cached odds-only Eratosthenes; **`primerange` yields** (256 KiB windows) |
 | `totient` / `primorial` / `divisors` | From `factorint`; `totient_range` is a linear sieve; primorial is a product tree |
 | `prime_factors` / `factorint` | 30-wheel trial, Fermat, **two-band cubic search**, deterministic Brent–Pollard ($c=1,2,\ldots$), ECM, SIQS; each prime confirmed with `is_prime` |
-| `lehman_factor` | Rising-product 30-wheel to the cube-root budget, then integer-safe Lehman windows. Not the `is_prime` engine. [Cubic search](cubic-search.md) |
+| `lehman_factor` | Rising-product 30-wheel to the cube-root budget, then integer-safe Lehman windows. Also the hard-path **fallback** after n−1. [Cubic search](cubic-search.md) · [n−1 proof](nm1-proof.md) |
 | `is_perfect_power` / `is_prime_power` | Newton $k$-th roots; prime exponents only |
 
 ## Complexity (word operations)

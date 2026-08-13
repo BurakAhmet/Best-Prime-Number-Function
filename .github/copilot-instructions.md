@@ -12,7 +12,7 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 2. **No stochastic Miller–Rabin** — no random bases, no “probably prime” APIs as the engine.
 3. **No prime libraries** — do not depend on primesieve, sympy.isprime, etc. for the implementation.
 4. **Allowed** — NumPy, Numba (JIT / parallel) for *our* trial division / helpers.
-5. **Correctness model** — for `n < 2^64` with `isqrt(n) < 1e7`: exact trial division up to `isqrt(n)` (OpenMP C precomputed primes / segmented primes when `wheel_core.so` is built; else tiered 30030 / 9699690 wheels). For harder 64-bit n (`isqrt ≥ 1e7`) and for `2^64 ≤ n` when OpenMP cubic search can finish (cube root ≤ 2e7): `lehman_factor_u128`. Else practical `isqrt` (≤ ~2.5e10, ≤128-bit): full trial via `is_prime_u128_core` or stdlib wheel. For still larger `n`: partial trial then AKS if needed (may be slow).
+5. **Correctness model** — for `n < 2^64` with `isqrt(n) < 1e7`: exact trial division up to `isqrt(n)` (OpenMP C precomputed primes / segmented primes when `wheel_core.so` is built; else tiered 30030 / 9699690 wheels). For harder 64-bit n (`isqrt ≥ 1e7`) and for `2^64 ≤ n` when OpenMP cubic search can finish (cube root ≤ 2e9, `4kn` in 128 bits): `lehman_factor_u128` (after n−1 Pocklington). Else practical `isqrt` (≤ ~2.5e10, ≤128-bit): full trial via `is_prime_u128_core` or stdlib wheel. For still larger `n`: partial trial then AKS if needed (may be slow).
 
 ## When answering issues
 
@@ -54,6 +54,6 @@ Forbidden as the engine: stochastic primality tests, external prime libraries.
 - `docs/guide/` — MkDocs library docs (Pages `/guide/`)
 - `.github/workflows/` — CI, determinism, issue/PR agents
 
-- On Linux CI after `compile_wheel_core.sh`, `lab(10**9+7)['path']` must be `u64_wheel_c`; hard 64-bit (`isqrt ≥ 10^7`, e.g. near 2^63) must be `u64_lehman_c` when `lehman_factor_u128` is exported. Practical multi-limb sizes in the cubic budget use `u128_lehman_c`.
+- On Linux CI after `compile_wheel_core.sh`, `lab(10**9+7)['path']` must be `u64_wheel_c`; hard 64-bit (`isqrt ≥ 10^7`, e.g. near 2^63) must be `u64_nm1` or `u64_lehman_c` when the cubic C core is present. Multi-limb CLI default uses `u128_nm1` or `u128_lehman_c`.
 - Primary perf metric is e2e CLI TIME (`compare_e2e.py`).
 - Mark multi-second multi-limb primes with `@pytest.mark.slow` if added beyond existing C-path coverage.
