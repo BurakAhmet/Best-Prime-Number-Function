@@ -1,6 +1,7 @@
 /* Deterministic primality lab worker (Pages).
  * Mirrors the library ladder in-browser:
- *   small precheck → n−1 Pocklington (when n−1 factors) → 30-wheel trial → refuse.
+ *   small precheck → n−1 Pocklington (when n−1 factors) → 30-wheel trial when practical.
+ *   No hard digit / √n size ban: if proof is impractical, return path=inconclusive.
  * Not the OpenMP C core; no stochastic Miller–Rabin.
  * Self-test: node docs/wiki/assets/checker-worker.js --self-test
  */
@@ -14,14 +15,18 @@
   const BASES = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n];
   /** Confirm in the UI when pure trial would be long. */
   const WARN_ISQRT = 8_000_000n;
-  /** Pure 30-wheel hard stop (√n). n−1 may still settle larger n. */
-  const REFUSE_ISQRT = 20_000_000_000n;
+  /**
+   * Soft budget for automatic pure 30-wheel trial (not a ban on n).
+   * Above this √n, if n−1 is inconclusive we report inconclusive rather than spinning forever.
+   * There is no digit-length hard limit.
+   */
+  const TRIAL_SOFT_ISQRT = 50_000_000_000n;
   /** Try n−1 once √n is past mid-size wheel comfort (or multi-limb). */
   const NM1_ISQRT = 10_000_000n;
   const TRIAL_BOUND_DEFAULT = 100_000;
   const TRIAL_BOUND_MID = 1_000_000;
   const TRIAL_BOUND_BIG = 5_000_000;
-  const P1_B1 = 100_000;
+  const P1_B1 = 250_000;
 
   let _primesCache = null;
   let _primesCacheLimit = 0;
@@ -161,7 +166,7 @@
     let r = 1n;
     const m = 512n;
     let x = y;
-    const maxR = 1n << 18n; // browser-friendly cap
+    const maxR = 1n << 17n; // browser-friendly cap
     while (g === 1n && r <= maxR) {
       x = y;
       for (let i = 0n; i < r; i++) y = (y * y + c) % n;
@@ -242,15 +247,21 @@
     }
     if (ts.rem > 1n && ts.rem < c) return ts.rem;
 
-    let f = fermatSplit(c, 4096);
+    const bits = bitLength(c);
+    // Keep browser responsive: short budgets on huge cofactors.
+    const fermatRounds = bits > 120 ? 1024 : 4096;
+    const brentCurves = bits > 140 ? 12n : bits > 100 ? 24n : 64n;
+    const p1B1 = bits > 140 ? 50_000 : P1_B1;
+
+    let f = fermatSplit(c, fermatRounds);
     if (f && f > 1n && f < c) return f;
 
-    for (let cv = 1n; cv <= 32n; cv++) {
+    for (let cv = 1n; cv <= brentCurves; cv++) {
       const g = brent(c, cv);
       if (g > 1n && g < c) return g;
     }
 
-    f = pollardP1(c);
+    f = pollardP1(c, p1B1);
     if (f && f > 1n && f < c) return f;
     return null;
   }
@@ -267,7 +278,7 @@
       if (p * p > n) return true;
     }
     const limit = isqrt(n);
-    if (limit > REFUSE_ISQRT) return null; // unknown
+    if (limit > TRIAL_SOFT_ISQRT) return null; // skip automatic pure trial
     if (n <= MAX_SAFE) {
       const r = trialNumber(Number(n), Number(limit), 0, onTick, shouldStop);
       if (r.aborted) return null;
@@ -289,7 +300,7 @@
     if ((c & 1n) === 0n) return c === 2n;
     const lim = isqrt(c);
     // Small enough for exact trial in the tab.
-    if (lim <= 50_000_000n) {
+    if (lim <= TRIAL_SOFT_ISQRT) {
       const t = trialIsPrime(c, onTick, shouldStop);
       return t === true;
     }
@@ -451,15 +462,15 @@
       // inconclusive → trial if budget allows
     }
 
-    if (limit > REFUSE_ISQRT) {
+    if (limit > TRIAL_SOFT_ISQRT) {
       return {
         prime: null,
-        path: "too-large-for-browser",
+        path: "inconclusive",
         factor: null,
         isqrt: limit.toString(),
         ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
         note:
-          "n−1 was inconclusive and √n is too large for pure trial in a tab. Use the Python / OpenMP library.",
+          "No size ban: n−1 could not be factored enough for a Pocklington proof, and automatic pure trial would need ~⌊√n⌋ modular divisions (impractical in a tab). Use the Python / OpenMP library for longer ECM/SIQS factoring, or try a smaller n / a prime with smoother n−1.",
       };
     }
 
@@ -542,7 +553,7 @@
     umod64: umod64,
     nm1Primality: nm1Primality,
     WARN_ISQRT: WARN_ISQRT,
-    REFUSE_ISQRT: REFUSE_ISQRT,
+    TRIAL_SOFT_ISQRT: TRIAL_SOFT_ISQRT,
     NM1_ISQRT: NM1_ISQRT,
     SMALL_N: SMALL_N,
   };
@@ -631,8 +642,17 @@
     const hard = 9223372036854775783n;
     const lim = isqrt(hard);
     assert(lim === 3037000499n, "isqrt(near-2^63) = " + lim);
-    assert(lim <= REFUSE_ISQRT, "REFUSE_ISQRT still allows near-2^63 trial");
+    assert(lim <= TRIAL_SOFT_ISQRT, "TRIAL_SOFT_ISQRT still allows near-2^63 trial");
     assert(lim > WARN_ISQRT, "WARN_ISQRT should flag near-2^63 as slow");
+
+    // 55-digit prime with hard n−1: no artificial size ban; may be inconclusive
+    const hard55 = 1000000000000000000000000000000000000000000000000000031n;
+    const r55 = checkPrime(hard55);
+    assert(r55.path !== "too-large-for-browser", "must not hard-ban by size: " + r55.path);
+    assert(r55.prime === true || r55.prime === null, "hard55 settled or inconclusive");
+    if (r55.prime === null) {
+      assert(r55.path === "inconclusive", "hard55 inconclusive path");
+    }
 
     const overSafe = 59n * (MAX_SAFE / 59n + 11n);
     assert(overSafe > MAX_SAFE && overSafe < TWO64, "u64 fixture range");

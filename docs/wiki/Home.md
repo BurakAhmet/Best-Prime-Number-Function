@@ -7,7 +7,7 @@
 
 ## Interactive lab
 
-Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **n−1 Pocklington** when $n-1$ factors, else exact 30-wheel trial. The CLI default $100000000000000000000000000000000000000000031$ (147-bit) is in range. Long pure-trial runs show the wheel-30 orrery; the result is a downloadable certificate. Hostile 64-bit primes can still take minutes; the Python library is faster on those.
+Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **n−1 Pocklington** when $n-1$ factors, else exact 30-wheel trial. No digit-length limit: multi-limb $n$ try **n−1 Pocklington** first (CLI default 147-bit is typically sub-second). If $n-1$ cannot be factored enough for a proof and pure trial is impractical, the lab reports **inconclusive** rather than spinning forever — use the Python library for longer ECM/SIQS. Long pure-trial runs show the wheel-30 orrery; results are downloadable certificates.
 
 <!-- acta-specimen -->
 

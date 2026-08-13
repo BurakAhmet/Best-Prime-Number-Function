@@ -2,8 +2,6 @@
  * (n−1 Pocklington when n−1 factors, else 30-wheel trial). */
 (function () {
   const WARN_ISQRT = 8_000_000n;
-  /** Only refuse before the worker when pure trial would be absurd. */
-  const REFUSE_ISQRT = 20_000_000_000n;
   const TWO64 = 1n << 64n;
   const ORRERY_ISQRT = 100_000n;
   const WHEEL30 = [1, 7, 11, 13, 17, 19, 23, 29];
@@ -211,7 +209,8 @@
         </div>
         <p class="lab-hint">Deterministic lab in this tab (not the OpenMP C core):
           <strong>n−1 Pocklington</strong> when <em>n</em>−1 factors, else exact 30-wheel trial.
-          CLI default (147-bit) is supported. Hard hostile primes can still take minutes. Stop anytime.</p>
+          <strong>No digit-length limit.</strong> Smooth <em>n</em>−1 multi-limb primes (e.g. CLI default) finish fast;
+          hostile <em>n</em>−1 may be inconclusive here without spinning forever. Stop anytime.</p>
         <figure class="lab-orrery" id="lab-orrery" hidden>
           ${orrerySvg()}
           <figcaption>residue <span id="orrery-res">—</span> (mod 30)</figcaption>
@@ -349,26 +348,14 @@
       }
 
       const limit = isqrt(n);
-      // Multi-limb / hard n: try the worker (n−1 first). Only refuse absurd pure-trial sizes up front.
       const multiLimb = n >= TWO64;
-      if (!multiLimb && limit > REFUSE_ISQRT) {
-        hideOrrery();
-        renderSimple(
-          "no",
-          "Too large here",
-          `<dl><dt>n</dt><dd>${escapeHtml(n.toString())}</dd>
-          <dt>⌊√n⌋</dt><dd>${fmt(limit)}</dd>
-          <dt>note</dt><dd>√n is too large for pure trial in a tab. Use the Python / OpenMP library.</dd></dl>`
-        );
-        return;
-      }
-      // Warn only when we expect a long pure trial (64-bit hard, not multi-limb n−1 path).
+      // No digit / √n hard ban. Optional confirm only for long pure-trial class (64-bit hard).
       if (!multiLimb && limit > WARN_ISQRT) {
         const ok = window.confirm(
           "⌊√n⌋ ≈ " +
             fmt(limit) +
             ". If n−1 is hostile, exact 30-wheel trial may take minutes in the browser " +
-            "(background worker; Stop is available). Continue?"
+            "(background worker; Stop is available). Multi-limb n tries n−1 first with no size ban. Continue?"
         );
         if (!ok) return;
       }
@@ -421,12 +408,17 @@
           barFill.style.width = "100%";
           hideOrrery();
           if (res.prime === null) {
+            const title =
+              res.path === "inconclusive" ? "Inconclusive here" : "No decision";
             renderSimple(
-              "no",
-              "Too large here",
+              "busy",
+              title,
               `<dl><dt>n</dt><dd>${escapeHtml(n.toString())}</dd>
+              <dt>path</dt><dd>${escapeHtml(res.path || "")}</dd>
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
-              <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>`
+              <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
+              <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
+              <p class="lab-hint">There is no maximum digit length. When n−1 cannot be factored enough for a Pocklington proof and pure trial is impractical (~⌊√n⌋ steps), the lab stops rather than spinning forever. The Python library can run longer factoring (ECM/SIQS).</p>`
             );
           } else {
             renderCert({
