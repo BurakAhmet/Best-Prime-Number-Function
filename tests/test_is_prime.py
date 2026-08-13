@@ -300,7 +300,7 @@ class TestLarge64Bit:
 
     def test_default_n_is_70bit_u128_yardstick(self):
         assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 84
+        assert DEFAULT_N.bit_length() == 130
         assert DEFAULT_N > (1 << 64)
         assert DEFAULT_N in LARGE_PRIMES_SLOW
 

@@ -31,9 +31,11 @@ from typing import Optional
 # Fixed witness list for Pocklington (and Fermat prefilter). Deterministic.
 _BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
 
-# Trial bound on n−1 before invoking is_prime / cubic on the cofactor.
-# Kept modest: pure-Python trial to 1e6 dominates e2e on multi-limb n−1.
+# Default trial bound (small n−1). Multi-limb uses _adaptive_trial_bound.
 _TRIAL_BOUND = 100_000
+# Prime-only trial cache ceiling (5e6 finds 3.8e6-class factors; larger
+# factors use Brent/ECM). Avoid 2e7 sieves (~1s) on every multi-limb default.
+_TRIAL_PRIME_CACHE_MAX = 5_000_000
 
 # After trial + is_prime/cubic split attempts, give up only if a cofactor
 # is still composite and larger than this (hostile n−1 → cubic on n).
@@ -43,29 +45,54 @@ _COFACTOR_BIT_GIVE_UP = 96
 # PEP 604 unions are 3.10+, and this alias is evaluated at runtime.
 Result = Optional[bool]
 
+_primes_cache: tuple[int, ...] | None = None
+_primes_cache_limit = 0
+
+
+def _primes_upto(limit: int) -> tuple[int, ...]:
+    """Cached primes ≤ limit (grows the sieve as needed)."""
+    global _primes_cache, _primes_cache_limit
+    need = min(int(limit), _TRIAL_PRIME_CACHE_MAX)
+    if _primes_cache is None or _primes_cache_limit < need:
+        from .prime_sieve import _sieve_primes_upto
+
+        _primes_cache = tuple(_sieve_primes_upto(need))
+        _primes_cache_limit = need
+    return _primes_cache
+
+
+def _adaptive_trial_bound(m: int) -> int:
+    """Higher prime trial for multi-limb n−1 (cheap vs ECM/Brent)."""
+    bits = m.bit_length()
+    if bits <= 40:
+        return _TRIAL_BOUND
+    if bits <= 80:
+        return 1_000_000
+    # Cap at sieve cache: peel ~1e6–5e6 factors; Brent gets ~1e7–1e8.
+    return _TRIAL_PRIME_CACHE_MAX
+
 
 def _trial_split(m: int, bound: int) -> tuple[dict[int, int], int]:
-    """Peel prime powers ≤ bound from m. Returns (factors, remaining)."""
+    """Peel prime powers ≤ bound from m. Returns (factors, remaining).
+
+    Uses a prime table (not a dense 30-wheel of composites) so high bounds
+    stay affordable.
+    """
     fac: dict[int, int] = {}
     if m <= 1:
         return fac, m
-    for p in (2, 3, 5):
-        if p > bound:
+    bound = min(int(bound), _TRIAL_PRIME_CACHE_MAX)
+    for p in _primes_upto(bound):
+        if p > bound or p * p > m:
             break
-        while m % p == 0:
-            fac[p] = fac.get(p, 0) + 1
-            m //= p
-    p = 7
-    step = 4  # 7,11,13,17,… via 30-wheel steps 4,2,4,2,4,6,2,6 starting mid-cycle
-    # Use full 30-wheel from 7.
-    w30 = (4, 2, 4, 2, 4, 6, 2, 6)
-    wi = 0
-    while p <= bound and p * p <= m:
-        while m % p == 0:
-            fac[p] = fac.get(p, 0) + 1
-            m //= p
-        p += w30[wi]
-        wi = (wi + 1) & 7
+        if m % p == 0:
+            e = 0
+            while m % p == 0:
+                m //= p
+                e += 1
+            fac[p] = fac.get(p, 0) + e
+            if m == 1:
+                break
     return fac, m
 
 
@@ -90,8 +117,8 @@ def _cofactor_is_prime(c: int, *, parallel: bool) -> bool:
 def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
     """Find a proper factor of composite ``c``, or None.
 
-    Uses Fermat, cubic (C when ``4·budget·c`` fits in 128 bits, else a
-    short multiprecision probe), deterministic Brent, then ECM.
+    Quick prime trial first, then Fermat, cubic (C when ``4·budget·c``
+    fits in 128 bits), deterministic Brent, then ECM.
     """
     from .factor_ecm import ecm_factor
     from .factor_lehman import (
@@ -100,6 +127,17 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
         lehman_factor,
     )
     from .prime_factors import _brent, _fermat_split
+
+    # Cheap peel of medium prime factors before heavy methods.
+    fac, rem = _trial_split(c, _adaptive_trial_bound(c))
+    if rem != c and rem > 1 and rem < c:
+        # Return smallest prime factor found.
+        return min(fac)
+    if rem == 1 and fac:
+        # c fully factored by trial; return any prime factor.
+        return min(fac)
+    if fac and rem > 1:
+        return min(fac)
 
     f = _fermat_split(c)
     if f is not None and 1 < f < c:
@@ -134,7 +172,8 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
 
 def _factor_completely(m: int, *, parallel: bool) -> dict[int, int] | None:
     """Full prime factorization of m, or None if a cofactor will not split."""
-    fac, rem = _trial_split(m, _TRIAL_BOUND)
+    bound = _adaptive_trial_bound(m)
+    fac, rem = _trial_split(m, bound)
     stack = [rem] if rem > 1 else []
     # Bound effort: deep factoring of huge hostile n−1 must not hang next_prime.
     splits = 0
@@ -143,13 +182,14 @@ def _factor_completely(m: int, *, parallel: bool) -> dict[int, int] | None:
         c = stack.pop()
         if c <= 1:
             continue
-        if c <= _TRIAL_BOUND * _TRIAL_BOUND:
-            sub, r2 = _trial_split(c, _TRIAL_BOUND)
-            for p, e in sub.items():
-                fac[p] = fac.get(p, 0) + e
-            if r2 == 1:
-                continue
-            c = r2
+        # Another prime trial pass with adaptive bound (cheap vs ECM).
+        cb = _adaptive_trial_bound(c)
+        sub, r2 = _trial_split(c, cb)
+        for p, e in sub.items():
+            fac[p] = fac.get(p, 0) + e
+        if r2 == 1:
+            continue
+        c = r2
         if _cofactor_is_prime(c, parallel=parallel):
             fac[c] = fac.get(c, 0) + 1
             continue

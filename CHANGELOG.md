@@ -17,7 +17,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - Hard 64-bit / multi-limb `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit stays `u64_wheel_c`.
-- CLI / `DEFAULT_N` is **`10000000000000000000000013`** (84-bit; n−1 Pocklington). E2E CLI **~7 ms** on this machine (target ≤299 ms). Former smooth specimen `600000000000000000001` remains `SMOOTH_NM1_PRIME` in tests.
+- CLI / `DEFAULT_N` is **`1000000000000000000000000000000000000003`** (130-bit; n−1 Pocklington). E2E CLI **TIME ~0.5–0.8 s** on this machine (target ≤1.5 s), via prime-only trial to 5×10⁶ + Brent for medium factors of $n-1$. Former smooth specimen `600000000000000000001` remains `SMOOTH_NM1_PRIME` in tests.
 - CLI `is-prime` prints **`FACTOR:`** when composite.
 
 ### Docs

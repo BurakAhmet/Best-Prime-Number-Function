@@ -22,14 +22,14 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 | Name | Meaning | Example |
 |------|---------|---------|
 | `__version__` | Installed package version | `"1.11.2"` |
-| `DEFAULT_N` | CLI default / 84-bit hard-path yardstick | `10000000000000000000000013` |
+| `DEFAULT_N` | CLI default / 130-bit hard-path yardstick | `1000000000000000000000000000000000000003` |
 | `PRIME_COUNT_MAX_N` | **Hard ceiling** for `prime_count` | $2^{64}-1$ |
 | `NEXT_PRIME_SIEVE_ISQRT_MAX` | Interval-sieve cap for next/prev | $2\cdot10^6$ |
 | `TOTIENT_RANGE_MAX` | Max $n$ for `totient_range` | $2\cdot10^{7}$ |
 
 ```python
 from best_prime import DEFAULT_N, PRIME_COUNT_MAX_N, __version__
-assert DEFAULT_N == 10000000000000000000000013
+assert DEFAULT_N == 1000000000000000000000000000000000000003
 assert is_prime(DEFAULT_N)  # n−1 proof; cubic C if n−1 is hostile
 ```
 
