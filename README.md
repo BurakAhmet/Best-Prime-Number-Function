@@ -60,13 +60,13 @@ is_prime([17, 18, 19])                    # [True, False, True]
 next_prime(14, 3)                         # 23
 prime_count(10)                           # 4   — n > 2**64-1 raises ValueError
 primality_certificate(17)["kind"]         # 'pratt'
-is_prime(10000000000000000000000013)           # CLI default — 84-bit cubic C
+is_prime(100000000000000000000000000000000000000000031)           # CLI default — 147-bit n−1 Pocklington
 is_prime(18446744073709551557)            # largest prime < 2^64
 is_prime(9223372036854775783)             # near 2^63
 is_prime(2305843009213693951)             # M61 = 2^{61}-1
 ```
 
-CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `primality-certificate`, … Exit 0 = prime, 1 = not prime, 2 = bad input. Default `is-prime` yardstick is `10000000000000000000000013` (84-bit; n−1 then OpenMP cubic). Printed `TIME` is **end-to-end** (import + check).
+CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `primality-certificate`, … Exit 0 = prime, 1 = not prime, 2 = bad input. Default `is-prime` yardstick is `100000000000000000000000000000000000000000031` (147-bit; n−1 Pocklington; cubic only if n−1 is hostile). Printed `TIME` is **end-to-end** (import + check).
 
 ---
 
@@ -74,7 +74,7 @@ CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `prim
 
 | | Engine | Deterministic for every $n$? | Typical use |
 |--|--------|------------------------------|-------------|
-| **best_prime** | Wheel / OpenMP trial, then **AKS** | **Yes** | Proof-grade boolean |
+| **best_prime** | Wheel / OpenMP trial, n−1 Pocklington, cubic, **AKS** | **Yes** | Proof-grade boolean |
 | `sympy.isprime` | BPSW + extras | No above proven bounds | CAS default |
 | `gmpy2.is_prime` | Miller–Rabin | No | Fast probable-prime |
 | `primesieve` | Sieve | N/A (enumeration) | **Forbidden** here as the engine |
@@ -136,7 +136,7 @@ We optimize under a stricter question: *after you give up luck, what speed can y
 
 ## How the checker chooses a path
 
-Linux/macOS **wheels** (v1.11.2+) ship `wheel_core.so`. A no-compiler or Windows install still falls back to stdlib / Numba. Same dispatch either way:
+Linux/macOS **wheels** (v1.12.0+) ship `wheel_core.so`. A no-compiler or Windows install still falls back to stdlib / Numba. Same dispatch either way:
 
 ```text
 is_prime(n)

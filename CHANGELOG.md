@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-08-13
+
 ### Added
 - **n−1 Pocklington primality** (`best_prime/primality_nm1.py`) on the hard path: factor $n-1$, prove prime with fixed bases. Deterministic; not Miller–Rabin. Complete cubic search remains the fallback when $n-1$ is hostile. Guide: `docs/guide/nm1-proof.md`.
 - Python **3.9 import fix**: type alias uses `Optional[bool]` (not `X | Y` at runtime) so hard-path imports do not crash on 3.9.
@@ -11,17 +13,22 @@ All notable changes to this project are documented in this file.
 - OpenMP cubic completeness is **engine-limited only**: any $n$ with $4kn$ in 128 bits for $k\le\lceil n^{1/3}\rceil$ (no artificial cube-root product cap).
 - n−1 cofactor primality uses full `is_prime` (recursive Pocklington) instead of forcing cubic on large prime cofactors.
 - Multi-limb `is_prime` always tries **n−1 Pocklington** even when cubic C cannot run (`4kn` > 128 bits). Fixes `next_prime(10**29+1)` falling into AKS despite an easy next prime.
-- **Deep `next_prime` window sieve** (primes ≤ 500 000 mark adaptive windows; Fermat reject before `is_prime`).
-- **Multiprecision cubic** (Python `int` `4kn`) for complete proofs while `⌈n^{1/3}⌉ ≤ 8·10^6`; C still used when `4kn` fits in 128 bits.
-- Stronger n−1 factoring: Fermat + cubic (C budget) + Brent + ECM before giving up, so primes past the u128 wall with awkward `n−1` still get Pocklington (e.g. `next_prime(10**38+1)` ~0.15 s).
+- **Deep `next_prime` window sieve** (primes ≤ 1e6 mark adaptive windows; Fermat reject before `is_prime`).
+- **Multiprecision cubic** (Python `int` `4kn`) for complete proofs while $\lceil n^{1/3}\rceil \le 8\cdot10^6$; C still used when `4kn` fits in 128 bits.
+- Stronger n−1 factoring: Fermat + Brent + Pollard p−1 + short cubic + ECM so primes past the u128 wall with awkward $n-1$ still get Pocklington.
+- **Partial Pocklington**: factor only until $F>\sqrt{n}$.
 
 ### Changed
 - Hard 64-bit / multi-limb `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit stays `u64_wheel_c`.
-- CLI / `DEFAULT_N` is **`10000000000000000000000013`** (84-bit; n−1 Pocklington). E2E CLI **~7 ms** on this machine (target ≤299 ms). Former smooth specimen `600000000000000000001` remains `SMOOTH_NM1_PRIME` in tests.
+- CLI / `DEFAULT_N` is **`100000000000000000000000000000000000000000031`** (147-bit; n−1 Pocklington, `u128_nm1`). E2E CLI **TIME ~0.3 s** on this machine. Former 133-bit yardstick and smooth specimen `600000000000000000001` remain test constants.
+- n−1 cofactor split order: trial → Fermat → **Brent** → p−1 → short cubic → ECM.
+- `next_prime` deep sieve to **1e6** primes + bases 2/3/5 Fermat reject.
+- `lab()` no longer double-runs the hard path for path labeling.
 - CLI `is-prime` prints **`FACTOR:`** when composite.
+- Package version **1.12.0**.
 
 ### Docs
-- README / wiki / guide: n−1 + cubic dispatch; new `nm1-proof.md`.
+- README / wiki / guide: n−1 + cubic dispatch; `nm1-proof.md`; expanded Miller–Rabin comparison on the guide **Comparison** page.
 
 ## [1.11.2] — 2026-08-11
 

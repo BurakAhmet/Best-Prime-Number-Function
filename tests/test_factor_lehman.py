@@ -106,8 +106,13 @@ class TestLehmanFactor:
 
     @pytest.mark.skipif(not _c_lehman_ready(), reason="lehman_factor_u128 not in wheel_core.so")
     def test_c_core_completes_default_n(self):
+        from best_prime.factor_lehman import _fits_c_lehman, cubic_complete_ready
+
         cub = _ceil_icbrt(DEFAULT_N)
-        assert cub <= LEHMAN_COMPLETE_CUB_MAX_C
+        # Yardstick may sit past the 128-bit 4kn C wall; then is_prime uses n−1.
+        if not _fits_c_lehman(DEFAULT_N, cub):
+            pytest.skip("DEFAULT_N outside C complete cubic (4kn > 128 bits)")
+        assert cubic_complete_ready(DEFAULT_N)
         assert lehman_factor(DEFAULT_N) is None
 
 

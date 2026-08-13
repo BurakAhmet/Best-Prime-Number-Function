@@ -298,9 +298,9 @@ class TestLarge64Bit:
     def test_near_int64_max_prime_listed(self):
         assert LARGE_64BIT_PRIME in LARGE_PRIMES_SLOW
 
-    def test_default_n_is_70bit_u128_yardstick(self):
+    def test_default_n_is_147bit_u128_yardstick(self):
         assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 84
+        assert DEFAULT_N.bit_length() == 147
         assert DEFAULT_N > (1 << 64)
         assert DEFAULT_N in LARGE_PRIMES_SLOW
 
