@@ -36,9 +36,14 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "Montgomery ECM" in ui or "ECM" in ui
     assert "checker-worker.js" in ui
     assert "lab-orrery" in ui
+    assert "lab-stage" in ui
+    assert 'data-phase="ecm"' in ui
+    assert "factorRows" in ui
     assert "Download SVG" in ui
     assert "WHEEL30" in ui
     assert "data-res=" in ui
+    assert "extractFactor" in src
+    assert "emit(onTick" in src or "function emit(" in src
 
 
 def test_og_png_is_social_card():

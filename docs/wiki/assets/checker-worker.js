@@ -136,6 +136,49 @@
     };
   }
 
+  /** Structured progress so the UI can mirror the live engine stage. */
+  function emit(onTick, phase, i, limit, extra) {
+    if (!onTick) return;
+    const info = {
+      phase: phase,
+      i: i == null ? 0n : typeof i === "bigint" ? i : BigInt(i),
+      limit: limit == null ? 1n : typeof limit === "bigint" ? limit : BigInt(limit),
+      extra: extra || {},
+    };
+    try {
+      onTick(info);
+    } catch (_) {
+      try {
+        onTick(info.i, info.limit);
+      } catch (__) {
+        /* ignore */
+      }
+    }
+  }
+
+  /** Proper factor of a known composite, or null. */
+  function extractFactor(n, onTick, shouldStop) {
+    if (n < 4n) return null;
+    if ((n & 1n) === 0n) return 2n;
+    for (let k = 0; k < SMALL.length; k++) {
+      const p = SMALL[k];
+      if (n % p === 0n) return n === p ? null : p;
+    }
+    for (let i = 0; i < BASES.length; i++) {
+      const a = BASES[i];
+      if (a % n === 0n) return a < n ? a : null;
+      const ap = powBig(a, n - 1n, n);
+      if (ap !== 1n) {
+        let g = gcd(ap - 1n, n);
+        if (g > 1n && g < n) return g;
+        g = gcd(a - 1n, n);
+        if (g > 1n && g < n) return g;
+      }
+    }
+    emit(onTick, "split", 0n, 1n, { label: "searching for a factor of n" });
+    return trySplitCofactor(n, onTick, shouldStop);
+  }
+
   function trialSplit(m, bound) {
     const fac = new Map();
     if (m <= 1n) return { fac: fac, rem: m };
@@ -281,16 +324,20 @@
     const brentMaxR = bits > 140 ? (1n << 18n) : bits > 100 ? (1n << 20n) : BRENT_MAX_R;
     const p1B1 = bits > 140 ? 1_000_000 : bits > 100 ? 500_000 : P1_B1;
 
+    emit(onTick, "split", 0n, 4n, { label: "Fermat near-square probe" });
     let f = fermatSplit(c, fermatRounds);
     if (f && f > 1n && f < c) return f;
 
     for (let cv = 1n; cv <= brentCurves; cv++) {
       if (shouldStop && shouldStop()) return null;
-      if (onTick && (cv & 7n) === 0n) onTick(cv, brentCurves);
+      if ((cv & 7n) === 0n) {
+        emit(onTick, "brent", cv, brentCurves, { curve: String(cv) });
+      }
       const g = brent(c, cv, 2n, brentMaxR);
       if (g > 1n && g < c) return g;
     }
 
+    emit(onTick, "p1", 1n, 1n, { B1: String(p1B1) });
     f = pollardP1(c, p1B1);
     if (f && f > 1n && f < c) return f;
 
@@ -386,8 +433,11 @@
       for (let i = 0; i < sch.curves; i++) {
         if (shouldStop && shouldStop()) return null;
         doneCurves++;
-        if (onTick) onTick(BigInt(doneCurves), BigInt(totalCurves));
         const sigma = BigInt(sigmaBase + i);
+        emit(onTick, "ecm", BigInt(doneCurves), BigInt(totalCurves), {
+          sigma: String(sigma),
+          B1: String(sch.B1),
+        });
         const u = (sigma * sigma - 5n) % n;
         const v = (4n * sigma) % n;
         const x = (((u * u) % n) * u) % n;
@@ -487,8 +537,8 @@
     // Prefer n−1 (often cheaper than walking √c) before a long cofactor trial.
     if (depth < 6) {
       const r = nm1Primality(c, depth + 1, onTick, shouldStop);
-      if (r === true) return true;
-      if (r === false) return false;
+      if (r.prime === true) return true;
+      if (r.prime === false) return false;
     }
     if (lim <= COFACTOR_TRIAL_ISQRT) {
       const t = trialIsPrimeCofactor(c, lim, onTick, shouldStop);
@@ -532,7 +582,9 @@
       }
       if (splits >= maxSplits) return null;
       splits++;
-      if (onTick) onTick(0n, target);
+      emit(onTick, "split", BigInt(splits), BigInt(maxSplits), {
+        bits: String(bitLength(c)),
+      });
       const f = trySplitCofactor(c, onTick, shouldStop);
       if (f === null || f <= 1n || f >= c) return null;
       stack.push(f);
@@ -541,49 +593,70 @@
     return doneFac() ? fac : null;
   }
 
-  function pocklington(n, primesOfF) {
+  function pocklington(n, primesOfF, onTick) {
     const fermatOk = new Map();
     for (let qi = 0; qi < primesOfF.length; qi++) {
       const q = primesOfF[qi];
+      emit(onTick, "pocklington", BigInt(qi + 1), BigInt(primesOfF.length), {
+        q: String(q),
+      });
       let found = false;
       for (let ai = 0; ai < BASES.length; ai++) {
         const a = BASES[ai];
-        if (a % n === 0n) return n === a ? true : false;
+        if (a % n === 0n) {
+          return { ok: n === a, factor: n === a ? null : a };
+        }
         let ok = fermatOk.get(a);
         if (ok === undefined) {
           ok = powBig(a, n - 1n, n) === 1n;
           fermatOk.set(a, ok);
         }
-        if (!ok) return false;
-        if (gcd(powBig(a, (n - 1n) / q, n) - 1n, n) === 1n) {
+        if (!ok) {
+          let g = gcd(powBig(a, n - 1n, n) - 1n, n);
+          if (!(g > 1n && g < n)) g = null;
+          return { ok: false, factor: g };
+        }
+        const g = gcd(powBig(a, (n - 1n) / q, n) - 1n, n);
+        if (g > 1n && g < n) return { ok: false, factor: g };
+        if (g === 1n) {
           found = true;
           break;
         }
       }
-      if (!found) return null;
+      if (!found) return { ok: null, factor: null };
     }
-    return true;
+    return { ok: true, factor: null };
   }
 
-  /** True / False / null (inconclusive). */
+  /** {prime: true|false|null, factor}. */
   function nm1Primality(n, depth, onTick, shouldStop) {
     if (depth === undefined) depth = 0;
-    if (n < 2n) return false;
-    if (n === 2n || n === 3n || n === 5n || n === 7n) return true;
-    if ((n & 1n) === 0n || n % 3n === 0n || n % 5n === 0n) return false;
+    if (n < 2n) return { prime: false, factor: null };
+    if (n === 2n || n === 3n || n === 5n || n === 7n) {
+      return { prime: true, factor: null };
+    }
+    if ((n & 1n) === 0n) return { prime: false, factor: 2n };
+    if (n % 3n === 0n) return { prime: false, factor: 3n };
+    if (n % 5n === 0n) return { prime: false, factor: 5n };
 
     for (let i = 0; i < 6; i++) {
       const a = BASES[i];
-      if (a % n === 0n) return n === a;
-      if (powBig(a, n - 1n, n) !== 1n) return false;
+      emit(onTick, "fermat", BigInt(i + 1), 6n, { base: String(a) });
+      if (a % n === 0n) return { prime: n === a, factor: n === a ? null : a };
+      if (powBig(a, n - 1n, n) !== 1n) {
+        let g = gcd(powBig(a, n - 1n, n) - 1n, n);
+        if (!(g > 1n && g < n)) g = null;
+        return { prime: false, factor: g };
+      }
     }
 
+    emit(onTick, "split", 0n, 1n, { label: "factoring n−1" });
     const fac = factorEnough(n, depth, onTick, shouldStop);
-    if (!fac) return null;
+    if (!fac) return { prime: null, factor: null };
 
     const F = FValue(fac);
-    if (F <= 1n || (n - 1n) % F !== 0n) return null;
-    if (F * F <= n) return null;
+    if (F <= 1n || (n - 1n) % F !== 0n) return { prime: null, factor: null };
+    if (F * F <= n) return { prime: null, factor: null };
 
     const primes = Array.from(fac.keys()).sort(function (a, b) {
       return a === b ? 0 : a > b ? -1 : 1;
@@ -599,19 +672,29 @@
         prod *= q;
       }
       used.push(q);
+      emit(onTick, "pocklington", prod, target, {
+        F: String(prod),
+        target: String(target),
+        q: String(q),
+      });
       if (prod > target) break;
     }
-    return pocklington(n, used);
+    const pk = pocklington(n, used, onTick);
+    return { prime: pk.ok, factor: pk.factor || null };
   }
 
   function checkPrime(n, onTick, shouldStop) {
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+    emit(onTick, "precheck", 0n, 1n, { label: "small-prime / parity filter" });
     if (n < 2n) return done(false, "tiny", null, "n < 2", isqrt(n), t0);
     if (n < 4n) return done(true, "tiny", null, "2 or 3", isqrt(n), t0);
     if ((n & 1n) === 0n) return done(false, "tiny", 2n, "even", isqrt(n), t0);
 
     for (let k = 0; k < SMALL.length; k++) {
       const p = SMALL[k];
+      emit(onTick, "precheck", BigInt(k + 1), BigInt(SMALL.length), {
+        p: String(p),
+      });
       if (n === p) return done(true, "small-prime", null, "hits precheck table", isqrt(n), t0);
       if (n % p === 0n) return done(false, "small-prime", p, "divisible by small prime", isqrt(n), t0);
       if (p * p > n) return done(true, "small-prime", null, "√n inside precheck", isqrt(n), t0);
@@ -621,10 +704,10 @@
 
     // Hard / multi-limb: n−1 Pocklington first (same idea as the Python library).
     if (n >= TWO64 || limit >= NM1_ISQRT) {
-      if (onTick) onTick(0n, limit);
+      emit(onTick, "fermat", 0n, 6n, { label: "n−1 Pocklington" });
       const decided = nm1Primality(n, 0, onTick, shouldStop);
       if (shouldStop && shouldStop()) return { aborted: true };
-      if (decided === true) {
+      if (decided.prime === true) {
         return done(
           true,
           "n-1-pocklington",
@@ -634,12 +717,16 @@
           t0
         );
       }
-      if (decided === false) {
+      if (decided.prime === false) {
+        let fac = decided.factor;
+        if (fac == null) fac = extractFactor(n, onTick, shouldStop);
         return done(
           false,
           "n-1-pocklington",
-          null,
-          "failed fixed-base Fermat / Pocklington filter (composite)",
+          fac,
+          fac
+            ? "composite; factor " + fac.toString()
+            : "failed fixed-base Fermat / Pocklington filter (composite)",
           limit,
           t0
         );
@@ -679,7 +766,7 @@
       steps++;
       if ((steps & 0xfffff) === 0) {
         if (shouldStop && shouldStop()) return { aborted: true };
-        if (onTick) onTick(i, limit);
+        emit(onTick, "wheel", BigInt(i), BigInt(limit), { residue: i % 30 });
       }
     }
     return done(true, "wheel-30", null, "no factor ≤ √n (exact trial)", BigInt(limit), t0);
@@ -703,7 +790,7 @@
       steps += 8;
       if ((steps & 0xfffff) === 0) {
         if (shouldStop && shouldStop()) return { aborted: true };
-        if (onTick) onTick(i, limitNum);
+        emit(onTick, "wheel", BigInt(i), BigInt(limitNum), { residue: i % 30 });
       }
     }
     let si = 6;
@@ -726,7 +813,7 @@
       steps++;
       if ((steps & 0xfffff) === 0) {
         if (shouldStop && shouldStop()) return { aborted: true };
-        if (onTick) onTick(i, limit);
+        emit(onTick, "wheel", i, limit, { residue: Number(i % 30n) });
       }
     }
     return done(true, "wheel-30", null, "no factor ≤ √n (exact trial)", limit, t0);
@@ -764,12 +851,24 @@
         const n = BigInt(String(msg.n));
         const res = checkPrime(
           n,
-          function (i, lim) {
-            g.postMessage({
-              type: "progress",
-              i: String(i),
-              limit: String(lim),
-            });
+          function (info, lim) {
+            if (info && typeof info === "object") {
+              g.postMessage({
+                type: "progress",
+                phase: info.phase || "wheel",
+                i: String(info.i),
+                limit: String(info.limit),
+                extra: info.extra || {},
+              });
+            } else {
+              g.postMessage({
+                type: "progress",
+                phase: "wheel",
+                i: String(info),
+                limit: String(lim),
+                extra: {},
+              });
+            }
           },
           function () {
             return stop;
@@ -816,6 +915,7 @@
     for (const [c, f] of knownComp) {
       const r = checkPrime(c);
       assert(r.prime === false, "expected composite " + c);
+      assert(r.factor != null, "composite must print a factor: " + c);
       assert(BigInt(r.factor) === f || c % BigInt(r.factor) === 0n, "bad factor for " + c);
     }
     assert(checkPrime(0n).prime === false, "0");

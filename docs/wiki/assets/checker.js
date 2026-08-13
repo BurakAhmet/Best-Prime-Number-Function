@@ -3,7 +3,6 @@
 (function () {
   const WARN_ISQRT = 8_000_000n;
   const TWO64 = 1n << 64n;
-  const ORRERY_ISQRT = 100_000n;
   const WHEEL30 = [1, 7, 11, 13, 17, 19, 23, 29];
   const DOCTRINE = "deterministic · n−1 Pocklington / trial · no stochastic Miller–Rabin";
 
@@ -58,8 +57,22 @@
       "verdict = " + (state.prime ? "prime" : "composite"),
       "path = " + state.path,
     ];
-    if (state.factor != null) lines.push("factor = " + state.factor.toString());
-    else if (state.prime) lines.push("factor = none (proof path: " + state.path + ")");
+    if (state.factor != null) {
+      lines.push("factor = " + state.factor.toString());
+      try {
+        const nn = BigInt(state.n);
+        const ff = BigInt(state.factor);
+        if (ff > 0n && nn % ff === 0n) {
+          lines.push("cofactor = " + (nn / ff).toString());
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    } else if (state.prime) {
+      lines.push("factor = none (proof path: " + state.path + ")");
+    } else if (state.prime === false) {
+      lines.push("factor = (not isolated)");
+    }
     lines.push("time_ms = " + Number(state.ms).toFixed(2));
     if (state.note) lines.push("note = " + state.note);
     lines.push("");
@@ -75,7 +88,16 @@
       ["⌊√n⌋", fmt(state.isqrt)],
       ["path", state.path],
     ];
-    if (state.factor != null) rows.push(["factor", fmt(state.factor)]);
+    if (state.factor != null) {
+      rows.push(["factor", fmt(state.factor)]);
+      try {
+        const nn = BigInt(state.n);
+        const ff = BigInt(state.factor);
+        if (ff > 0n && nn % ff === 0n) rows.push(["n/factor", fmt(nn / ff)]);
+      } catch (_) {
+        /* ignore */
+      }
+    }
     rows.push(["time", Number(state.ms).toFixed(2) + " ms"]);
     if (state.note) rows.push(["note", state.note]);
     const rowH = 28;
@@ -139,6 +161,26 @@
     );
   }
 
+  function factorRows(state) {
+    if (state.prime) return "";
+    if (state.factor == null) {
+      return `<dt>factor</dt><dd class="factor-missing">not isolated</dd>`;
+    }
+    let cof = "";
+    try {
+      const nn = BigInt(state.n);
+      const ff = BigInt(state.factor);
+      if (ff > 0n && nn % ff === 0n) {
+        cof = `<dt>n / f</dt><dd>${fmt(nn / ff)}</dd>`;
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return (
+      `<dt>factor</dt><dd class="factor-hit">${fmt(state.factor)}</dd>` + cof
+    );
+  }
+
   function downloadText(filename, text, mime) {
     const blob = new Blob([text], { type: mime });
     const a = document.createElement("a");
@@ -197,6 +239,82 @@
     );
   }
 
+  function stageMarkup() {
+    return `
+      <div class="lab-stage" id="lab-stage" hidden>
+        <figure class="lab-viz" data-phase="precheck" hidden>
+          <svg viewBox="0 0 200 72" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">small-prime filter</text>
+            <g id="viz-precheck-dots"></g>
+          </svg>
+          <figcaption>trying p | n for the precheck table</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="fermat" hidden>
+          <svg viewBox="0 0 200 72" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Fermat filter  a<sup>n−1</sup> ≡ 1 (mod n)</text>
+            <rect class="viz-track" x="8" y="32" width="184" height="10" rx="2"/>
+            <rect class="viz-fill" id="viz-fermat-fill" x="8" y="32" width="0" height="10" rx="2"/>
+            <text class="viz-mono" id="viz-fermat-a" x="8" y="60">a = —</text>
+          </svg>
+          <figcaption>fixed bases only — not Miller–Rabin</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="split" hidden>
+          <svg viewBox="0 0 200 72" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">splitting an n−1 cofactor</text>
+            <rect class="viz-box" x="20" y="28" width="160" height="28" rx="2"/>
+            <line class="viz-cut" id="viz-split-cut" x1="100" y1="26" x2="100" y2="58"/>
+            <text class="viz-mono" id="viz-split-bits" x="100" y="46" text-anchor="middle">cofactor</text>
+          </svg>
+          <figcaption>trial / Fermat / then harder splits</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="brent" hidden>
+          <svg viewBox="0 0 200 72" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Brent–Pollard cycle</text>
+            <ellipse class="viz-orbit" cx="100" cy="44" rx="70" ry="18"/>
+            <circle class="viz-hare" id="viz-brent-hare" cx="170" cy="44" r="4"/>
+            <circle class="viz-tort" id="viz-brent-tort" cx="30" cy="44" r="4"/>
+          </svg>
+          <figcaption>two walkers on x ↦ x² + c (mod n)</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="p1" hidden>
+          <svg viewBox="0 0 200 72" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Pollard p−1  (smooth B1)</text>
+            <rect class="viz-track" x="8" y="34" width="184" height="10" rx="2"/>
+            <rect class="viz-fill" id="viz-p1-fill" x="8" y="34" width="184" height="10" rx="2"/>
+            <text class="viz-mono" id="viz-p1-b1" x="8" y="60">B1 = —</text>
+          </svg>
+          <figcaption>a ← a^{p^k} mod n for p^k ≤ B1</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="ecm" hidden>
+          <svg viewBox="0 0 200 88" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Montgomery ECM  (Suyama σ)</text>
+            <path class="viz-curve" d="M12 70 C 50 10, 90 10, 100 40 S 150 78, 188 28"/>
+            <circle class="viz-point" id="viz-ecm-pt" cx="12" cy="70" r="4.5"/>
+            <text class="viz-mono" id="viz-ecm-sigma" x="8" y="84">σ = —</text>
+          </svg>
+          <figcaption>point [lcm(1..B1)]P on curve σ — gcd(Z, n) may split</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="pocklington" hidden>
+          <svg viewBox="0 0 200 80" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Pocklington  F &gt; √n</text>
+            <text class="viz-mono" x="8" y="32">F</text>
+            <rect class="viz-track" x="28" y="24" width="164" height="8" rx="2"/>
+            <rect class="viz-fill" id="viz-pock-f" x="28" y="24" width="0" height="8" rx="2"/>
+            <text class="viz-mono" x="8" y="52">√n</text>
+            <rect class="viz-track" x="28" y="44" width="164" height="8" rx="2"/>
+            <rect class="viz-fill viz-fill-alt" x="28" y="44" width="164" height="8" rx="2"/>
+            <text class="viz-mono" id="viz-pock-q" x="8" y="72">q | F</text>
+          </svg>
+          <figcaption>need a fully-factored F with F² &gt; n</figcaption>
+        </figure>
+        <figure class="lab-viz lab-orrery" data-phase="wheel" hidden>
+          ${orrerySvg()}
+          <figcaption>30-wheel trial · residue <span id="orrery-res">—</span> (mod 30)</figcaption>
+        </figure>
+        <p class="lab-stage-label" id="lab-stage-label"></p>
+      </div>`;
+  }
+
   function mount(root) {
     root.innerHTML = `
       <section class="prime-lab" aria-label="Interactive primality lab">
@@ -212,11 +330,8 @@
           else exact 30-wheel trial.
           <strong>No digit-length limit.</strong> Smooth <em>n</em>−1 (e.g. CLI default) is typically sub-second;
           hostile <em>n</em>−1 (e.g. the 55-digit exhibit) can take a minute or two of background ECM.
-          Stop anytime.</p>
-        <figure class="lab-orrery" id="lab-orrery" hidden>
-          ${orrerySvg()}
-          <figcaption>residue <span id="orrery-res">—</span> (mod 30)</figcaption>
-        </figure>
+          Stop anytime. Composites print a factor when one is found.</p>
+        ${stageMarkup()}
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
       </section>`;
@@ -227,7 +342,8 @@
     const out = $("#lab-out", root);
     const bar = $("#lab-bar", root);
     const barFill = $("i", bar);
-    const orrery = $("#lab-orrery", root);
+    const stage = $("#lab-stage", root);
+    const stageLabel = $("#lab-stage-label", root);
     const orreryRes = $("#orrery-res", root);
 
     let worker = null;
@@ -244,20 +360,145 @@
       }
     }
 
-    function setOrrery(res, on) {
-      if (on) orrery.removeAttribute("hidden");
-      else orrery.setAttribute("hidden", "");
-      orrery.classList.toggle("show", !!on);
-      const spokes = orrery.querySelectorAll(".spoke");
-      spokes.forEach(function (el) {
-        const r = Number(el.getAttribute("data-res"));
-        el.classList.toggle("active", on && res != null && r === res);
+    function hideStage() {
+      if (!stage) return;
+      stage.setAttribute("hidden", "");
+      stage.querySelectorAll(".lab-viz").forEach(function (el) {
+        el.setAttribute("hidden", "");
       });
-      orreryRes.textContent = on && res != null ? String(res) : "—";
     }
 
-    function hideOrrery() {
-      setOrrery(null, false);
+    function showPhase(phase) {
+      if (!stage) return;
+      stage.removeAttribute("hidden");
+      stage.querySelectorAll(".lab-viz").forEach(function (el) {
+        const on = el.getAttribute("data-phase") === phase;
+        if (on) el.removeAttribute("hidden");
+        else el.setAttribute("hidden", "");
+      });
+    }
+
+    function setOrrery(res) {
+      if (!orreryRes) return;
+      const spokes = stage ? stage.querySelectorAll(".spoke") : [];
+      spokes.forEach(function (el) {
+        const r = Number(el.getAttribute("data-res"));
+        el.classList.toggle("active", res != null && r === res);
+      });
+      orreryRes.textContent = res != null ? String(res) : "—";
+    }
+
+    function applyPhase(msg) {
+      const phase = msg.phase || "wheel";
+      const extra = msg.extra || {};
+      showPhase(phase);
+      if (stageLabel) {
+        stageLabel.textContent = extra.label || phaseLabel(phase, extra);
+      }
+      if (phase === "wheel") {
+        const res =
+          extra.residue != null
+            ? Number(extra.residue)
+            : Number(BigInt(msg.i || "0") % 30n);
+        setOrrery(res);
+      } else if (phase === "ecm") {
+        const tot = Number(msg.limit) || 1;
+        const i = Number(msg.i) || 0;
+        const t = Math.min(1, i / tot);
+        const pt = $("#viz-ecm-pt", root);
+        if (pt) {
+          pt.setAttribute("cx", String(12 + t * 176));
+          pt.setAttribute("cy", String(70 - Math.sin(t * Math.PI) * 48));
+        }
+        const sg = $("#viz-ecm-sigma", root);
+        if (sg) {
+          sg.textContent =
+            "σ = " + (extra.sigma || "—") + (extra.B1 ? "   B1 = " + extra.B1 : "");
+        }
+      } else if (phase === "brent") {
+        const tot = Number(msg.limit) || 1;
+        const i = Number(msg.i) || 0;
+        const th = (i / Math.max(1, tot)) * Math.PI * 4;
+        const hare = $("#viz-brent-hare", root);
+        const tort = $("#viz-brent-tort", root);
+        if (hare) {
+          hare.setAttribute("cx", String(100 + 70 * Math.cos(th)));
+          hare.setAttribute("cy", String(44 + 18 * Math.sin(th)));
+        }
+        if (tort) {
+          tort.setAttribute("cx", String(100 + 70 * Math.cos(th * 0.5)));
+          tort.setAttribute("cy", String(44 + 18 * Math.sin(th * 0.5)));
+        }
+      } else if (phase === "fermat") {
+        const tot = Number(msg.limit) || 6;
+        const i = Number(msg.i) || 0;
+        const fill = $("#viz-fermat-fill", root);
+        if (fill) fill.setAttribute("width", String((184 * i) / tot));
+        const a = $("#viz-fermat-a", root);
+        if (a) a.textContent = "a = " + (extra.base || "—");
+      } else if (phase === "p1") {
+        const b1 = $("#viz-p1-b1", root);
+        if (b1) b1.textContent = "B1 = " + (extra.B1 || "—");
+      } else if (phase === "pocklington") {
+        let frac = 0;
+        try {
+          const F = extra.F ? BigInt(extra.F) : BigInt(msg.i || "0");
+          const T = extra.target ? BigInt(extra.target) : BigInt(msg.limit || "1");
+          if (T > 0n) frac = Number((F * 164n) / T);
+        } catch (_) {
+          frac = 0;
+        }
+        const fbar = $("#viz-pock-f", root);
+        if (fbar) fbar.setAttribute("width", String(Math.min(164, Math.max(2, frac))));
+        const qel = $("#viz-pock-q", root);
+        if (qel) qel.textContent = extra.q ? "q | F = " + extra.q : "building F";
+      } else if (phase === "split") {
+        const bits = $("#viz-split-bits", root);
+        if (bits) bits.textContent = extra.bits ? extra.bits + "-bit cofactor" : extra.label || "cofactor";
+        const cut = $("#viz-split-cut", root);
+        if (cut) {
+          const tot = Number(msg.limit) || 1;
+          const i = Number(msg.i) || 0;
+          const x = 40 + ((i * 120) / Math.max(1, tot)) % 120;
+          cut.setAttribute("x1", String(x));
+          cut.setAttribute("x2", String(x));
+        }
+      } else if (phase === "precheck") {
+        const host = $("#viz-precheck-dots", root);
+        if (host && !host.childElementCount) {
+          const primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53];
+          host.innerHTML = primes
+            .map(function (p, idx) {
+              const x = 10 + idx * 12;
+              return (
+                '<circle class="viz-pd" data-p="' +
+                p +
+                '" cx="' +
+                x +
+                '" cy="40" r="4"/>'
+              );
+            })
+            .join("");
+        }
+        if (host) {
+          const cur = extra.p ? Number(extra.p) : 0;
+          host.querySelectorAll(".viz-pd").forEach(function (el) {
+            el.classList.toggle("active", Number(el.getAttribute("data-p")) === cur);
+          });
+        }
+      }
+    }
+
+    function phaseLabel(phase, extra) {
+      if (phase === "ecm") return "ECM curve " + (extra.sigma ? "σ=" + extra.sigma : "");
+      if (phase === "brent") return "Brent–Pollard on a cofactor";
+      if (phase === "fermat") return "Fermat a^{n−1} mod n";
+      if (phase === "p1") return "Pollard p−1 stage 1";
+      if (phase === "pocklington") return "Pocklington check on primes of F";
+      if (phase === "split") return extra.label || "factoring a cofactor of n−1";
+      if (phase === "precheck") return "small-prime / parity filter";
+      if (phase === "wheel") return "30-wheel trial division";
+      return phase;
     }
 
     function renderBusy(state) {
@@ -265,7 +506,8 @@
       out.innerHTML = `<p class="verdict">Checking…</p>
         <dl><dt>n</dt><dd>${escapeHtml(state.n)}</dd>
         <dt>⌊√n⌋</dt><dd>${state.isqrt}</dd>
-        <dt>candidate</dt><dd>${state.i || "—"}</dd></dl>`;
+        <dt>stage</dt><dd>${escapeHtml(state.stage || "—")}</dd>
+        <dt>step</dt><dd>${escapeHtml(state.i || "—")}</dd></dl>`;
     }
 
     function renderCert(state) {
@@ -279,7 +521,7 @@
           <dt>n</dt><dd>${escapeHtml(state.n)}</dd>
           <dt>path</dt><dd>${escapeHtml(state.path)}</dd>
           <dt>⌊√n⌋</dt><dd>${fmt(state.isqrt)}</dd>
-          ${state.factor != null ? `<dt>factor</dt><dd>${fmt(state.factor)}</dd>` : ""}
+          ${factorRows(state)}
           <dt>time</dt><dd>${Number(state.ms).toFixed(2)} ms</dd>
           <dt>note</dt><dd>${escapeHtml(state.note || "")}</dd>
         </dl>
@@ -328,19 +570,19 @@
       go.disabled = false;
       stop.disabled = true;
       bar.classList.remove("show");
-      hideOrrery();
+      hideStage();
       killWorker();
     }
 
     function run() {
       const n = parseN(input.value);
       if (n === null) {
-        hideOrrery();
+        hideStage();
         renderSimple("no", "Invalid n", "<p>Enter a non-negative decimal integer.</p>");
         return;
       }
       if (typeof Worker === "undefined") {
-        hideOrrery();
+        hideStage();
         renderSimple(
           "no",
           "No Web Worker",
@@ -367,9 +609,8 @@
       stop.disabled = false;
       bar.classList.add("show");
       barFill.style.width = "0%";
-      if (limit >= ORRERY_ISQRT) setOrrery(null, true);
-      else hideOrrery();
-      renderBusy({ n: n.toString(), isqrt: fmt(limit), i: "starting" });
+      showPhase("precheck");
+      renderBusy({ n: n.toString(), isqrt: fmt(limit), i: "starting", stage: "precheck" });
 
       try {
         worker = new Worker(workerUrl());
@@ -383,23 +624,17 @@
         const msg = ev.data || {};
         if (msg.type === "progress") {
           try {
-            const i = BigInt(msg.i);
-            const lim = BigInt(msg.limit);
+            const i = BigInt(msg.i || "0");
+            const lim = BigInt(msg.limit || "1");
             const pct = lim === 0n ? 100 : Number((i * 1000n) / lim) / 10;
-            barFill.style.width = Math.min(100, pct) + "%";
-            const factoring = lim > 0n && lim <= 10000n;
-            if (factoring) {
-              hideOrrery();
-              renderBusy({
-                n: n.toString(),
-                isqrt: fmt(isqrt(n)),
-                i: "n−1 ECM curve " + fmt(i) + " / " + fmt(lim),
-              });
-            } else {
-              const res = Number(i % 30n);
-              setOrrery(res, true);
-              renderBusy({ n: n.toString(), isqrt: fmt(lim), i: fmt(i) });
-            }
+            barFill.style.width = Math.min(100, Math.max(0, pct)) + "%";
+            applyPhase(msg);
+            renderBusy({
+              n: n.toString(),
+              isqrt: fmt(isqrt(n)),
+              stage: phaseLabel(msg.phase || "wheel", msg.extra || {}),
+              i: fmt(i) + " / " + fmt(lim),
+            });
           } catch (_) {
             /* ignore malformed progress */
           }
@@ -418,7 +653,7 @@
         if (msg.type === "done" && msg.result) {
           const res = msg.result;
           barFill.style.width = "100%";
-          hideOrrery();
+          hideStage();
           if (res.prime === null) {
             const title =
               res.path === "inconclusive" ? "Inconclusive here" : "No decision";
@@ -474,7 +709,7 @@
           /* ignore */
         }
         killWorker();
-        hideOrrery();
+        hideStage();
         renderSimple("busy", "Stopped", "<p>Trial cancelled.</p>");
         go.disabled = false;
         stop.disabled = true;

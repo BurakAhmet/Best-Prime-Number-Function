@@ -106,13 +106,55 @@
   font-size: 0.92rem;
   color: var(--muted);
 }
-.lab-orrery {
-  display: none;
-  margin: 0.9rem 0 0.2rem;
+.lab-stage {
+  margin: 0.85rem 0 0.15rem;
+}
+.lab-stage[hidden] { display: none !important; }
+.lab-viz {
+  margin: 0.35rem 0 0;
   text-align: center;
 }
-.lab-orrery.show, .lab-orrery:not([hidden]) { display: block; }
-.lab-orrery[hidden] { display: none !important; }
+.lab-viz[hidden] { display: none !important; }
+.lab-viz svg { width: min(100%, 280px); height: auto; }
+.lab-viz figcaption,
+.lab-stage-label {
+  margin: 0.2rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+.lab-stage-label { text-align: center; }
+.viz-title {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 11px;
+  fill: var(--ink);
+}
+.viz-mono { font-family: var(--mono); font-size: 9px; fill: var(--muted); }
+.viz-track { fill: rgba(27, 36, 55, 0.08); }
+.viz-fill { fill: var(--accent); }
+.viz-fill-alt { fill: var(--forest); opacity: 0.45; }
+.viz-curve { fill: none; stroke: var(--ink); stroke-width: 1.3; opacity: 0.55; }
+.viz-point { fill: var(--accent); }
+.viz-orbit { fill: none; stroke: rgba(27, 36, 55, 0.25); stroke-width: 1.2; }
+.viz-hare { fill: var(--accent); }
+.viz-tort { fill: var(--forest); }
+.viz-box { fill: none; stroke: rgba(27, 36, 55, 0.28); }
+.viz-cut { stroke: var(--accent); stroke-width: 1.6; }
+.viz-pd { fill: rgba(27, 36, 55, 0.22); }
+.viz-pd.active { fill: var(--accent); }
+.factor-hit {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1.05em;
+}
+.factor-missing { color: var(--muted); font-style: italic; }
+.lab-orrery {
+  display: block;
+  margin: 0.5rem 0 0.2rem;
+  text-align: center;
+}
 .lab-orrery svg { width: 148px; height: 148px; }
 .lab-orrery .orrery-ring {
   fill: none;
