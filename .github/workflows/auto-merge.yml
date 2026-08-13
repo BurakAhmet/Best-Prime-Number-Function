@@ -113,12 +113,16 @@ jobs:
                 c.status !== 'completed'
               );
 
-              testsGreen = testJobs.length >= 1 && testJobs.every(c =>
-                c.status === 'completed' && c.conclusion === 'success');
-              detGreen = detJobs.length >= 1 && detJobs.every(c =>
-                c.status === 'completed' && c.conclusion === 'success');
-              perfOk = perf.length === 0 || perf.every(c =>
-                c.status === 'completed' && (c.conclusion === 'success' || c.conclusion === 'skipped'));
+              // A skipped twin of the same check name (if: false job) must not
+              // block merge when another run with that name succeeded.
+              const ok = (c) =>
+                c.status === 'completed' &&
+                (c.conclusion === 'success' || c.conclusion === 'skipped' || c.conclusion === 'neutral');
+              const succeeded = (c) =>
+                c.status === 'completed' && c.conclusion === 'success';
+              testsGreen = testJobs.some(succeeded) && testJobs.every(ok);
+              detGreen = detJobs.some(succeeded) && detJobs.every(ok);
+              perfOk = perf.length === 0 || perf.every(ok);
 
               if (testsGreen && detGreen && perfOk && pendingGate.length === 0) break;
 

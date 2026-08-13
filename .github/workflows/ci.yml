@@ -37,7 +37,7 @@ jobs:
           if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
             matrix='[{"os":"ubuntu-latest","python-version":"3.9"},{"os":"ubuntu-latest","python-version":"3.10"},{"os":"ubuntu-latest","python-version":"3.11"},{"os":"ubuntu-latest","python-version":"3.12"},{"os":"ubuntu-latest","python-version":"3.13"},{"os":"macos-latest","python-version":"3.12"},{"os":"windows-latest","python-version":"3.12"}]'
           else
-            # PR-lite (docs-only uses test-docs-skip for the required check name)
+            # PR-lite: single Linux 3.12 cell (docs-only still runs this job, cheap path)
             matrix='[{"os":"ubuntu-latest","python-version":"3.12"}]'
           fi
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
@@ -60,21 +60,12 @@ jobs:
       - run: ruff check best_prime/certificate.py best_prime/factor_ecm.py best_prime/factor_siqs.py
       - run: mypy
 
-  # Branch protection requires this exact check name. Docs-only PRs still report green.
-  test-docs-skip:
-    name: Tests (ubuntu-latest / Python 3.12)
-    needs: [plan]
-    if: needs.plan.outputs.code == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "Docs/meta-only change — full test suite skipped."
-          echo "Required check name kept green for branch protection."
-
+  # Always publish the required check name (never a skipped twin).
+  # Docs-only: same job, cheap checkout + note. Code: full suite.
   test:
     name: Tests (${{ matrix.os }} / Python ${{ matrix.python-version }})
     needs: [plan]
-    if: needs.plan.outputs.code == 'true'
+    if: needs.plan.result == 'success'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -84,7 +75,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Docs/meta-only — required check green
+        if: needs.plan.outputs.code == 'false'
+        run: |
+          echo "Docs/meta-only change — full test suite skipped."
+          echo "Required check name kept green for branch protection."
+
       - name: Set up Python
+        if: needs.plan.outputs.code == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -92,35 +90,36 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install build tools for OpenMP wheel core (Linux)
-        if: runner.os == 'Linux'
+        if: needs.plan.outputs.code == 'true' && runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends gcc libgomp1
 
       - name: Install libomp (macOS)
-        if: runner.os == 'macOS'
+        if: needs.plan.outputs.code == 'true' && runner.os == 'macOS'
         run: brew install libomp || true
 
       - name: Install package and test extras
+        if: needs.plan.outputs.code == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[fast,test]"
 
       - name: Build wheel_core.so
-        if: runner.os != 'Windows'
+        if: needs.plan.outputs.code == 'true' && runner.os != 'Windows'
         continue-on-error: ${{ runner.os == 'macOS' }}
         run: bash scripts/compile_wheel_core.sh
 
       - name: Restriction linter
-        if: runner.os != 'Windows'
+        if: needs.plan.outputs.code == 'true' && runner.os != 'Windows'
         run: python3 scripts/check_restrictions.py
 
       - name: Wiki sync
-        if: runner.os != 'Windows'
+        if: needs.plan.outputs.code == 'true' && runner.os != 'Windows'
         run: python3 scripts/check_wiki_sync.py
 
       - name: Build library guide (MkDocs)
-        if: matrix.python-version == '3.12' && runner.os == 'Linux'
+        if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux'
         run: |
           pip install -e ".[docs]"
           mkdocs build --strict --site-dir /tmp/guide-site
@@ -130,18 +129,18 @@ jobs:
 
       # Single pytest pass on Linux 3.12 (with coverage); other cells run fast tests only.
       - name: Run tests (with coverage on Linux 3.12)
-        if: matrix.python-version == '3.12' && runner.os == 'Linux'
+        if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux'
         run: |
           pip install pytest-cov
           pytest -q -m "not slow" --cov=best_prime --cov-report=term-missing --cov-report=xml
           test -f coverage.xml
 
       - name: Run fast tests
-        if: matrix.python-version != '3.12' || runner.os != 'Linux'
+        if: needs.plan.outputs.code == 'true' && (matrix.python-version != '3.12' || runner.os != 'Linux')
         run: pytest -q -m "not slow"
 
       - name: Assert C engine on Linux
-        if: runner.os == 'Linux'
+        if: needs.plan.outputs.code == 'true' && runner.os == 'Linux'
         run: |
           python - <<'PY'
           from best_prime.is_prime import lab, _load_c_core
@@ -157,6 +156,7 @@ jobs:
           PY
 
       - name: Smoke CLI
+        if: needs.plan.outputs.code == 'true'
         shell: bash
         run: |
           python -c "from best_prime.is_prime import is_prime; assert is_prime(17) and not is_prime(0) and not is_prime(1)"
@@ -169,7 +169,7 @@ jobs:
           grep -q 'RESULT:  prime' "$RUNNER_TEMP/cli_out.txt"
 
       - name: Engine sample for attestation
-        if: matrix.python-version == '3.12' && runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux' && needs.plan.outputs.full == 'true'
         run: |
           python - <<'PY'
           import json
@@ -184,7 +184,7 @@ jobs:
           )
           PY
       - name: Upload engine sample
-        if: matrix.python-version == '3.12' && runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux' && needs.plan.outputs.full == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: engine-sample

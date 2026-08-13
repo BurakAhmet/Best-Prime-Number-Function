@@ -30,10 +30,16 @@ def test_ci_job_name_template_is_cross_platform() -> None:
     assert "Tests (${{ matrix.os }} / Python ${{ matrix.python-version }})" in CI
 
 
-def test_ci_has_docs_skip_required_check_name() -> None:
-    assert "name: Tests (ubuntu-latest / Python 3.12)" in CI
-    assert "test-docs-skip" in CI
+def test_ci_has_single_required_test_job() -> None:
+    assert "Tests (${{ matrix.os }} / Python ${{ matrix.python-version }})" in CI
+    assert "test-docs-skip" not in CI
+    assert "Docs/meta-only — required check green" in CI
     assert "plan:" in CI
+
+
+def test_auto_merge_ignores_skipped_duplicate_required_checks() -> None:
+    assert "testJobs.some(succeeded)" in AUTO_MERGE
+    assert "detJobs.some(succeeded)" in AUTO_MERGE
 
 
 def test_ci_tiers_full_matrix_on_main() -> None:
