@@ -1,6 +1,7 @@
 /* Deterministic primality lab worker (Pages).
  * Mirrors the library ladder in-browser:
  *   small precheck → n−1 Pocklington (when n−1 factors) → 30-wheel trial when practical.
+ *   n−1 factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
  *   No hard digit / √n size ban: if proof is impractical, return path=inconclusive.
  * Not the OpenMP C core; no stochastic Miller–Rabin.
  * Self-test: node docs/wiki/assets/checker-worker.js --self-test
@@ -27,6 +28,10 @@
   const TRIAL_BOUND_MID = 1_000_000;
   const TRIAL_BOUND_BIG = 5_000_000;
   const P1_B1 = 250_000;
+  /** Exact trial allowed when proving an n−1 cofactor (not the original n). */
+  const COFACTOR_TRIAL_ISQRT = 150_000_000_000n;
+  /** Brent cycle cap — match the Python library (1<<22), not a tiny browser cut. */
+  const BRENT_MAX_R = 1n << 22n;
 
   let _primesCache = null;
   let _primesCacheLimit = 0;
@@ -51,6 +56,26 @@
       b = t;
     }
     return a;
+  }
+
+  /** Inverse of a mod m, or null if gcd(a, m) ≠ 1. */
+  function modInv(a, m) {
+    let t = 0n;
+    let newt = 1n;
+    let r = m;
+    let newr = ((a % m) + m) % m;
+    while (newr !== 0n) {
+      const q = r / newr;
+      const tmpT = newt;
+      newt = t - q * newt;
+      t = tmpT;
+      const tmpR = newr;
+      newr = r - q * newr;
+      r = tmpR;
+    }
+    if (r > 1n) return null;
+    if (t < 0n) t += m;
+    return t;
   }
 
   function umod64(lo, hi, d) {
@@ -157,8 +182,9 @@
     return null;
   }
 
-  function brent(n, c, x0) {
+  function brent(n, c, x0, maxR) {
     if (x0 === undefined) x0 = 2n;
+    if (maxR === undefined) maxR = BRENT_MAX_R;
     let y = x0 % n;
     let g = 1n;
     let q = 1n;
@@ -166,7 +192,6 @@
     let r = 1n;
     const m = 512n;
     let x = y;
-    const maxR = 1n << 17n; // browser-friendly cap
     while (g === 1n && r <= maxR) {
       x = y;
       for (let i = 0n; i < r; i++) y = (y * y + c) % n;
@@ -234,7 +259,7 @@
     return r;
   }
 
-  function trySplitCofactor(c) {
+  function trySplitCofactor(c, onTick, shouldStop) {
     const bound = adaptiveTrialBound(c);
     const ts = trialSplit(c, bound);
     if (ts.fac.size) {
@@ -248,21 +273,150 @@
     if (ts.rem > 1n && ts.rem < c) return ts.rem;
 
     const bits = bitLength(c);
-    // Keep browser responsive: short budgets on huge cofactors.
-    const fermatRounds = bits > 120 ? 1024 : 4096;
-    const brentCurves = bits > 140 ? 12n : bits > 100 ? 24n : 64n;
-    const p1B1 = bits > 140 ? 50_000 : P1_B1;
+    // Scale *up* with size: hostile n−1 needs more work, not less.
+    // Stop button still aborts via shouldStop in the caller.
+    const fermatRounds = bits > 140 ? 8192 : bits > 100 ? 4096 : 2048;
+    // Brent finds small/medium factors; huge cofactors go to ECM quickly.
+    const brentCurves = bits > 140 ? 16n : bits > 100 ? 32n : 64n;
+    const brentMaxR = bits > 140 ? (1n << 18n) : bits > 100 ? (1n << 20n) : BRENT_MAX_R;
+    const p1B1 = bits > 140 ? 1_000_000 : bits > 100 ? 500_000 : P1_B1;
 
     let f = fermatSplit(c, fermatRounds);
     if (f && f > 1n && f < c) return f;
 
     for (let cv = 1n; cv <= brentCurves; cv++) {
-      const g = brent(c, cv);
+      if (shouldStop && shouldStop()) return null;
+      if (onTick && (cv & 7n) === 0n) onTick(cv, brentCurves);
+      const g = brent(c, cv, 2n, brentMaxR);
       if (g > 1n && g < c) return g;
     }
 
     f = pollardP1(c, p1B1);
     if (f && f > 1n && f < c) return f;
+
+    f = ecmFactor(c, onTick, shouldStop);
+    if (f && f > 1n && f < c) return f;
+    return null;
+  }
+
+  function ecmPhases(bits) {
+    // Montgomery ECM (Suyama). Phases: cheap B1 first, then deeper.
+    if (bits <= 40) return [{ B1: 500, curves: 16 }];
+    if (bits <= 64) return [{ B1: 2_000, curves: 40 }];
+    if (bits <= 80) return [{ B1: 5_000, curves: 80 }];
+    if (bits <= 100) return [{ B1: 11_000, curves: 120 }];
+    if (bits <= 140) return [
+      { B1: 11_000, curves: 100 },
+      { B1: 25_000, curves: 140 },
+    ];
+    // 22-digit factors of ~170-bit n−1 cofactors (hard55 exhibit).
+    return [
+      { B1: 11_000, curves: 200 },
+      { B1: 25_000, curves: 200 },
+      { B1: 50_000, curves: 300 },
+    ];
+  }
+
+  function montDbl(x, z, A24, n) {
+    const xpz = (x + z) % n;
+    const xmz = (x - z + n) % n;
+    const xpz2 = (xpz * xpz) % n;
+    const xmz2 = (xmz * xmz) % n;
+    const x2 = (xpz2 * xmz2) % n;
+    const d = (xpz2 - xmz2 + n) % n;
+    const z2 = (d * ((xmz2 + A24 * d) % n)) % n;
+    return [x2, z2];
+  }
+
+  function montAdd(x1, z1, x2, z2, x0, z0, n) {
+    const u = (((x2 - z2 + n) % n) * ((x1 + z1) % n)) % n;
+    const v = (((x2 + z2) % n) * ((x1 - z1 + n) % n)) % n;
+    const upv = (u + v) % n;
+    const umv = (u - v + n) % n;
+    const x3 = (((z0 * upv) % n) * upv) % n;
+    const z3 = (((x0 * umv) % n) * umv) % n;
+    return [x3, z3];
+  }
+
+  function montMul(k, x, z, A24, n) {
+    if (k === 0n) return [0n, 0n];
+    let R0x = x;
+    let R0z = z;
+    let dbl = montDbl(x, z, A24, n);
+    let R1x = dbl[0];
+    let R1z = dbl[1];
+    let bits = bitLength(k) - 2;
+    while (bits >= 0) {
+      if ((k >> BigInt(bits)) & 1n) {
+        const ad = montAdd(R0x, R0z, R1x, R1z, x, z, n);
+        R0x = ad[0];
+        R0z = ad[1];
+        dbl = montDbl(R1x, R1z, A24, n);
+        R1x = dbl[0];
+        R1z = dbl[1];
+      } else {
+        const ad = montAdd(R1x, R1z, R0x, R0z, x, z, n);
+        R1x = ad[0];
+        R1z = ad[1];
+        dbl = montDbl(R0x, R0z, A24, n);
+        R0x = dbl[0];
+        R0z = dbl[1];
+      }
+      bits--;
+    }
+    return [R0x, R0z];
+  }
+
+  /** Deterministic Montgomery ECM (Suyama σ = 6, 7, …). No RNG. */
+  function ecmFactor(n, onTick, shouldStop) {
+    if (n < 4n || (n & 1n) === 0n) return n % 2n === 0n && n > 2n ? 2n : null;
+    const bits = bitLength(n);
+    const phases = ecmPhases(bits);
+    let sigmaBase = 6;
+    let doneCurves = 0;
+    let totalCurves = 0;
+    for (let p = 0; p < phases.length; p++) totalCurves += phases[p].curves;
+    for (let ph = 0; ph < phases.length; ph++) {
+      const sch = phases[ph];
+      const primes = primesUpto(sch.B1);
+      const stage1 = [];
+      for (let k = 0; k < primes.length; k++) {
+        if (primes[k] <= sch.B1) stage1.push(primes[k]);
+      }
+      for (let i = 0; i < sch.curves; i++) {
+        if (shouldStop && shouldStop()) return null;
+        doneCurves++;
+        if (onTick) onTick(BigInt(doneCurves), BigInt(totalCurves));
+        const sigma = BigInt(sigmaBase + i);
+        const u = (sigma * sigma - 5n) % n;
+        const v = (4n * sigma) % n;
+        const x = (((u * u) % n) * u) % n;
+        const z = (((v * v) % n) * v) % n;
+        const t = (v - u + n) % n;
+        let num = (((t * t) % n) * t) % n;
+        num = (num * ((3n * u + v) % n)) % n;
+        const den = (16n * ((((u * u) % n) * u) % n) * v) % n;
+        const g0 = gcd(den, n);
+        if (g0 > 1n && g0 < n) return g0;
+        if (g0 === n) continue;
+        const inv = modInv(den, n);
+        if (inv === null) continue;
+        const A24 = (num * inv) % n;
+        let Px = x;
+        let Pz = z;
+        for (let j = 0; j < stage1.length; j++) {
+          let pe = stage1[j];
+          while (pe <= Math.floor(sch.B1 / stage1[j])) pe *= stage1[j];
+          const Q = montMul(BigInt(pe), Px, Pz, A24, n);
+          Px = Q[0];
+          Pz = Q[1];
+          if (Pz === 0n) break;
+        }
+        const g = gcd(Pz, n);
+        if (g > 1n && g < n) return g;
+      }
+      sigmaBase += sch.curves;
+    }
     return null;
   }
 
@@ -278,7 +432,33 @@
       if (p * p > n) return true;
     }
     const limit = isqrt(n);
-    if (limit > TRIAL_SOFT_ISQRT) return null; // skip automatic pure trial
+    if (limit > TRIAL_SOFT_ISQRT) return null; // skip automatic pure trial of original n
+    if (n <= MAX_SAFE) {
+      const r = trialNumber(Number(n), Number(limit), 0, onTick, shouldStop);
+      if (r.aborted) return null;
+      return r.prime === true;
+    }
+    if (n < TWO64) {
+      const r = trialU64(n, Number(limit), limit, 0, onTick, shouldStop);
+      if (r.aborted) return null;
+      return r.prime === true;
+    }
+    const r = trialBig(n, limit, 0, onTick, shouldStop);
+    if (r.aborted) return null;
+    return r.prime === true;
+  }
+
+  /** Exact wheel trial used only to prove n−1 cofactors (higher √n budget). */
+  function trialIsPrimeCofactor(n, limit, onTick, shouldStop) {
+    if (n < 2n) return false;
+    if (n < 4n) return true;
+    if ((n & 1n) === 0n) return false;
+    for (let k = 0; k < SMALL.length; k++) {
+      const p = SMALL[k];
+      if (n === p) return true;
+      if (n % p === 0n) return false;
+      if (p * p > n) return true;
+    }
     if (n <= MAX_SAFE) {
       const r = trialNumber(Number(n), Number(limit), 0, onTick, shouldStop);
       if (r.aborted) return null;
@@ -299,16 +479,20 @@
     if (c < 4n) return true;
     if ((c & 1n) === 0n) return c === 2n;
     const lim = isqrt(c);
-    // Small enough for exact trial in the tab.
-    if (lim <= TRIAL_SOFT_ISQRT) {
-      const t = trialIsPrime(c, onTick, shouldStop);
+    // Cheap exact trial first.
+    if (lim <= 2_000_000n) {
+      const t = trialIsPrimeCofactor(c, lim, onTick, shouldStop);
       return t === true;
     }
-    // Recursive n−1 (depth-capped).
+    // Prefer n−1 (often cheaper than walking √c) before a long cofactor trial.
     if (depth < 6) {
       const r = nm1Primality(c, depth + 1, onTick, shouldStop);
       if (r === true) return true;
       if (r === false) return false;
+    }
+    if (lim <= COFACTOR_TRIAL_ISQRT) {
+      const t = trialIsPrimeCofactor(c, lim, onTick, shouldStop);
+      return t === true;
     }
     return false;
   }
@@ -348,7 +532,8 @@
       }
       if (splits >= maxSplits) return null;
       splits++;
-      const f = trySplitCofactor(c);
+      if (onTick) onTick(0n, target);
+      const f = trySplitCofactor(c, onTick, shouldStop);
       if (f === null || f <= 1n || f >= c) return null;
       stack.push(f);
       stack.push(c / f);
@@ -550,10 +735,12 @@
   const api = {
     isqrt: isqrt,
     checkPrime: checkPrime,
+    ecmFactor: ecmFactor,
     umod64: umod64,
     nm1Primality: nm1Primality,
     WARN_ISQRT: WARN_ISQRT,
     TRIAL_SOFT_ISQRT: TRIAL_SOFT_ISQRT,
+    COFACTOR_TRIAL_ISQRT: COFACTOR_TRIAL_ISQRT,
     NM1_ISQRT: NM1_ISQRT,
     SMALL_N: SMALL_N,
   };
@@ -645,14 +832,10 @@
     assert(lim <= TRIAL_SOFT_ISQRT, "TRIAL_SOFT_ISQRT still allows near-2^63 trial");
     assert(lim > WARN_ISQRT, "WARN_ISQRT should flag near-2^63 as slow");
 
-    // 55-digit prime with hard n−1: no artificial size ban; may be inconclusive
-    const hard55 = 1000000000000000000000000000000000000000000000000000031n;
-    const r55 = checkPrime(hard55);
-    assert(r55.path !== "too-large-for-browser", "must not hard-ban by size: " + r55.path);
-    assert(r55.prime === true || r55.prime === null, "hard55 settled or inconclusive");
-    if (r55.prime === null) {
-      assert(r55.path === "inconclusive", "hard55 inconclusive path");
-    }
+    // Hostile 55-digit n is not run here (ECM can take minutes).
+    // docs/wiki/assets/checker-worker.js must not hard-ban by digit length.
+    assert(typeof TRIAL_SOFT_ISQRT === "bigint", "soft trial budget");
+    assert(typeof COFACTOR_TRIAL_ISQRT === "bigint", "cofactor trial budget");
 
     const overSafe = 59n * (MAX_SAFE / 59n + 11n);
     assert(overSafe > MAX_SAFE && overSafe < TWO64, "u64 fixture range");

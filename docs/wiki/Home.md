@@ -7,7 +7,7 @@
 
 ## Interactive lab
 
-Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **n−1 Pocklington** when $n-1$ factors, else exact 30-wheel trial. No digit-length limit: multi-limb $n$ try **n−1 Pocklington** first (CLI default 147-bit is typically sub-second). If $n-1$ cannot be factored enough for a proof and pure trial is impractical, the lab reports **inconclusive** rather than spinning forever — use the Python library for longer ECM/SIQS. Long pure-trial runs show the wheel-30 orrery; results are downloadable certificates.
+Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **n−1 Pocklington** when $n-1$ factors (trial / Brent / $p-1$ / **Montgomery ECM**), else exact 30-wheel trial. No digit-length limit: smooth $n-1$ (CLI default 147-bit) is typically sub-second; hostile $n-1$ (e.g. $10^{54}+31$) can take a minute or two of background ECM. If a proof is still impractical, the lab reports **inconclusive** rather than spinning forever. Long runs show the wheel-30 orrery; results are downloadable certificates.
 
 <!-- acta-specimen -->
 
@@ -116,7 +116,7 @@ is_prime(n)
 | Workflow | Role |
 |----------|------|
 | **CI** | Build `.so`, tests, wiki sync, **e2e** perf vs previous commit, C-path assert on Linux |
-| **Determinism** | Repeated serial/parallel trials must agree |
+| **Determinism** | Gate after repeated serial/parallel trials (PR: 3.12 only; main: multi-version) |
 | **Issue agent** | Auto-answers + briefs restrictions |
 | **PR agent** | Briefs agents; auto-approves *same-repo* PRs only |
 | **Prime of the day** | Daily challenge + hall-of-fame log (`path` + e2e ms) |
