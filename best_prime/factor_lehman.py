@@ -36,11 +36,12 @@ _PRODUCT_BATCH = 128
 # A full budget of k ≤ ceil(n^{1/3}) is complete (None ⇒ prime / 0 / 1)
 # only while the cube root is this small.
 # - Pure Python: 3e6 covers every 64-bit n.
-# - OpenMP C: 2e9 covers n up to ~8e27 (and 4·k·n still fits in 128 bits).
-#   Cost scales ~Θ(n^{1/3}); near the edge a prime proof can take tens of
-#   seconds to a few minutes. Beyond this, is_prime falls back to trial / AKS.
+# - OpenMP C: no artificial cub cap — completeness is gated only by
+#   4·k·n fitting in 128 bits (see _fits_c_lehman / cubic_complete_ready).
+#   LEHMAN_COMPLETE_CUB_MAX_C is kept as a documented upper bound on the
+#   uint64 cube-root domain of the C engine (~2^64−1), not a product limit.
 LEHMAN_COMPLETE_CUB_MAX = 3_000_000
-LEHMAN_COMPLETE_CUB_MAX_C = 2_000_000_000
+LEHMAN_COMPLETE_CUB_MAX_C = (1 << 63) - 1
 
 
 def _ceil_isqrt(n: int) -> int:
@@ -117,16 +118,13 @@ U64_CUBIC_ISQRT_MIN = 10_000_000
 def cubic_complete_ready(n: int) -> bool:
     """True when OpenMP C can finish a full cubic proof used by ``is_prime``.
 
-    Covers every ``n ≥ 2^{64}`` in budget, and 64-bit n with
-    ``isqrt(n) ≥ U64_CUBIC_ISQRT_MIN`` (hard primes / large semiprimes).
-    Smaller 64-bit n stay on wheel trial (faster there).
+    Gated only by the C engine: ``lehman_factor_u128`` present and
+    ``4·k·n`` fits in 128 bits for every ``k ≤ ⌈n^{1/3}⌉``. No separate
+    artificial cube-root product cap. Hard 64-bit only when
+    ``isqrt(n) ≥ U64_CUBIC_ISQRT_MIN`` (mid-size stays wheel trial).
     """
     cub = _ceil_icbrt(n)
-    if not (
-        _c_lehman_ready()
-        and _fits_c_lehman(n, cub)
-        and cub <= LEHMAN_COMPLETE_CUB_MAX_C
-    ):
+    if not (_c_lehman_ready() and _fits_c_lehman(n, cub)):
         return False
     if n >= (1 << 64):
         return True

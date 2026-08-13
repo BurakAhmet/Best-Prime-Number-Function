@@ -123,7 +123,7 @@ class TestCSerialParallelAgree:
         from tests.numbers import DEFAULT_CLI_N
 
         assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 73
+        assert DEFAULT_N.bit_length() == 84
 
 
 class TestCU128Path:

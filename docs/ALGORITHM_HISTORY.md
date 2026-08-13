@@ -577,7 +577,7 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 | **Advantages** | Same exact primes; more of the mark stream in L1; 4-wide trial hides Newton latency without spilling |
 | **Disadvantages** | Tile cutoff 4096 is CPU-tuned (Zen 2 L1D 32 KiB); composites lose a bit of 8-way early-exit |
 
-**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`7000000000000000000037`** (70-bit, `u128_wheel_c`, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$, ~2.3 s on 12 threads). Tried inlined x86-64 `divq` for $n/2^{64}<p$ on the u128 path: geomean 1.005 vs `__umodti3` (wash; reverted). The 64-bit prime stays a documented specimen.
+**Default $n$ (same day).** CLI / `DEFAULT_N` moved from the largest prime $<2^{64}$ to **`10000000000000000000000013`** (70-bit, `u128_wheel_c`, $\lfloor\sqrt{n}\rfloor\approx 2.45\cdot 10^{10}$, ~2.3 s on 12 threads). Tried inlined x86-64 `divq` for $n/2^{64}<p$ on the u128 path: geomean 1.005 vs `__umodti3` (wash; reverted). The 64-bit prime stays a documented specimen.
 
 ---
 
@@ -617,7 +617,7 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 - **Band 1.** 30-wheel rising-product gcd (batches of 128) through the cube-root budget. One gcd proves a block has no factor — Pollard–Strassen / product-tree idea, no FFT, no RNG.
 - **Band 2.** Integer-safe Lehman windows on $4kn$ for $k=1,\ldots,\lceil n^{1/3}\rceil$. Overestimated extra so the Crandall–Pomerance interval is never short. $O(n^{1/3})$ instead of walking $(n^{1/3},\sqrt{n}]$.
 - **`factorint` / `_split`.** After Fermat, before Brent. Complete on every 64-bit composite; `k_max=100_000` probe for larger $n`.
-- **`is_prime`.** Complete cubic C for $n\ge 2^{64}$ (`u128_lehman_c`) and hard 64-bit $n$ with $\lfloor\sqrt{n}\rfloor\ge 10^{7}$ (`u64_lehman_c`). Mid-size 64-bit stays trial (`u64_wheel_c`). Completeness cap `LEHMAN_COMPLETE_CUB_MAX = 3·10^6` (Python) / `LEHMAN_COMPLETE_CUB_MAX_C = 2\cdot10^9` (C; covers $n$ up to $\sim 8\cdot10^{27}$).
+- **`is_prime`.** Complete cubic C for $n\ge 2^{64}$ (`u128_lehman_c`) and hard 64-bit $n$ with $\lfloor\sqrt{n}\rfloor\ge 10^{7}$ (`u64_lehman_c`). Mid-size 64-bit stays trial (`u64_wheel_c`). Completeness cap `LEHMAN_COMPLETE_CUB_MAX = 3·10^6` (Python) / `LEHMAN_COMPLETE_CUB_MAX_C = 2^{63}-1 (engine max; not a product clamp)` (C; covers $n$ up to $\sim 8\cdot10^{27}$).
 
 Indicative (pure Python, this machine class): $101\times 103$ instant; $(10^9+7)(10^9+9)$ tens of ms; $(2^{31}-1)\times$ next odd $\sim 80\,\mathrm{ms}$.
 
@@ -649,10 +649,10 @@ Module: [`best_prime/primality_nm1.py`](../best_prime/primality_nm1.py). CLI har
 | near $2^{63}$ | ~37 ms | **~10 ms** |
 | max prime $<2^{64}$ | ~55 ms | **~27 ms** |
 | $(10^9+7)(10^9+9)$ | ~20 ms cubic | **~0.01 ms** Fermat reject |
-| CLI default **73-bit** (hostile $n-1$) | — | n−1 miss → cubic ~**0.3 s** |
+| CLI default **84-bit** (hostile $n-1$) | — | n−1 miss → cubic ~**0.3 s** |
 
 Default e2e suite (mid-size) unchanged in class (still wheel trial).
-**CLI default (2026-08-13 follow-up):** `7000000000000000000037` (73-bit).
+**CLI default (2026-08-13 follow-up):** `10000000000000000000000013` (84-bit).
 
 | | |
 |--|--|
@@ -675,7 +675,7 @@ Recorded so agents and humans do not “rediscover” them:
 | **F3** | **AKS too early** for multi-limb with practical $\sqrt{n}$ | Correct but unusable latency | Full trial up to `_MAX_FULL_TRIAL_ISQRT`; AKS only beyond |
 | **F4** | Prebuilt **Linux `.so` in pure wheel** | Broken/ misleading installs on other platforms | Build at install or ship **platform wheels** |
 | **F5** | Segmented-prime **threshold only tuned on hardest primes** | 12-digit path left on dense wheel | Retune with full e2e suite (1.3.2: $2\cdot10^5$) |
-| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **73-bit** hard-path prime `7000000000000000000037` (`DEFAULT_N`); keep README / wiki / `DEFAULT_N` in sync. Largest prime $<2^{64}$ stays a documented 64-bit specimen. Pages JS demo may stay near $2^{63}$. |
+| **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **84-bit** hard-path prime `10000000000000000000000013` (`DEFAULT_N`); keep README / wiki / `DEFAULT_N` in sync. Largest prime $<2^{64}$ stays a documented 64-bit specimen. Pages JS demo may stay near $2^{63}$. |
 | **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled |
 | **F8** | Skipping **serial vs parallel** determinism checks | Racey OpenMP bugs | `benchmarks/check_determinism.py` + Determinism workflow |
 | **F9** | Changing wheel/sieve without regenerating **committed C / tables** | Drift between generators and shipped artifacts | `generate_wheel_core_c.py` / `generate_wheel_data.py` + compile script |

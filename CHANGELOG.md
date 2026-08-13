@@ -8,14 +8,13 @@ All notable changes to this project are documented in this file.
 - **n−1 Pocklington primality** (`best_prime/primality_nm1.py`) on the hard path: factor $n-1$, prove prime with fixed bases. Deterministic; not Miller–Rabin. Complete cubic search remains the fallback when $n-1$ is hostile. Guide: `docs/guide/nm1-proof.md`.
 - Python **3.9 import fix**: type alias uses `Optional[bool]` (not `X | Y` at runtime) so hard-path imports do not crash on 3.9.
 - **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to $\lceil n^{1/3}\rceil$, then integer-safe Lehman windows. Complete through every 64-bit $n$; hard-path fallback and `factorint` splitter. Guide: `docs/guide/cubic-search.md`.
-- OpenMP **`lehman_factor_u128`** complete cubic budget raised to cube root ≤ **2·10⁹** (`LEHMAN_COMPLETE_CUB_MAX_C`; was 3·10⁷ / earlier 2·10⁷). Covers complete hard-path proofs for $n$ up to about **8·10²⁷** while $4kn$ still fits in 128 bits. Near the edge a prime proof can take tens of seconds to minutes (cost $\sim n^{1/3}$). Used when n−1 is inconclusive.
+- OpenMP cubic completeness is **engine-limited only**: any $n$ with $4kn$ in 128 bits for $k\le\lceil n^{1/3}\rceil$ (no artificial cube-root product cap).
+- n−1 cofactor primality uses full `is_prime` (recursive Pocklington) instead of forcing cubic on large prime cofactors.
 
 ### Changed
-- Hard 64-bit / CLI-default `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit (e.g. $10^{9}+7$) stays `u64_wheel_c`.
-- Indicative same-machine wins vs pure cubic: CLI default e2e ~**3 ms** (was ~**130–150 ms**); M61 check ~**0.3 ms** (was ~**33 ms**); near $2^{63}$ ~**10 ms** (was ~**37 ms**).
-- CLI `is-prime` prints **`FACTOR:`** when the number is composite (one proper divisor).
-- CLI / `DEFAULT_N` is **`7000000000000000000037`** (73-bit prime; $n-1$ has a large cofactor so the path is usually cubic after a short n−1 attempt). The former 70-bit smooth-$n-1$ specimen `600000000000000000001` remains a documented n−1 benchmark. The largest prime $<2^{64}$ remains a documented 64-bit specimen.
-- Hard-path `wheel_core`: L1 tiles now cover primes $p<4096$ (was $256$), and 8-way wrap-mul trial is two GPR-friendly groups of 4 with an early exit between them.
+- Hard 64-bit / multi-limb `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit stays `u64_wheel_c`.
+- CLI / `DEFAULT_N` is **`10000000000000000000000013`** (84-bit; n−1 Pocklington). E2E CLI **~7 ms** on this machine (target ≤299 ms). Former smooth specimen `600000000000000000001` remains `SMOOTH_NM1_PRIME` in tests.
+- CLI `is-prime` prints **`FACTOR:`** when composite.
 
 ### Docs
 - README / wiki / guide: n−1 + cubic dispatch; new `nm1-proof.md`.

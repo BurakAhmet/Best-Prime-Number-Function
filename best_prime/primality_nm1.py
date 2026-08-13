@@ -31,12 +31,13 @@ from typing import Optional
 # Fixed witness list for Pocklington (and Fermat prefilter). Deterministic.
 _BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
 
-# Trial bound on n−1 before invoking cubic split / cofactor primality.
-_TRIAL_BOUND = 1_000_000
+# Trial bound on n−1 before invoking is_prime / cubic on the cofactor.
+# Kept modest: pure-Python trial to 1e6 dominates e2e on multi-limb n−1.
+_TRIAL_BOUND = 100_000
 
-# Give up n−1 factoring when the remaining cofactor exceeds this bit length
-# without a quick split (avoids spending more than cubic on hostile n−1).
-_COFACTOR_BIT_GIVE_UP = 56
+# After trial + is_prime/cubic split attempts, give up only if a cofactor
+# is still composite and larger than this (hostile n−1 → cubic on n).
+_COFACTOR_BIT_GIVE_UP = 96
 
 # True / False / None. Use Optional[bool] (not X | Y) so import works on 3.9:
 # PEP 604 unions are 3.10+, and this alias is evaluated at runtime.
@@ -69,46 +70,27 @@ def _trial_split(m: int, bound: int) -> tuple[dict[int, int], int]:
 
 
 def _cofactor_is_prime(c: int, *, parallel: bool) -> bool:
-    """Primality of a factor of n−1 without re-entering the n−1 prover."""
+    """Primality of a factor of n−1.
+
+    Uses the full ``is_prime`` ladder (including n−1 Pocklington on the
+    cofactor). Recursion is safe: every cofactor is strictly smaller than
+    the original n. Avoids proving large prime cofactors with a full cubic
+    search when their own n−1 is smooth (often 100× faster).
+    """
     if c < 2:
         return False
     if c < 10_000:
         from .is_prime import _is_prime_small
 
         return _is_prime_small(c)
-    from .factor_lehman import cubic_complete_ready, lehman_factor
-    from .is_prime import (
-        _PURE_WHEEL_MAX_N,
-        _is_prime_python_wheel,
-        _is_prime_u64,
-        _is_prime_u128_c,
-        _load_c_core,
-    )
+    from .is_prime import is_prime
 
-    if cubic_complete_ready(c):
-        return lehman_factor(c, parallel=parallel) is None
-    if c < (1 << 64):
-        if _load_c_core():
-            return _is_prime_u64(c, parallel)
-        if c <= _PURE_WHEEL_MAX_N:
-            return _is_prime_python_wheel(c)
-        return _is_prime_u64(c, parallel)
-    if c.bit_length() <= 128:
-        r = _is_prime_u128_c(c, parallel)
-        if r is not None:
-            return r
-        from .factor_lehman import lehman_factor as lf
-
-        # Last resort for 65–128-bit cofactors without u128 core: cubic if ready.
-        if cubic_complete_ready(c):
-            return lf(c, parallel=parallel) is None
-    # Too large / no engine — treat as unconfirmed.
-    return False
+    return bool(is_prime(c, parallel=parallel))
 
 
 def _factor_completely(m: int, *, parallel: bool) -> dict[int, int] | None:
     """Full prime factorization of m, or None if a cofactor will not split."""
-    from .factor_lehman import lehman_factor
+    from .factor_lehman import cubic_complete_ready, lehman_factor
 
     fac, rem = _trial_split(m, _TRIAL_BOUND)
     stack = [rem] if rem > 1 else []
@@ -116,7 +98,7 @@ def _factor_completely(m: int, *, parallel: bool) -> dict[int, int] | None:
         c = stack.pop()
         if c <= 1:
             continue
-        # Perfect power of a small prime already peeled? re-trial lightly.
+        # Peel more small factors if the cofactor is still moderate.
         if c <= _TRIAL_BOUND * _TRIAL_BOUND:
             sub, r2 = _trial_split(c, _TRIAL_BOUND)
             for p, e in sub.items():
@@ -127,8 +109,14 @@ def _factor_completely(m: int, *, parallel: bool) -> dict[int, int] | None:
         if _cofactor_is_prime(c, parallel=parallel):
             fac[c] = fac.get(c, 0) + 1
             continue
+        # Composite: try a complete cubic split when the engine can finish.
+        if cubic_complete_ready(c):
+            f = lehman_factor(c, parallel=parallel)
+            if f is not None and 1 < f < c:
+                stack.append(f)
+                stack.append(c // f)
+                continue
         if c.bit_length() > _COFACTOR_BIT_GIVE_UP:
-            # Hostile n−1; let cubic handle original n.
             return None
         f = lehman_factor(c, parallel=parallel)
         if f is None or f <= 1 or f >= c:

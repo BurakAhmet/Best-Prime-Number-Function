@@ -10,7 +10,7 @@ These rules apply to **all** contributors and **automated agents**. They are the
 4. **Allowed:** NumPy / Numba, and our own compiled OpenMP helper (`wheel_core.so`), for speeding up *our* trial division.
 5. **Correctness model**
     - $n \lt 2^{64}$: exact trial division up to $\lfloor\sqrt{n}\rfloor$ when $\lfloor\sqrt{n}\rfloor < 10^{7}$ (OpenMP **precomputed primes** / segmented primes, or primorial-wheel **30030** / **9699690**). Harder 64-bit $n$ ($\lfloor\sqrt{n}\rfloor \ge 10^{7}$): **n−1 Pocklington** when $n-1$ factors in budget, else complete OpenMP cubic search when `lehman_factor_u128` is present.
-    - $2^{64} \le n$ in cubic budget (cube root $\le 2\cdot10^{9}$, $4kn$ fits in 128 bits): same n−1 then cubic ladder (CLI default; covers $n$ up to about $8\cdot10^{27}$). Else $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): full trial via OpenMP **u128** core or stdlib wheel
+    - $2^{64} \le n$ in cubic budget ($4kn$ fits in 128 bits (no artificial cub cap), $4kn$ fits in 128 bits): same n−1 then cubic ladder (CLI default; covers every $n$ with $4kn$ in 128 bits). Else $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): full trial via OpenMP **u128** core or stdlib wheel
     - still larger $n$: partial trial, then **AKS** (may be slow for huge primes)
 
 Enforced in CI by `scripts/check_restrictions.py`. Serial and parallel must agree on every result.

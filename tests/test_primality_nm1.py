@@ -43,13 +43,14 @@ class TestNm1Primality:
         assert is_prime(SMOOTH_NM1_PRIME) is True
         assert lab(SMOOTH_NM1_PRIME)["path"] == "u128_nm1"
 
-    def test_default_n_uses_cubic_when_nm1_hostile(self):
-        # Current CLI default: 73-bit, n−1 has a large cofactor → cubic fallback.
+    def test_default_n_pocklington(self):
+        # Current CLI default: 84-bit; n−1 = 2²·11·23·p with p prime → nm1.
         assert DEFAULT_N == DEFAULT_CLI_N
+        assert DEFAULT_N.bit_length() == 84
         assert nm1_ready(DEFAULT_N)
-        assert nm1_primality(DEFAULT_N) is None
+        assert nm1_primality(DEFAULT_N) is True
         assert is_prime(DEFAULT_N) is True
-        assert lab(DEFAULT_N)["path"] in {"u128_lehman_c", "u128_nm1"}
+        assert lab(DEFAULT_N)["path"] == "u128_nm1"
 
     def test_m61(self):
         assert nm1_primality(M61) is True

@@ -47,7 +47,7 @@ Write $c = \lceil n^{1/3}\rceil$.
 
 **Band 2.** If every prime factor exceeds $c$, then $n$ is either prime or a product of two integers in $(c, n^{2/3}]$. Lehman's theorem supplies a $k \le c$ such that $4kn = a^2 - b^2$ with $a$ in a window of length about $n^{1/6}/(4\sqrt{k})$ above $\lceil\sqrt{4kn}\rceil$. Summing those window lengths is $O(n^{1/3})$. Finding a square $a^2 - 4kn$ yields $\gcd(a \pm b, n)$.
 
-Together the two bands are a complete deterministic split for every $n$ whose cube root is at most the complete budget: pure Python `LEHMAN_COMPLETE_CUB_MAX` ($3\cdot 10^6$, all 64-bit $n$), or OpenMP C `LEHMAN_COMPLETE_CUB_MAX_C` ($2\cdot 10^9$, about $n\le 8\cdot 10^{27}$ when $4kn$ fits in 128 bits). Larger $n$ can pass an explicit `k_max` and get a bounded probe, not a proof.
+Together the two bands are a complete deterministic split for every $n$ whose cube root is at most the complete budget: pure Python `LEHMAN_COMPLETE_CUB_MAX` ($3\cdot 10^6$, all 64-bit $n$), or OpenMP C `LEHMAN_COMPLETE_CUB_MAX_C` ($2^{63}-1$ (sentinel; clamp is $4kn$), about $n\le 8\cdot 10^{27}$ when $4kn$ fits in 128 bits). Larger $n$ can pass an explicit `k_max` and get a bounded probe, not a proof.
 
 Integer arithmetic only: $\lceil n^{1/3}\rceil$ by Newton, window length by an *overestimate* of $n^{1/6}/(4\sqrt{k})$ so a floored extra never misses the existence interval.
 
@@ -76,7 +76,7 @@ Not a new complexity exponent. A synthesis that this repository can actually shi
 3. Wired into `factorint` *after* Fermat and *before* Brent / ECM / SIQS, so close factors stay on the cheap Fermat path and 64-bit composites get a complete cubic split.
 4. **Not** wired into `is_prime`. Replacing 64-bit trial with Lehman would change the documented correctness model. Guidelines forbid that.
 
-On this machine class, a 63-bit balanced semiprime (Mersenne $2^{31}-1$ times the next odd) splits in well under $0.1\,\mathrm{s}$ in pure Python. The OpenMP C core (`lehman_factor_u128`) is the hard-path **fallback** after n−1; smooth $n-1$ specimens settle via Pocklington in milliseconds, while the current 73-bit CLI default usually runs the full cubic proof (~0.3 s class).
+On this machine class, a 63-bit balanced semiprime (Mersenne $2^{31}-1$ times the next odd) splits in well under $0.1\,\mathrm{s}$ in pure Python. The OpenMP C core (`lehman_factor_u128`) is the hard-path **fallback** after n−1; smooth $n-1$ specimens settle via Pocklington in milliseconds, while the current 84-bit CLI default usually runs the full cubic proof (~0.3 s class).
 
 ## API
 
