@@ -11,6 +11,7 @@ Does not import ``ntheory`` / ``prime_factors`` (those import this module).
 from __future__ import annotations
 
 import math
+import time
 from typing import Optional
 
 Point = Optional[tuple[int, int]]
@@ -118,6 +119,8 @@ def _schedule(bits: int) -> tuple[int, int, int]:
         return 5_000, 50_000, 40
     if bits <= 100:
         return 11_000, 100_000, 60
+    if bits <= 160:
+        return 50_000, 250_000, 80
     return 50_000, 250_000, 80
 
 
@@ -128,13 +131,32 @@ def ecm_factor(
     B2: int | None = None,
     max_curves: int | None = None,
     sigma0: int = 6,
+    max_ms: int | None = None,
 ) -> int | None:
     """Return a proper factor of composite ``n``, or None.
 
     ``sigma`` runs ``sigma0, sigma0+1, …``. Bounds default from ``n.bit_length()``.
+    ``max_ms`` is a wall-clock abort; on exhaust return None (do not raise).
     """
     if n < 4:
         return None
+    try:
+        return _ecm_factor_body(
+            n, B1=B1, B2=B2, max_curves=max_curves, sigma0=sigma0, max_ms=max_ms
+        )
+    except MemoryError:
+        return None
+
+
+def _ecm_factor_body(
+    n: int,
+    *,
+    B1: int | None,
+    B2: int | None,
+    max_curves: int | None,
+    sigma0: int,
+    max_ms: int | None,
+) -> int | None:
     bits = n.bit_length()
     sb1, sb2, scount = _schedule(bits)
     if B1 is None:
@@ -147,9 +169,12 @@ def ecm_factor(
         B1 = 2
     if B2 < B1:
         B2 = B1
+    deadline = None if max_ms is None else time.perf_counter() + max_ms / 1000.0
     k1 = _lcm_upto(1, B1)
     k2 = _lcm_upto(B1 + 1, B2) if B2 > B1 else 1
     for i in range(max_curves):
+        if deadline is not None and time.perf_counter() >= deadline:
+            return None
         sigma = sigma0 + i
         built = _curve(sigma, n)
         if built[0] is None:

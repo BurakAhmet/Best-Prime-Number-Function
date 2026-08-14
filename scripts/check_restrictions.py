@@ -20,6 +20,8 @@ FORBIDDEN = [
     (re.compile(r"\bprobab(le|ilistic)?\s*prime\b", re.I), "probabilistic prime wording in code"),
     (re.compile(r"\bmiller[_-]?rabin\b", re.I), "Miller-Rabin (stochastic / forbidden as engine)"),
     (re.compile(r"\bmillerrabin\b", re.I), "MillerRabin forbidden as engine"),
+    (re.compile(r"\bbpsw\b", re.I), "BPSW filter forbidden as engine"),
+    (re.compile(r"\bprp\b", re.I), "PRP / probable-prime control flow forbidden"),
 ]
 
 # Allow in docs / comments in tests describing why we reject MR
@@ -32,6 +34,7 @@ ALLOW_PATH_SUBSTRINGS = (
     "ALGORITHM_HISTORY",
     "docs/wiki",
     "docs/guide",
+    "docs/design",
     "docs/theme",
     ".grok/skills",
     "mkdocs.yml",

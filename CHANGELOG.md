@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **BLS n+1 + Combined Theorem 1** in `primality_nm1`: Lucas condition (II) when
+  $G>\sqrt{n}$ or $G=n+1$, and Combined Theorem 1
+  ($n < \max(F^2 G/2,\, F G^2/2)$). Special-form / smooth $n\pm 1$ only;
+  not a general 100-digit prover. Cofactor proofs never enter AKS.
+- **SIQS** in the n±1 splitter after ECM (`80\le` bits $\le 200$), with
+  `max_ms` abort on ECM/SIQS (no raise).
+
 ### Changed
 - **PR CI is leaner:** one Linux 3.12 job does tests + lint + determinism trials; auto-merge waits only for branch-protection gates; **Publish wiki** is dispatched after a successful merge. The Pages workflow no longer also hooks Auto-merge via `workflow_run` (that cancelled the real deploy). Full extra-version determinism and 3.9/3.12/3.13 + macOS/Windows run on `main`.
 - Pages interactive lab uses **Montgomery ECM (Suyama)** on hostile $n-1$, so $10^{54}+31$ proves prime in-tab (~1–2 min) instead of returning inconclusive.
