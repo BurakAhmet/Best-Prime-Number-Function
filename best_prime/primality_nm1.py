@@ -391,27 +391,36 @@ def _factor_nm1_np1(
     return fac_f, fac_g
 
 
-def _pocklington(n: int, primes_of_F: list[int]) -> Result:
-    """Pocklington: each q | F needs some fixed base a (bases may differ)."""
-    # Cache a^{n-1} mod n so we do not recompute per q.
+def _pocklington_witnesses(
+    n: int, primes_of_F: list[int]
+) -> tuple[Result, list[dict[str, int]] | None]:
+    """Pocklington plus the (q, a) pairs. False is a composite proof."""
     fermat_ok: dict[int, bool] = {}
+    witnesses: list[dict[str, int]] = []
     for q in primes_of_F:
-        found = False
+        found: int | None = None
         for a in _BASES:
             if a % n == 0:
-                return n == a
+                return (n == a), None
             ok = fermat_ok.get(a)
             if ok is None:
                 ok = pow(a, n - 1, n) == 1
                 fermat_ok[a] = ok
             if not ok:
-                return False  # exact composite
+                return False, None
             if math.gcd(pow(a, (n - 1) // q, n) - 1, n) == 1:
-                found = True
+                found = a
                 break
-        if not found:
-            return None
-    return True
+        if found is None:
+            return None, None
+        witnesses.append({"q": int(q), "a": int(found)})
+    return True, witnesses
+
+
+def _pocklington(n: int, primes_of_F: list[int]) -> Result:
+    """Pocklington: each q | F needs some fixed base a (bases may differ)."""
+    decided, _wit = _pocklington_witnesses(n, primes_of_F)
+    return decided
 
 
 def _lucas_uv(k: int, P: int, Q: int, n: int) -> tuple[int, int, int] | int:
@@ -448,18 +457,21 @@ def _selfridge_D():
         sign = -sign
 
 
-def _condition_II(n: int, primes_of_G: list[int]) -> Result:
-    """Lucas condition (II) for every prime ``q | G``. False is a composite proof."""
+def _condition_II_record(
+    n: int, primes_of_G: list[int]
+) -> tuple[Result, dict | None]:
+    """Lucas condition (II) plus the (D, P, Q) witness. False is composite."""
     if not primes_of_G:
-        return None
+        return None, None
     from .ntheory import jacobi
 
+    qs = [int(q) for q in primes_of_G]
     for D in _selfridge_D():
         j = jacobi(D, n)
         if j == 0:
             g = math.gcd(abs(D), n)
             if 1 < g < n:
-                return False
+                return False, None
             continue
         if j != -1:
             continue
@@ -468,30 +480,36 @@ def _condition_II(n: int, primes_of_G: list[int]) -> Result:
         uv = _lucas_uv(n + 1, P, Q, n)
         if isinstance(uv, int):
             if 1 < uv < n:
-                return False
+                return False, None
             continue
         if uv[0] % n != 0:
             continue
         ok = True
-        for q in primes_of_G:
+        for q in qs:
             if q <= 1 or (n + 1) % q != 0:
                 ok = False
                 break
             uvq = _lucas_uv((n + 1) // q, P, Q, n)
             if isinstance(uvq, int):
                 if 1 < uvq < n:
-                    return False
+                    return False, None
                 ok = False
                 break
             g = math.gcd(uvq[0], n)
             if 1 < g < n:
-                return False
+                return False, None
             if g != 1:
                 ok = False
                 break
         if ok:
-            return True
-    return None
+            return True, {"D": int(D), "P": 1, "Q": int(Q), "qs": qs}
+    return None, None
+
+
+def _condition_II(n: int, primes_of_G: list[int]) -> Result:
+    """Lucas condition (II) for every prime ``q | G``. False is a composite proof."""
+    decided, _rec = _condition_II_record(n, primes_of_G)
+    return decided
 
 
 def _combined_theorem1_ok(n: int, F: int, G: int) -> bool:
@@ -563,11 +581,50 @@ def nm1_primality(n: int, *, parallel: bool = True) -> Result:
     return decided
 
 
-def _bls_decide(n: int, *, parallel: bool = True) -> tuple[Result, str | None]:
-    """n−1, then n+1, then Combined Theorem 1. Side is nm1 / np1 / combined."""
+def _canon_fac(fac: dict[int, int]) -> dict[int, int]:
+    return {int(q): int(fac[q]) for q in sorted(fac)}
+
+
+def _nm1_record(
+    n: int, fac_f: dict[int, int], primes: list[int], inequality: str
+) -> tuple[Result, dict | None]:
+    decided, wit = _pocklington_witnesses(n, primes)
+    if decided is True and wit is not None:
+        fmap = {int(q): int(fac_f[q]) for q in sorted(primes) if q in fac_f}
+        return True, {
+            "side": "nm1",
+            "F": fmap,
+            "inequality": inequality,
+            "witnesses": wit,
+        }
+    if decided is not None:
+        return decided, {"side": "nm1"}
+    return None, None
+
+
+def _np1_record(
+    n: int, fac_g: dict[int, int], primes: list[int]
+) -> tuple[Result, dict | None]:
+    decided, luc = _condition_II_record(n, primes)
+    if decided is True and luc is not None:
+        gmap = {int(q): int(fac_g[q]) for q in sorted(primes) if q in fac_g}
+        return True, {
+            "side": "np1",
+            "G": gmap,
+            "inequality": "G>sqrt",
+            "witnesses": [],
+            "lucas": luc,
+        }
+    if decided is not None:
+        return decided, {"side": "np1"}
+    return None, None
+
+
+def _bls_proof(n: int, *, parallel: bool = True) -> tuple[Result, dict | None]:
+    """n−1, then n+1, then Combined Theorem 1. Payload is the cert witness."""
     early = _early_reject(n)
     if early is not None:
-        return early, "nm1"
+        return early, {"side": "nm1"}
 
     fac_f, fac_g = _factor_nm1_np1(n, parallel=parallel)
     F = _F_value(fac_f)
@@ -575,35 +632,61 @@ def _bls_decide(n: int, *, parallel: bool = True) -> tuple[Result, str | None]:
     sqrt_n = math.isqrt(n)
 
     if F > 1 and (n - 1) % F == 0 and F > sqrt_n:
-        decided = _pocklington(n, _primes_for_bound(fac_f, sqrt_n))
+        decided, rec = _nm1_record(
+            n, fac_f, _primes_for_bound(fac_f, sqrt_n), "F>sqrt"
+        )
         if decided is not None:
-            return decided, "nm1"
+            return decided, rec
 
     if F > 1 and (n - 1) % F == 0 and n < 2 * F * F * F and _bls_cubic_ok(n, F):
-        decided = _pocklington(n, _primes_for_bound(fac_f, _icbrt(n)))
+        decided, rec = _nm1_record(
+            n, fac_f, _primes_for_bound(fac_f, _icbrt(n)), "F>sqrt"
+        )
         if decided is not None:
-            return decided, "nm1"
+            return decided, rec
 
     if G > 1 and (n + 1) % G == 0 and G > sqrt_n:
-        decided = _condition_II(n, _primes_for_bound(fac_g, sqrt_n))
+        decided, rec = _np1_record(n, fac_g, _primes_for_bound(fac_g, sqrt_n))
         if decided is not None:
-            return decided, "np1"
+            return decided, rec
 
     if G == n + 1 and G > 1:
-        decided = _condition_II(n, list(fac_g.keys()))
+        decided, rec = _np1_record(n, fac_g, list(fac_g.keys()))
         if decided is not None:
-            return decided, "np1"
+            return decided, rec
 
     if _combined_theorem1_ok(n, F, G):
-        dec_i = _pocklington(n, list(fac_f.keys()))
+        dec_i, wit = _pocklington_witnesses(n, list(fac_f.keys()))
         if dec_i is False:
-            return False, "combined"
-        if dec_i is True:
-            dec_ii = _condition_II(n, list(fac_g.keys()))
+            return False, {"side": "combined"}
+        if dec_i is True and wit is not None:
+            dec_ii, luc = _condition_II_record(n, list(fac_g.keys()))
+            if dec_ii is False:
+                return False, {"side": "combined"}
+            if dec_ii is True and luc is not None:
+                return True, {
+                    "side": "combined",
+                    "F": _canon_fac(fac_f),
+                    "G": _canon_fac(fac_g),
+                    "inequality": "combined_thm1",
+                    "F2G_over_2": F * F * G // 2,
+                    "FG2_over_2": F * G * G // 2,
+                    "witnesses": wit,
+                    "lucas": luc,
+                }
             if dec_ii is not None:
-                return dec_ii, "combined"
+                return dec_ii, {"side": "combined"}
 
     return None, None
+
+
+def _bls_decide(n: int, *, parallel: bool = True) -> tuple[Result, str | None]:
+    """n−1, then n+1, then Combined Theorem 1. Side is nm1 / np1 / combined."""
+    decided, rec = _bls_proof(n, parallel=parallel)
+    if decided is None:
+        return None, None
+    side = rec.get("side") if rec else "nm1"
+    return decided, side
 
 
 def bls_primality(n: int, *, parallel: bool = True) -> Result:
@@ -616,6 +699,22 @@ def bls_side(n: int, *, parallel: bool = True) -> str | None:
     """Which theorem proved primality: ``nm1``, ``np1``, ``combined``, or None."""
     decided, side = _bls_decide(n, parallel=parallel)
     return side if decided is True else None
+
+
+def bls_certificate_data(n: int, *, parallel: bool = True) -> dict | None:
+    """Witness payload for a BLS prime proof. None if BLS does not settle prime.
+
+    Does not build a certificate tree. Boolean APIs stay boolean-only.
+    """
+    decided, rec = _bls_proof(n, parallel=parallel)
+    if decided is True and rec and rec.get("side") in ("nm1", "np1", "combined"):
+        if rec["side"] == "nm1" and "F" in rec:
+            return rec
+        if rec["side"] == "np1" and "G" in rec:
+            return rec
+        if rec["side"] == "combined" and "F" in rec and "G" in rec:
+            return rec
+    return None
 
 
 def _icbrt(n: int) -> int:
