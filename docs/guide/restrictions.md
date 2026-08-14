@@ -11,7 +11,7 @@ These rules apply to **all** contributors and **automated agents**. They are the
 5. **Correctness model**
     - $n \lt 2^{64}$: exact trial division up to $\lfloor\sqrt{n}\rfloor$ when $\lfloor\sqrt{n}\rfloor < 10^{7}$ (OpenMP **precomputed primes** / segmented primes, or primorial-wheel **30030** / **9699690**). Harder 64-bit $n$ ($\lfloor\sqrt{n}\rfloor \ge 10^{7}$): **n−1 Pocklington** when $n-1$ factors in budget, else complete OpenMP cubic search when `lehman_factor_u128` is present.
     - $2^{64} \le n$ in cubic budget ($4kn$ fits in 128 bits (no artificial cub cap), $4kn$ fits in 128 bits): same n−1 then cubic ladder (CLI default; covers every $n$ with $4kn$ in 128 bits). Else $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ (≤128-bit): full trial via OpenMP **u128** core or stdlib wheel
-    - still larger $n$: partial trial, then **AKS** (may be slow for huge primes)
+    - still larger $n$: **combined BLS**, then deterministic Atkin–Morain **ECPP** (class-number-1, then small-$h$ CM — the general 100-digit layer), then **AKS** (may be slow for huge primes). `DEFAULT_N` stays the 147-bit CLI default.
 
 Enforced in CI by `scripts/check_restrictions.py`. Serial and parallel must agree on every result.
 
@@ -39,7 +39,8 @@ NumPy, Numba, and `wheel_core.so` exist to run **our** wheel / sieve / wrap-mul 
 
 ## Related
 
-- [n−1 Pocklington](nm1-proof.md) — hard-path proof when $n-1$ factors
+- [n−1 / BLS](nm1-proof.md) — Combined Theorem 1; C-less cubic wall
+- [ECPP](ecpp-proof.md) — deterministic Atkin–Morain; $h=1$ is not a random-100-digit engine
 - [Cubic search](cubic-search.md) — $O(n^{1/3})$ fallback / `factorint` splitter
 - [Engines](engines.md)
 - [Algorithm history](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md) — eras, tradeoffs, **failures not to repeat**

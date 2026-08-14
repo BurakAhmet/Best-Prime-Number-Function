@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.11.2** + unreleased n−1 Pocklington hard path |
+| **Current package version** | **1.12.0** + unreleased huge-n BLS / ECPP ladder |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -68,7 +68,8 @@ Indicative numbers below are **machine-dependent** (CPU, core count, `OMP_NUM_TH
 2026-08-10  v1.10.0  L1-tiled marking for p<256 on the hard path
 2026-08-11  unreleased  L1 tiles to p<4096 + 4+4 wrap-mul trial
 2026-08-12  unreleased  Complete cubic C for hard 64-bit + CLI default
-2026-08-13  unreleased  n−1 Pocklington before cubic on hard path  ← current
+2026-08-13  unreleased  n−1 Pocklington before cubic on hard path
+2026-08-14  unreleased  huge-n combined BLS + deterministic ECPP  ← current
 ```
 
 Key commits (algorithm/perf only):
@@ -607,6 +608,7 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 | **1.9.0** | same | same | same | Yes | **`primerange` generator**; totient / primorial / divisors / Jacobi / CRT | Product-tree primorial; linear-sieve `totient_range` |
 | **1.10.0** | + **L1 tiles for $p<256$** (16 KiB) | same tiles on u128 | same | Yes | Hard 64-bit ~6–14% (marking-bound) | Tile only the dense streams; tiling *all* primes still loses |
 | **unreleased** | + **L1 tiles $p<4096$** + **4+4 wrap-mul** | same | same | Yes | Hard 64-bit ~4% geomean (DEFAULT_N ~4–6%) | Tiling $p\ge 8192$ restarts too often; forced 8-wide `\|` spills |
+| **unreleased** | same 64-bit (BLS then cubic on hard path) | same cubic / u128 | **BLS → ECPP (h=1 then small-$h$) → AKS** | Yes | Special-form BLS; general 100-digit = small-$h$; `DEFAULT_N` unchanged | $FG>\sqrt{n}$ is not a theorem; h=1 is not completeness; F7 still holds |
 
 ---
 
@@ -665,6 +667,34 @@ Guide: [`docs/guide/nm1-proof.md`](guide/nm1-proof.md).
 
 ---
 
+## Era — unreleased (2026-08-14): huge-n BLS / ECPP ladder
+
+**Design.** Still-larger $n$ (past complete cubic and practical u128 trial) is no longer “partial trial then AKS.” The proving ladder is:
+
+1. **Combined BLS** (`primality_nm1`): n−1 Pocklington / Theorem 5, Lucas n+1 ($G>\sqrt{n}$ or $G=n+1$), Combined Theorem 1
+   $$n < \max(F^{2}G/2,\; FG^{2}/2)\quad(\gcd(F,G)=2).$$
+   $FG>\sqrt{n}$ is **not** a theorem. No n+1 cubic extra (BLS Theorem 11 is n−1). SIQS is wired into `_try_split_cofactor` after ECM (`80\le` bits $\le 200$), hard abort, no raise. Cofactor proofs never enter AKS.
+2. **Deterministic Atkin–Morain ECPP** (`primality_ecpp`): class-number-1 skeleton (13 discriminants, canonical Cornacchia, $C_4$/$C_6$ twists, `gk_min_q`), then small-$h$ CM ($h(D)\le 16$, transcribed $H_D$). Search is a prefix barrier on increasing $|D|$.
+3. **AKS** — unchanged last resort so every natural number still has a complete algorithm.
+
+**General 100-digit completeness is the small-$h$ layer.** $h=1$ is a curve-construction convenience: a single-step Goldwasser–Kilian downrun to a complete-engine $q$ cannot reach 100 digits (`gk_min_q` forces $q\gtrsim 10^{49.5}$; cubic C proves $\lesssim 28$ digits). Combined BLS is special-form / smooth $n\pm 1$ only.
+
+**`DEFAULT_N` stays** the 147-bit CLI default `100…00031` (`u128_nm1`). Not moved to a 100-digit prime (F6).
+
+**F7 still holds.** This is an in-tree reimplementation. Do not call Primo, PARI `primecert`, FLINT APRCL, Enge’s `cm`, or `gmpy2.is_prime`. No stochastic MR, BPSW, or Lucas-PRP filter. A failed Fermat/Lucas is a composite proof; an unsettled cofactor is `None`.
+
+`lab` paths: `bigint_bls` (n+1 or combined; n−1 did not settle), `bigint_ecpp`. Both stay **out** of the `lab` `parallel` set (D-order barrier). Certificates: `is_prime` is boolean-only; designed `kind='bls'|'ecpp'` follows the same ladder (until that API ships, $n\ge 2^{64}$ outside cubic is `kind='unsupported'` — no Pratt hang).
+
+Guides: [`docs/guide/nm1-proof.md`](guide/nm1-proof.md) · [`docs/guide/ecpp-proof.md`](guide/ecpp-proof.md). Design: [`docs/design-100-digit-engine.md`](design-100-digit-engine.md).
+
+| | |
+|--|--|
+| **Advantages** | Special-form 100-digit primes via BLS; general 100-digit gate on small-$h$ CM; AKS contract preserved; mid-size paths unchanged |
+| **Disadvantages** | This tree’s ECM/SIQS peels ≤25–30 digit factors of $m$; $h=1$ alone is not a random-100-digit engine; FastECPP is out of this program |
+| **Failures / lessons** | Do not code $FG>\sqrt{n}$; do not treat h=1 as completeness; do not flip `DEFAULT_N` (F6); F7 still forbids PRP / external oracles |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:
@@ -677,7 +707,7 @@ Recorded so agents and humans do not “rediscover” them:
 | **F4** | Prebuilt **Linux `.so` in pure wheel** | Broken/ misleading installs on other platforms | Build at install or ship **platform wheels** |
 | **F5** | Segmented-prime **threshold only tuned on hardest primes** | 12-digit path left on dense wheel | Retune with full e2e suite (1.3.2: $2\cdot10^5$) |
 | **F6** | Flip default CLI demo to a “fast” $n$ without updating all docs/agents | Confusion about what CI/demo measures | Default is the **147-bit** hard-path prime `100000000000000000000000000000000000000000031` (`DEFAULT_N`); keep README / wiki / `DEFAULT_N` in sync. Largest prime $<2^{64}$ stays a documented 64-bit specimen. Pages JS demo may stay near $2^{63}$. |
-| **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled |
+| **F7** | Using **external prime sieve libs** or **stochastic MR** for speed | Violates project identity / correctness story | Forbidden as engine; optional bench-only scripts OK if labeled. **Still holds** after the ECPP ladder: no Primo / PARI `primecert` / FLINT APRCL / Enge `cm` / BPSW / Lucas-PRP |
 | **F8** | Skipping **serial vs parallel** determinism checks | Racey OpenMP bugs | `benchmarks/check_determinism.py` + Determinism workflow |
 | **F9** | Changing wheel/sieve without regenerating **committed C / tables** | Drift between generators and shipped artifacts | `generate_wheel_core_c.py` / `generate_wheel_data.py` + compile script |
 | **F10** | Parallel OpenMP segmented sieve on **mid-size** $\sqrt{n}$ (e.g. 12-digit) | More threads *slower* (fork + tiny segments); e2e 12-digit ~2–3× worse at 12 vs 2 threads | Serial precomputed trial for $\sqrt{n}\le 2^{20}$; OpenMP only if $\sqrt{n}\ge 10^7$ |
@@ -715,7 +745,9 @@ Recorded so agents and humans do not “rediscover” them:
 | `best_prime/ntheory.py` | totient, primorial, divisors, Jacobi, CRT |
 | `best_prime/prime_factors.py` | Trial + Fermat + cubic search + deterministic Brent |
 | `best_prime/factor_lehman.py` | Two-band cubic split (rising-product + Lehman) |
-| `best_prime/primality_nm1.py` | n−1 Pocklington hard-path proof |
+| `best_prime/primality_nm1.py` | Combined BLS n±1 (Pocklington, Lucas, Combined Theorem 1) |
+| `best_prime/primality_ecpp.py` | Deterministic Atkin–Morain ECPP (`gk_min_q`, h=1 then small-$h$) |
+| `best_prime/_classpoly_h16.py` | Transcribed Hilbert class polynomials ($h(D)\le 16$) |
 | `best_prime/factor_ecm.py` | Deterministic ECM |
 | `best_prime/factor_siqs.py` | Deterministic SIQS |
 | `best_prime/prime_power.py` | Perfect powers / prime powers |
@@ -732,4 +764,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.12.0** (147-bit `DEFAULT_N`, general n−1 engine). Extend forward; do not delete past eras.*
+*Last updated for package **1.12.0** + unreleased huge-n BLS / ECPP ladder (147-bit `DEFAULT_N` unchanged). Extend forward; do not delete past eras.*

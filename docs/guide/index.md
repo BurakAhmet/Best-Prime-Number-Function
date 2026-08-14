@@ -38,7 +38,8 @@ This library keeps a stricter contract: same $n$, any machine, serial or paralle
 
 - [Install](install.md) — PyPI / GitHub pip, `[fast]`, OpenMP `wheel_core`
 - [Quick start](quickstart.md) — first calls and the runnable tours
-- [n−1 Pocklington](nm1-proof.md) — hard-path proof when $n-1$ factors (beats cubic)
+- [n−1 / BLS](nm1-proof.md) — Combined Theorem 1 when $n\pm 1$ factors (beats cubic)
+- [ECPP](ecpp-proof.md) — deterministic Atkin–Morain; general 100-digit = small-$h$
 - [Cubic search](cubic-search.md) — two-band $O(n^{1/3})$ fallback / `factorint` splitter
 - [API reference](api.md) — every public function, with examples
 - [Command line](cli.md) — `is-prime`, `prime-count`, `totient`, …

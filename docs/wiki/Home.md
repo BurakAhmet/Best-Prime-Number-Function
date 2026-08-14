@@ -104,9 +104,9 @@ is_prime(n)
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
-         ├─ cubic budget → n−1 Pocklington, else cubic C (CLI default)
+         ├─ cubic budget → BLS n±1, else cubic C (CLI default)
          ├─ practical √n (≤128-bit) → OpenMP u128 full trial / stdlib wheel
-         └─ larger still            → partial trial → AKS if needed
+         └─ larger still            → combined BLS → ECPP (h=1 then small-h) → AKS
 ```
 
 ---

@@ -114,7 +114,8 @@ nav:
   - Design:
       - Restrictions: restrictions.md
       - Engines: engines.md
-      - n−1 Pocklington: nm1-proof.md
+      - n−1 / BLS: nm1-proof.md
+      - ECPP: ecpp-proof.md
       - Cubic search: cubic-search.md
       - Performance: performance.md
 

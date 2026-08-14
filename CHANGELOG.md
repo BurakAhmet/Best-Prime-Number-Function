@@ -28,6 +28,11 @@ All notable changes to this project are documented in this file.
 - n−1 proofs use the **BLS $n^{1/3}$ extra** when $F$ is below $\sqrt{n}$ but $n < 2F^3$ (settles $10^{96}+127$ in the Pages lab).
 
 ### Docs
+- Huge-n ladder: combined BLS, then deterministic Atkin–Morain ECPP
+  (class-number-1 then small-$h$), then AKS. General 100-digit completeness
+  is the small-$h$ layer. Combined Theorem 1 (not $FG>\sqrt{n}$); `gk_min_q`;
+  $h=1$ is not a random-100-digit engine. Restrictions + wiki synced.
+  `DEFAULT_N` unchanged (147-bit). Guide: `docs/guide/ecpp-proof.md`.
 - Wiki CI page and Home lab copy describe the PR/main split and in-browser ECM.
 
 ## [1.12.0] — 2026-08-13

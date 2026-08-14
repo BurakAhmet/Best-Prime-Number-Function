@@ -48,7 +48,7 @@ Native core: Linux CI builds `wheel_core.so`. macOS wants `brew install libomp`.
 | `primality_certificate(n)` / `verify_certificate(c)` | Pratt certificate, or a factor if composite. |
 | `next_prime` / `prev_prime` / `next_primes` / `prev_primes` | Neighbours; generators stream. Interval sieve while $\sqrt{\text{bound}}\le$ `NEXT_PRIME_SIEVE_ISQRT_MAX` ($2\cdot10^6$). |
 | `nth_prime(k)` / `prime_count(n)` / `primes` / `primerange` | $p_k$, $\pi(n)$ (**hard ceiling** `PRIME_COUNT_MAX_N = 2⁶⁴−1`), lists. |
-| `prime_factors` / `factorint` / `lehman_factor` | Trial + Fermat + **two-band cubic search** + deterministic Brent + **ECM** + **SIQS**. Hard `is_prime` also uses **n−1 Pocklington** before cubic. |
+| `prime_factors` / `factorint` / `lehman_factor` | Trial + Fermat + **two-band cubic search** + deterministic Brent + **ECM** + **SIQS**. Hard `is_prime` also uses **combined BLS** before cubic; still-larger $n$ then **ECPP**. |
 | `totient` / `primorial` / `divisors` / `gcd` / `jacobi` / … | Exact arithmetic. Catalogue: [`docs/wiki/Library.md`](docs/wiki/Library.md). |
 | `lab(n)` | Diagnostics (`path`, timings). |
 
@@ -74,7 +74,7 @@ CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `prim
 
 | | Engine | Deterministic for every $n$? | Typical use |
 |--|--------|------------------------------|-------------|
-| **best_prime** | Wheel / OpenMP trial, n−1 Pocklington, cubic, **AKS** | **Yes** | Proof-grade boolean |
+| **best_prime** | Wheel / OpenMP trial, combined BLS, cubic, ECPP, **AKS** | **Yes** | Proof-grade boolean |
 | `sympy.isprime` | BPSW + extras | No above proven bounds | CAS default |
 | `gmpy2.is_prime` | Miller–Rabin | No | Fast probable-prime |
 | `primesieve` | Sieve | N/A (enumeration) | **Forbidden** here as the engine |
@@ -143,17 +143,17 @@ is_prime(n)
   n < 10⁴              →  tiny pure-Python loop
   10⁴ ≤ n < 2⁶⁴
        ├─ isqrt(n) ≥ 10⁷ and cubic budget
-       │     →  n−1 Pocklington, else OpenMP cubic (hard 64-bit)
+       │     →  BLS n±1, else OpenMP cubic (hard 64-bit)
        ├─ wheel_core.so present  →  OpenMP C (precomputed primes / seg-primes + 2-adic trial)
        ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel (stdlib only)
        └─ else                   →  lazy NumPy/Numba 9699690-wheel
   n ≥ 2⁶⁴
        ├─ cubic budget (4·k·n fits in 128 bits (no artificial cub cap))
-       │     →  n−1 Pocklington, else OpenMP cubic (CLI default)
+       │     →  BLS n±1, else OpenMP cubic (CLI default)
        ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
        │                      →  OpenMP C full trial (u128 limbs; no AKS)
        ├─ same size, no .so  →  stdlib 9699690-wheel full trial
-       └─ larger still       →  30030-wheel to 1e8 → AKS (Kronecker) if needed
+       └─ larger still       →  combined BLS → ECPP (h=1 then small-h) → AKS
 
   ✗  stochastic Miller–Rabin · prime sieving libraries
   ✓  deterministic for every natural number
@@ -167,7 +167,7 @@ flowchart TD
   C -->|yes| P1[Pure-Python small loop]
   C -->|no| D{n < 2⁶⁴}
   D -->|yes| E0{isqrt ≥ 10⁷ and cubic budget?}
-  E0 -->|yes| P7[n−1 Pocklington then cubic fallback]
+  E0 -->|yes| P7[BLS n±1 then cubic fallback]
   P7 --> Z3
   E0 -->|no| E{wheel_core.so?}
   E -->|yes| P2[OpenMP C — precomputed / seg-primes<br/>Linux/macOS wheels ship this]
@@ -181,20 +181,20 @@ flowchart TD
   G -->|yes| Z1
   G -->|no| Z2[True]
   D -->|no| H0{cubic budget complete?}
-  H0 -->|yes| P6[n−1 Pocklington then cubic<br/>CLI default]
+  H0 -->|yes| P6[BLS n±1 then cubic<br/>CLI default]
   P6 --> Z3{factor / proved composite?}
   Z3 -->|yes| Z1
   Z3 -->|no| Z2
   H0 -->|no| H{isqrt n ≤ 2.5·10¹⁰ and ≤128-bit?}
   H -->|yes| P5[OpenMP C u128 full trial / stdlib wheel]
   P5 --> G
-  H -->|no| I[30030-wheel to 1e8 then AKS]
+  H -->|no| I[combined BLS, then ECPP h=1 then small-h, then AKS]
   I --> L{prime?}
   L -->|yes| Z2
   L -->|no| Z1
 ```
 
-Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on mid-size 64-bit paths. Hard 64-bit and $n\ge 2^{64}$ (CLI default) try an **n−1 Pocklington** proof first; complete **cubic search** remains the fallback when $n-1$ is hostile. Otherwise practical multi-limb trial, then **AKS**.
+Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on mid-size 64-bit paths. Hard 64-bit and $n\ge 2^{64}$ (CLI default) try **combined BLS** first (n−1 / n+1 / Combined Theorem 1); complete **cubic search** remains the fallback when $n\pm 1$ is hostile and in budget. Still-larger $n$: deterministic Atkin–Morain **ECPP** (class-number-1, then small-$h$ — the general 100-digit layer), then **AKS**. The 147-bit `DEFAULT_N` is unchanged.
 
 `primality_certificate` / `factorint` sit on top of this predicate (Pratt; trial + Fermat + deterministic Brent + ECM + SIQS). They do not change the boolean contract.
 

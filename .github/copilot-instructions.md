@@ -12,7 +12,7 @@ Provide **fully deterministic** primality testing. Optimize for speed only withi
 2. **No stochastic Miller–Rabin** — no random bases, no “probably prime” APIs as the engine.
 3. **No prime libraries** — do not depend on primesieve, sympy.isprime, etc. for the implementation.
 4. **Allowed** — NumPy, Numba (JIT / parallel) for *our* trial division / helpers.
-5. **Correctness model** — for `n < 2^64` with `isqrt(n) < 1e7`: exact trial division up to `isqrt(n)` (OpenMP C precomputed primes / segmented primes when `wheel_core.so` is built; else tiered 30030 / 9699690 wheels). For harder 64-bit n (`isqrt ≥ 1e7`) and for `2^64 ≤ n` when OpenMP cubic search can finish (cube root ≤ 2e9, `4kn` in 128 bits): `lehman_factor_u128` (after n−1 Pocklington). Else practical `isqrt` (≤ ~2.5e10, ≤128-bit): full trial via `is_prime_u128_core` or stdlib wheel. For still larger `n`: partial trial then AKS if needed (may be slow).
+5. **Correctness model** — for `n < 2^64` with `isqrt(n) < 1e7`: exact trial division up to `isqrt(n)` (OpenMP C precomputed primes / segmented primes when `wheel_core.so` is built; else tiered 30030 / 9699690 wheels). For harder 64-bit n (`isqrt ≥ 1e7`) and for `2^64 ≤ n` when OpenMP cubic search can finish (cube root ≤ 2e9, `4kn` in 128 bits): `lehman_factor_u128` (after combined BLS). Else practical `isqrt` (≤ ~2.5e10, ≤128-bit): full trial via `is_prime_u128_core` or stdlib wheel. For still larger `n`: combined BLS, then deterministic Atkin–Morain ECPP (class-number-1 then small-h; general 100-digit completeness is the small-h layer), then AKS if needed (may be slow). `DEFAULT_N` stays the 147-bit CLI default.
 
 ## When answering issues
 
