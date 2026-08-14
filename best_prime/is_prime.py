@@ -41,6 +41,8 @@ _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000
 # Full deterministic trial (no AKS) when isqrt(n) is at most this (covers ~10^20).
 _MAX_FULL_TRIAL_ISQRT = 25_000_000_000  # 2.5e10 → n up to ~6.25e20
+_ECPP_MAX_H = 1
+_last_is_prime_big_path: str | None = None
 # Before AKS: 30030-wheel trial up to this (or isqrt, whichever is smaller).
 _AKS_TRIAL_BOUND = 100_000_000
 _PRECHECK_BIG = (
@@ -853,6 +855,8 @@ def _hard_path_prime(n: int, *, parallel: bool) -> bool:
 
 def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> bool:
     """Primality for n >= 2^64. BLS / cubic C when complete; else trial or AKS."""
+    global _last_is_prime_big_path
+    _last_is_prime_big_path = None
     for p in _PRECHECK_BIG:
         if n == p:
             return True
@@ -891,7 +895,7 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
         if pow(a, n - 1, n) != 1:
             return False
     # Deterministic split attempt (Fermat / cubic probe / Brent / ECM / SIQS).
-    # A factor proves composite without AKS. Primes fall through to AKS.
+    # A factor proves composite without AKS. Primes fall through to ECPP, then AKS.
     try:
         from .primality_nm1 import _try_split_cofactor
 
@@ -904,6 +908,13 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
         if n.bit_length() <= 110:
             if lehman_factor(n, k_max=LEHMAN_PROBE_K_MAX, parallel=parallel) is not None:
                 return False
+    from .primality_ecpp import ecpp_primality
+
+    decided = ecpp_primality(n, parallel=parallel, max_h=_ECPP_MAX_H)
+    if decided is not None:
+        _last_is_prime_big_path = "bigint_ecpp"
+        return decided
+    _last_is_prime_big_path = "bigint_trial_or_aks"
     return _aks_is_prime(n, parallel=parallel)
 
 
@@ -1031,6 +1042,8 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
                 path = "u128_wheel_c"
             elif sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
                 path = "bigint_wheel"
+            elif _last_is_prime_big_path == "bigint_ecpp":
+                path = "bigint_ecpp"
             else:
                 path = "bigint_trial_or_aks"
 

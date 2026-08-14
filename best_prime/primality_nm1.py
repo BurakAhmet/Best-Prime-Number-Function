@@ -148,7 +148,11 @@ def _prove_strictly_smaller(
     if decided is not None:
         return decided
     if allow_ecpp:
-        return None
+        from .primality_ecpp import ecpp_primality
+
+        decided = ecpp_primality(c, parallel=parallel)
+        if decided is not None:
+            return decided
     return None
 
 

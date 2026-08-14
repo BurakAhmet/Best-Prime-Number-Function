@@ -47,3 +47,10 @@ class TestCertificate:
     def test_bool_rejected(self):
         with pytest.raises(TypeError):
             primality_certificate(True)  # type: ignore[arg-type]
+
+    def test_huge_n_unsupported_without_is_prime(self):
+        # n ≥ 2^64 outside cubic: refuse Pratt/AKS. Do not fill "prime".
+        n = 10**30 + 1
+        c = primality_certificate(n)
+        assert c == {"n": n, "kind": "unsupported"}
+        assert "prime" not in c
