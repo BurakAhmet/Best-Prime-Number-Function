@@ -21,6 +21,10 @@ _BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
 
 _TRIAL_BOUND = 100_000
 _TRIAL_PRIME_CACHE_MAX = 5_000_000
+# First peel of n±1. Deepen to ``_TRIAL_PRIME_CACHE_MAX`` only when the
+# leftover is Fermat-composite. DEFAULT_N is 2·5·13·q with q a 140-bit
+# prime: a 5e6 scan never finds another factor and dominated CLI TIME.
+_CHEAP_TRIAL_BOUND = 50_000
 # Pollard p−1 stage-1 bound (smooth factors of n±1 cofactors).
 P1_B1_SMALL = 100_000
 SIQS_MIN_BITS = 80
@@ -123,6 +127,42 @@ def _trial_split(m: int, bound: int) -> tuple[dict[int, int], int]:
             if m == 1:
                 break
     return fac, m
+
+
+def _looks_prime(c: int) -> bool:
+    """Fermat bases 2…13: True means 'try a complete proof', not 'is prime'."""
+    if c < 2:
+        return False
+    if c in (2, 3, 5, 7):
+        return True
+    if (c & 1) == 0:
+        return False
+    for a in _BASES[:6]:
+        if a % c == 0:
+            return c == a
+        if pow(a, c - 1, c) != 1:
+            return False
+    return True
+
+
+def _trial_split_staged(m: int) -> tuple[dict[int, int], int]:
+    """Cheap trial, then deepen to the leftover's adaptive bound if composite.
+
+    Bound follows the integer still being split, not the parent. A 140-bit
+    prime leftover of DEFAULT_N must not trigger a 5e6 scan of that prime.
+    """
+    if m <= 1:
+        return {}, m
+    cheap = min(_CHEAP_TRIAL_BOUND, _adaptive_trial_bound(m))
+    fac, rem = _trial_split(m, cheap)
+    if rem <= 1 or _looks_prime(rem):
+        return fac, rem
+    full = _adaptive_trial_bound(rem)
+    if full > cheap:
+        extra, rem = _trial_split(rem, full)
+        for p, e in extra.items():
+            fac[p] = fac.get(p, 0) + e
+    return fac, rem
 
 
 def _F_value(fac: dict[int, int]) -> int:
@@ -291,8 +331,7 @@ def _peel_leftover(
     """Absorb ``c`` into ``fac`` / ``stack``. True if a splitter call was made."""
     if c <= 1 or c in unproven:
         return False
-    cb = _adaptive_trial_bound(c)
-    sub, r2 = _trial_split(c, cb)
+    sub, r2 = _trial_split_staged(c)
     for p, e in sub.items():
         fac[p] = fac.get(p, 0) + e
     if r2 == 1:
@@ -324,8 +363,7 @@ def _factor_enough(n: int, *, parallel: bool) -> dict[int, int] | None:
     target = math.isqrt(n)
     m = n - 1
     fac: dict[int, int] = {}
-    bound = _adaptive_trial_bound(m)
-    peeled, rem = _trial_split(m, bound)
+    peeled, rem = _trial_split_staged(m)
     fac.update(peeled)
     stack: list[int] = [rem] if rem > 1 else []
     unproven: set[int] = set()
@@ -343,8 +381,7 @@ def _factor_enough(n: int, *, parallel: bool) -> dict[int, int] | None:
         c = stack.pop()
         if c <= 1 or c in unproven:
             continue
-        cb = _adaptive_trial_bound(c)
-        sub, r2 = _trial_split(c, cb)
+        sub, r2 = _trial_split_staged(c)
         for p, e in sub.items():
             fac[p] = fac.get(p, 0) + e
         if r2 == 1:
@@ -398,9 +435,28 @@ def _factor_nm1_np1(
     fac_g: dict[int, int] = {}
     unproven: set[int] = set()
 
-    peeled_f, rem_f = _trial_split(n - 1, _adaptive_trial_bound(n - 1))
+    # DEFAULT_N shape: n−1 = tiny × one large prime. Prove that leftover
+    # and skip n+1 (a 5e6 scan of hostile n+1 was most of CLI TIME).
+    # Mid-size n+1 specimens (e.g. NP1_SMOOTH, 58-bit leftover) stay below
+    # this cutoff so the existing short-side interleave still picks n+1.
+    cheap = min(_CHEAP_TRIAL_BOUND, _adaptive_trial_bound(n - 1))
+    peeled_fast, rem_fast = _trial_split(n - 1, cheap)
+    if (
+        rem_fast > 1
+        and rem_fast.bit_length() >= 96
+        and _looks_prime(rem_fast)
+    ):
+        proved = _prove_strictly_smaller(
+            rem_fast, n, parallel=parallel, allow_ecpp=False
+        )
+        if proved is True:
+            peeled_fast[rem_fast] = peeled_fast.get(rem_fast, 0) + 1
+            if _factor_done(n, _F_value(peeled_fast), 1):
+                return peeled_fast, fac_g
+
+    peeled_f, rem_f = _trial_split_staged(n - 1)
     fac_f.update(peeled_f)
-    peeled_g, rem_g = _trial_split(n + 1, _adaptive_trial_bound(n + 1))
+    peeled_g, rem_g = _trial_split(n + 1, cheap)
     fac_g.update(peeled_g)
     stack_f: list[int] = [rem_f] if rem_f > 1 else []
     stack_g: list[int] = [rem_g] if rem_g > 1 else []
@@ -415,7 +471,6 @@ def _factor_nm1_np1(
             break
         F = _F_value(fac_f)
         G = _F_value(fac_g)
-        # short side first; tie → n−1
         allow = splits < max_splits
         if stack_f and (not stack_g or F <= G):
             c = stack_f.pop()

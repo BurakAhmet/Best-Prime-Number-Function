@@ -22,6 +22,7 @@ All notable changes to this project are documented in this file.
   `max_ms` abort on ECM/SIQS (no raise).
 
 ### Changed
+- **n±1 peel is staged:** trial to 50k first; deepen only when the leftover is Fermat-composite; a large prime cofactor of $n-1$ (the CLI default $2\cdot5\cdot13\cdot q_{140}$) is proved without a 5e6 scan of $n+1$. CLI `TIME` on `DEFAULT_N` drops from ~0.26 s to ~0.04 s on this machine.
 - Deterministic **Montgomery/Suyama ECM** (fixed σ=6,7,…) replaces affine Weierstrass as the factorer; Weierstrass `_mul` stays Jacobian for ECPP point search. Huge-n `is_prime` tries ECPP before a deep BLS peel (`bits≥256`; `DEFAULT_N` unchanged). Peel of curve orders is cached; smallest Goldwasser–Kilian `q` is tried first.
 - Pages interactive lab **proves** $10^{130}+1113$ in-tab: Jacobian ECPP mul, stacked ECM peel of $m$, and “wrong order → next $(q,c)$ pair” (a $g=n$ inversion is not the point at infinity). The previous 45 s budget died on $D=-3$ and never reached $D=-19$.
 - Pages interactive lab mirrors the new huge-n ladder: **combined BLS** (n−1, Lucas n+1, Combined Theorem 1), then class-number-1 **ECPP**, then 30-wheel trial. Stage panel adds Lucas / Combined / ECPP views.

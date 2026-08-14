@@ -23,7 +23,7 @@ When $n-1$ is smooth (e.g. $600000000000000000001$, where $n-1=2^{21}\cdot 3\cdo
 | M61 | ~33 ms | **~0.3 ms** |
 | near $2^{63}$ | ~37 ms | **~10 ms** |
 | largest prime $<2^{64}$ | ~55 ms | **~27 ms** |
-| CLI default (147-bit) | cubic incomplete ($4kn>128$ bits) | **~0.1–0.3 s** n−1 |
+| CLI default (147-bit) | cubic incomplete ($4kn>128$ bits) | **~7–40 ms** n−1 (prove the 140-bit cofactor; no 5e6 $n+1$ scan) |
 
 Hostile $n-1$ (large prime cofactor that will not split in budget) returns *inconclusive*; cubic search remains the complete fallback in budget. No RNG. No Miller–Rabin as the engine: a failed Fermat check **proves composite**; a passed Fermat check is only a filter, not a primality claim.
 
