@@ -22,7 +22,6 @@ _BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
 _TRIAL_BOUND = 100_000
 _TRIAL_PRIME_CACHE_MAX = 5_000_000
 # Pollard p−1 stage-1 bound (smooth factors of n±1 cofactors).
-_P1_B1 = 100_000
 P1_B1_SMALL = 100_000
 SIQS_MIN_BITS = 80
 SIQS_MAX_BITS = 200
@@ -161,7 +160,7 @@ def _prove_strictly_smaller(
     return None
 
 
-def _pollard_p1(n: int, B1: int = _P1_B1) -> int | None:
+def _pollard_p1(n: int, B1: int = P1_B1_SMALL) -> int | None:
     """Pollard p−1 stage 1 (fixed B1). Returns a proper factor or None."""
     if n < 4 or n % 2 == 0:
         return 2 if n % 2 == 0 and n > 2 else None
@@ -511,12 +510,6 @@ def _condition_II_record(
     return None, None
 
 
-def _condition_II(n: int, primes_of_G: list[int]) -> Result:
-    """Lucas condition (II) for every prime ``q | G``. False is a composite proof."""
-    decided, _rec = _condition_II_record(n, primes_of_G)
-    return decided
-
-
 def _combined_theorem1_ok(n: int, F: int, G: int) -> bool:
     """Combined Theorem 1 size predicate (not ``FG > √n``)."""
     if F <= 1 or G <= 1 or n <= 1:
@@ -704,22 +697,6 @@ def bls_side(n: int, *, parallel: bool = True) -> str | None:
     """Which theorem proved primality: ``nm1``, ``np1``, ``combined``, or None."""
     decided, side = _bls_decide(n, parallel=parallel)
     return side if decided is True else None
-
-
-def bls_certificate_data(n: int, *, parallel: bool = True) -> dict | None:
-    """Witness payload for a BLS prime proof. None if BLS does not settle prime.
-
-    Does not build a certificate tree. Boolean APIs stay boolean-only.
-    """
-    decided, rec = _bls_proof(n, parallel=parallel)
-    if decided is True and rec and rec.get("side") in ("nm1", "np1", "combined"):
-        if rec["side"] == "nm1" and "F" in rec:
-            return rec
-        if rec["side"] == "np1" and "G" in rec:
-            return rec
-        if rec["side"] == "combined" and "F" in rec and "G" in rec:
-            return rec
-    return None
 
 
 def _icbrt(n: int) -> int:

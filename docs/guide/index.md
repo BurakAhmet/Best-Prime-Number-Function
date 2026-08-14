@@ -1,6 +1,6 @@
 # best_prime
 
-**Fully deterministic** primality, $\pi(n)$, factoring, and arithmetic for every natural number. Exact trial through practical $\sqrt{n}$, then **AKS** only when walking to the root is no longer realistic.
+**Fully deterministic** primality, $\pi(n)$, factoring, and arithmetic for every natural number. Exact trial through practical $\sqrt{n}$, then **combined BLS**, then **ECPP**, then **AKS** only as last resort.
 
 Import the public API from **`best_prime`**. No stochastic Miller–Rabin. No prime libraries as the engine.
 

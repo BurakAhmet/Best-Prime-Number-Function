@@ -4,9 +4,6 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Changed
-- Pages interactive lab mirrors the new huge-n ladder: **combined BLS** (n−1, Lucas n+1, Combined Theorem 1), then class-number-1 **ECPP**, then 30-wheel trial. Stage panel adds Lucas / Combined / ECPP views.
-
 ### Added
 - **Small-h CM ECPP** ($h(D)\le 16$) from transcribed Hilbert class polynomials
   $H_D$ (Cohen Tables 7.1 / 7.6, Fungrim 20b6d2). Numbered Cantor–Zassenhaus
@@ -25,6 +22,7 @@ All notable changes to this project are documented in this file.
   `max_ms` abort on ECM/SIQS (no raise).
 
 ### Changed
+- Pages interactive lab mirrors the new huge-n ladder: **combined BLS** (n−1, Lucas n+1, Combined Theorem 1), then class-number-1 **ECPP**, then 30-wheel trial. Stage panel adds Lucas / Combined / ECPP views.
 - **PR CI is leaner:** one Linux 3.12 job does tests + lint + determinism trials; auto-merge waits only for branch-protection gates; **Publish wiki** is dispatched after a successful merge. The Pages workflow no longer also hooks Auto-merge via `workflow_run` (that cancelled the real deploy). Full extra-version determinism and 3.9/3.12/3.13 + macOS/Windows run on `main`.
 - Pages interactive lab uses **Montgomery ECM (Suyama)** on hostile $n-1$, so $10^{54}+31$ proves prime in-tab (~1–2 min) instead of returning inconclusive.
 - Pages lab prints a **factor** for composites and shows a live stage panel that mirrors the engine (precheck, Fermat, split, Brent, $p-1$, ECM, Pocklington, 30-wheel).
@@ -37,6 +35,7 @@ All notable changes to this project are documented in this file.
   $h=1$ is not a random-100-digit engine. Restrictions + wiki synced.
   `DEFAULT_N` unchanged (147-bit). Guide: `docs/guide/ecpp-proof.md`.
 - Wiki CI page and Home lab copy describe the PR/main split and in-browser ECM.
+- Dropped duplicate README mermaid / Mission essay, wiki dispatch reprint, and `.github/SECURITY.md` (root `SECURITY.md` is the policy). Stale “AKS only” ledes now say BLS → ECPP → AKS.
 
 ## [1.12.0] — 2026-08-13
 

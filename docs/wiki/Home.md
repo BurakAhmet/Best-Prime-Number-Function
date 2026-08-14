@@ -15,12 +15,6 @@ Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic**
 
 ---
 
-## Mission
-
-Most “is this prime?” code is **stochastic Miller–Rabin** or a wrapper around someone else’s sieve. Those are excellent *filters*. They are not a uniform proof for every natural number.
-
-This project refuses that bargain: same $n$, any machine, serial or parallel → the same boolean. Speed is engineered **after** that promise. $\pi(n)$, factoring, and Pratt certificates sit on the same contract.
-
 ## What this project is
 
 | | |
@@ -64,52 +58,14 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 
 ## Quick start
 
-```bash
-git clone https://github.com/BurakAhmet/Best-Prime-Number-Function.git
-cd Best-Prime-Number-Function
-
-# library install (preferred)
-pip install -e .
-# optional if OpenMP core was not built at install time:
-bash scripts/compile_wheel_core.sh
-
-python -c "from best_prime import is_prime, next_prime; print(is_prime(17), next_prime(14, 3))"
-is-prime 1000000007                    # console script
-next-prime 100                         # 101
-next-prime 14 3                        # 23
-prev-prime 14                          # 13
-nth-prime 5                            # 11
-prime-count 10                         # 4
-prime-factors 360                      # 2 2 2 3 3 5
-python -m best_prime                     # default: 147-bit n−1 yardstick (u128_nm1)
-python -m best_prime 18446744073709551557   # largest prime < 2^64
-python -m best_prime 100000000000000000039  # ~10^20 prime (u128_wheel_c)
-pytest -q -m "not slow"
-```
-
-As a dependency from GitHub:
+Install and first calls live in the [README](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/README.md) and the [library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/).
 
 ```bash
-pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
+pip install best-prime-number-function
+is-prime 1000000007
 ```
 
----
-
-## Design at a glance
-
-```text
-is_prime(n)
-    ├─ n < 10⁴         → pure-Python small loop
-    ├─ n < 2⁶⁴
-    │    ├─ isqrt ≥ 10⁷ → BLS n±1, else cubic C
-    │    ├─ wheel_core.so → OpenMP C precomputed primes / seg-primes
-    │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
-    │    └─ else          → Numba 9699690-wheel
-    └─ n ≥ 2⁶⁴
-         ├─ cubic budget → BLS n±1, else cubic C
-         ├─ practical √n (≤128-bit) → OpenMP u128 full trial / stdlib wheel
-         └─ larger still            → combined BLS (CLI default: 147-bit n−1) → ECPP (h=1 then small-h) → AKS
-```
+Dispatch: [Algorithm overview](Algorithm-overview) · [engines](https://burakahmet.github.io/Best-Prime-Number-Function/guide/engines/).
 
 ---
 

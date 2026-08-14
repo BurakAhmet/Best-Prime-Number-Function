@@ -181,33 +181,6 @@ def _nth_prime_sieve(k: int) -> int:
         bound += (bound >> 1) + 32
 
 
-def _nth_prime_segmented(k: int) -> int:
-    bound = _nth_prime_upper(k)
-    while True:
-        if math.isqrt(bound) > 50_000_000:
-            # Fall back: expand bound only after a full scan failed.
-            pass
-        base = _primes_upto_cached(math.isqrt(bound))
-        count = 0
-        lo = 2
-        found = None
-        while lo <= bound:
-            hi = min(lo + (_SEG_ODDS << 1), bound + 1)
-            if lo == 2:
-                chunk = _primes_in_range(2, hi)
-            else:
-                chunk = _seg_odds(lo, hi, base)
-            nch = len(chunk)
-            if count + nch >= k:
-                found = chunk[k - count - 1]
-                break
-            count += nch
-            lo = hi
-        if found is not None:
-            return found
-        bound += (bound >> 1) + 32
-
-
 def _seg_odds(lo: int, hi: int, base: tuple[int, ...]) -> list[int]:
     """Primes in [lo, hi), lo odd or even, hi exclusive. 2 not in range."""
     if hi <= lo:
