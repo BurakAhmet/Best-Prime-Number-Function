@@ -15,7 +15,7 @@ Engines:
 * OpenMP C (``lehman_factor_u128``) when ``4·k·n`` fits in 128 bits.
 * **Multiprecision pure Python** (unlimited ``int`` for ``4kn``) for a
   complete proof while ``⌈n^{1/3}⌉ ≤ LEHMAN_COMPLETE_CUB_MAX_MP``.
-* Bounded probe (``LEHMAN_PROBE_K_MAX``) before AKS to catch many composites.
+* Callers may pass a smaller ``k_max`` for a probe that is not a proof.
 
 Deterministic. No RNG. Not Miller–Rabin.
 """
@@ -37,9 +37,6 @@ LEHMAN_COMPLETE_CUB_MAX = 3_000_000
 LEHMAN_COMPLETE_CUB_MAX_MP = 8_000_000
 # C engine domain sentinel (uint64 k); real gate is 4kn ≤ 128 bits.
 LEHMAN_COMPLETE_CUB_MAX_C = (1 << 63) - 1
-# Incomplete cubic probe before AKS (factor finder, not a primality proof).
-# Keep small: multiprecision 4kn makes large k_max too expensive for next_prime.
-LEHMAN_PROBE_K_MAX = 50_000
 
 # Quadratic residues mod 64 (bit i set ⇒ i is a square mod 64).
 _SQ_OK_MOD64 = 0

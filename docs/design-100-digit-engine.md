@@ -4,8 +4,8 @@
 |--|--|
 | **Author** | _TBD (Best-Prime-Number-Function maintainers)_ |
 | **Date** | 2026-08-14 |
-| **Status** | Draft (rev. 7 — OQ1 decided: keep 147-bit DEFAULT_N) |
-| **Package** | `best-prime-number-function` ~1.12.0 (unreleased n−1 Pocklington is current) |
+| **Status** | Shipped on `main` (rev. 7 — 147-bit `DEFAULT_N` kept; BLS + ECPP + AKS ladder) |
+| **Package** | `best-prime-number-function` 1.12.0 + unreleased huge-n ladder |
 | **Repository** | `/home/ahmet/Best-Prime-Number-Function` · [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function) |
 | **Primary metric** | End-to-end CLI `TIME` (`benchmarks/compare_e2e.py`) |
 | **Secondary metric** | `lab(n)["elapsed_ms"]` |

@@ -11,7 +11,7 @@ import time
 t0 = time.perf_counter_ns()
 
 from .is_prime import _parse_n  # noqa: E402
-from .next_prime import _looks_like_int_token, _parse_k, next_prime  # noqa: E402
+from .next_prime import _looks_like_int_token, _parse_k  # noqa: E402
 from .prev_prime import prev_prime  # noqa: E402
 from .prime_factors import prime_factors  # noqa: E402
 from .prime_power import is_perfect_power, is_prime_power  # noqa: E402
@@ -55,18 +55,6 @@ def _scan(argv: list[str], usage: str, max_pos: int) -> tuple[list[str], bool]:
         print(usage, file=sys.stderr)
         raise SystemExit(2)
     return positional, serial
-
-
-def next_prime_main(argv: list[str] | None = None) -> None:
-    usage = "usage: next-prime [--serial] n [k]"
-    pos, serial = _scan(argv if argv is not None else sys.argv[1:], usage, 2)
-    try:
-        n = _parse_n(pos[0])
-        k = _parse_k_token(pos[1]) if len(pos) > 1 else 1
-    except (TypeError, ValueError) as exc:
-        print(str(exc), file=sys.stderr)
-        raise SystemExit(2) from exc
-    _print(str(n), next_prime(n, k, parallel=not serial), k=k)
 
 
 def prev_prime_main(argv: list[str] | None = None) -> None:

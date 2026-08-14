@@ -654,15 +654,6 @@ def _pmake_monic(p: list[int], n: int) -> list[int]:
     return [(c * inv) % n for c in p]
 
 
-def _padd(a: list[int], b: list[int], n: int) -> list[int]:
-    if len(a) < len(b):
-        a, b = b, a
-    out = a[:]
-    for i, c in enumerate(b):
-        out[i] = (out[i] + c) % n
-    return _pstrip(out)
-
-
 def _psub(a: list[int], b: list[int], n: int) -> list[int]:
     out = a[:] if len(a) >= len(b) else a + [0] * (len(b) - len(a))
     for i, c in enumerate(b):
@@ -896,14 +887,4 @@ def ecpp_primality(n: int, *, parallel: bool = True, max_h: int = 1) -> Optional
     """
     decided, _rec = _ecpp_search(n, parallel=parallel, max_h=max_h)
     return decided
-
-
-def ecpp_certificate_data(
-    n: int, *, parallel: bool = True, max_h: int = 1
-) -> dict | None:
-    """Witness payload for an ECPP prime proof. None if ECPP does not settle prime."""
-    decided, rec = _ecpp_search(n, parallel=parallel, max_h=max_h)
-    if decided is True and rec and "q" in rec:
-        return rec
-    return None
 

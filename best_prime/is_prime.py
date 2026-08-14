@@ -854,7 +854,10 @@ def _hard_path_prime(n: int, *, parallel: bool) -> bool:
 
 
 def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> bool:
-    """Primality for n >= 2^64. BLS / cubic C when complete; else trial or AKS."""
+    """Primality for n >= 2^64 outside the complete-cubic budget.
+
+    Callers already routed cubic-ready n to ``_hard_path_prime``.
+    """
     global _last_is_prime_big_path
     _last_is_prime_big_path = None
     for p in _PRECHECK_BIG:
@@ -867,8 +870,7 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
     sq = math.isqrt(n)
     if sq * sq == n:
         return False
-    from .factor_lehman import cubic_complete_ready, lehman_factor
-    from .primality_nm1 import bls_primality
+    from .primality_nm1 import _try_split_cofactor, bls_primality
 
     # BLS n−1 / n+1 / combined whenever it settles — even past the u128 cubic
     # wall (4kn > 128 bits). Skipping it sent easy special-form primes into AKS.
@@ -877,13 +879,10 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
         if decided is not None:
             return decided
 
-    if cubic_complete_ready(n):
-        return lehman_factor(n, parallel=parallel) is None
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
         return _is_prime_big_full_trial(n, parallel)
-    # Larger: wheel trial, Fermat filter, bounded multiprecision cubic probe,
-    # then AKS. Probe is not a proof; a hit proves composite only.
+    # Larger: wheel trial, Fermat filter, then split / ECPP / AKS.
     bound = min(_AKS_TRIAL_BOUND, sq)
     if not _wheel_trial(n, _get_steps_30030(), 17, limit=bound):
         return False
@@ -894,20 +893,10 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
             return n == a
         if pow(a, n - 1, n) != 1:
             return False
-    # Deterministic split attempt (Fermat / cubic probe / Brent / ECM / SIQS).
     # A factor proves composite without AKS. Primes fall through to ECPP, then AKS.
-    try:
-        from .primality_nm1 import _try_split_cofactor
-
-        if _try_split_cofactor(n, parallel=parallel) is not None:
-            return False
-    except Exception:
-        # Last-resort composite probe around the whole split, not the SIQS abort path.
-        from .factor_lehman import LEHMAN_PROBE_K_MAX
-
-        if n.bit_length() <= 110:
-            if lehman_factor(n, k_max=LEHMAN_PROBE_K_MAX, parallel=parallel) is not None:
-                return False
+    # Splitters abort with None; they must not raise into this path.
+    if _try_split_cofactor(n, parallel=parallel) is not None:
+        return False
     from .primality_ecpp import ecpp_primality
 
     decided = ecpp_primality(n, parallel=parallel, max_h=_ECPP_MAX_H)
