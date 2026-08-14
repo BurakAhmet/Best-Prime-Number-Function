@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Pages interactive lab mirrors the new huge-n ladder: **combined BLS** (n−1, Lucas n+1, Combined Theorem 1), then class-number-1 **ECPP**, then 30-wheel trial. Stage panel adds Lucas / Combined / ECPP views.
+
 ### Added
 - **Small-h CM ECPP** ($h(D)\le 16$) from transcribed Hilbert class polynomials
   $H_D$ (Cohen Tables 7.1 / 7.6, Fungrim 20b6d2). Numbered Cantor–Zassenhaus

@@ -7,7 +7,7 @@
 
 ## Interactive lab
 
-Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **n−1 Pocklington** when $n-1$ factors (trial / Brent / $p-1$ / **Montgomery ECM**), else exact 30-wheel trial. Composites print a **factor**. The stage panel mirrors the live engine (precheck, Fermat, cofactor split, Brent, $p-1$, ECM, Pocklington $F$ vs $\sqrt{n}$, 30-wheel). No digit-length limit: smooth $n-1$ is typically sub-second; hostile $n-1$ (e.g. $10^{54}+31$) can take a minute or two of ECM. If a proof is still impractical, the lab reports **inconclusive** rather than spinning forever. Results are downloadable certificates.
+Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **combined BLS** (n−1 Pocklington, Lucas n+1, Combined Theorem 1 — $n < \max(F^{2}G/2,\,FG^{2}/2)$, not $FG>\sqrt{n}$), then class-number-1 **ECPP**, then exact 30-wheel trial. Factoring uses trial / Brent / $p-1$ / **Montgomery ECM**. Composites print a **factor**. The stage panel mirrors the live engine. No digit-length limit: smooth $n\pm 1$ is typically sub-second; hostile $n-1$ (e.g. $10^{54}+31$) can take a minute or two of ECM. If a proof is still impractical, the lab reports **inconclusive** rather than spinning forever (small-$h$ ECPP / AKS stay in the Python library). Results are downloadable certificates.
 
 <!-- acta-specimen -->
 
