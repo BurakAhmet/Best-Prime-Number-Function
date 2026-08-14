@@ -89,5 +89,5 @@ P40_H1_FRIENDLY = P40_H1_A**2 + P40_H1_V**2  # 100000000000000001000000000000000
 P40_H1_C = 2865377017242656090
 P40_H1_Q = 34899421401875313457
 
-# Smallest 100-digit prime (OEIS A003617). PR4 @slow specimen only.
+# Smallest 100-digit prime (OEIS A003617). Tests-only; not a default-CI gate.
 P100_DIGIT = 10**99 + 289
