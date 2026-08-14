@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Class-number-1 deterministic Atkin–Morain ECPP** skeleton (`primality_ecpp`):
+  13 discriminants, canonical Cornacchia, $C_4$/$C_6$ twist generators.
+  Not a general 100-digit engine.
 - **BLS n+1 + Combined Theorem 1** in `primality_nm1`: Lucas condition (II) when
   $G>\sqrt{n}$ or $G=n+1$, and Combined Theorem 1
   ($n < \max(F^2 G/2,\, F G^2/2)$). Special-form / smooth $n\pm 1$ only;

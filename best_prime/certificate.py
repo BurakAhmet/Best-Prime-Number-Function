@@ -57,6 +57,12 @@ def primality_certificate(n: int | str, *, parallel: bool = True) -> dict[str, A
     n_int = _parse_n(n)
     if n_int < 2:
         return {"n": n_int, "prime": False, "reason": "non-prime-by-definition"}
+    # Between PR2 and PR3: refuse huge-n Pratt rather than hang in AKS / n−1.
+    if n_int >= (1 << 64):
+        from .factor_lehman import cubic_complete_ready
+
+        if not cubic_complete_ready(n_int):
+            return {"n": n_int, "kind": "unsupported"}
     if not is_prime(n_int, parallel=parallel):
         from .prime_factors import prime_factors
 
