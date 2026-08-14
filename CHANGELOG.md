@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Small-h CM ECPP** ($h(D)\le 16$) from transcribed Hilbert class polynomials
+  $H_D$ (Cohen Tables 7.1 / 7.6, Fungrim 20b6d2). Numbered Cantor–Zassenhaus
+  for a root of $H_D$ mod $n$. The general 100-digit gate is this layer.
+- **BLS and Atkin–GKM certificates** (`primality_certificate` / `verify_certificate`):
+  same ladder as `is_prime`, arithmetic-only verifier. `is_prime` remains
+  boolean-only.
+- **Class-number-1 deterministic Atkin–Morain ECPP** skeleton (`primality_ecpp`):
+  13 discriminants, canonical Cornacchia, $C_4$/$C_6$ twist generators.
+  Not a general 100-digit engine.
 - **BLS n+1 + Combined Theorem 1** in `primality_nm1`: Lucas condition (II) when
   $G>\sqrt{n}$ or $G=n+1$, and Combined Theorem 1
   ($n < \max(F^2 G/2,\, F G^2/2)$). Special-form / smooth $n\pm 1$ only;
@@ -19,6 +28,11 @@ All notable changes to this project are documented in this file.
 - n−1 proofs use the **BLS $n^{1/3}$ extra** when $F$ is below $\sqrt{n}$ but $n < 2F^3$ (settles $10^{96}+127$ in the Pages lab).
 
 ### Docs
+- Huge-n ladder: combined BLS, then deterministic Atkin–Morain ECPP
+  (class-number-1 then small-$h$), then AKS. General 100-digit completeness
+  is the small-$h$ layer. Combined Theorem 1 (not $FG>\sqrt{n}$); `gk_min_q`;
+  $h=1$ is not a random-100-digit engine. Restrictions + wiki synced.
+  `DEFAULT_N` unchanged (147-bit). Guide: `docs/guide/ecpp-proof.md`.
 - Wiki CI page and Home lab copy describe the PR/main split and in-browser ECM.
 
 ## [1.12.0] — 2026-08-13

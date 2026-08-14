@@ -79,3 +79,15 @@ LARGE_COMPOSITES = [
 NP1_SMOOTH_PRIME = 47_265_372_806_959_999_999
 # Smaller n+1-smooth prime for Lucas / default-suite checks.
 NP1_SMOOTH_SMALL = 4_801_999  # n+1 = 2^4 · 5^3 · 7^4
+
+# Class-number-1 ECPP fixture: n = a² + v² (D = −4), single-step GK.
+P40_H1_A = 10**19 + 50
+P40_H1_V = 23
+P40_H1_T = 2 * P40_H1_A
+P40_H1_D = -4
+P40_H1_FRIENDLY = P40_H1_A**2 + P40_H1_V**2  # 100000000000000001000000000000000003029
+P40_H1_C = 2865377017242656090
+P40_H1_Q = 34899421401875313457
+
+# Smallest 100-digit prime (OEIS A003617). Tests-only; not a default-CI gate.
+P100_DIGIT = 10**99 + 289
