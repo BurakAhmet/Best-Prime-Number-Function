@@ -705,7 +705,7 @@ Guides: [`docs/guide/nm1-proof.md`](guide/nm1-proof.md) · [`docs/guide/ecpp-pro
 |--|--|
 | **Advantages** | p8-class factors of $m$ in ~0.15 s; 131-digit $n$ now has a proof path; no RNG; F6/F7 hold |
 | **Disadvantages** | Python Montgomery is not FastECPP; 131-digit e2e is tens of seconds, not 2 s |
-| **Failures / lessons** | Do not trial-split 300-bit leftovers to $5\cdot10^6$; do not 63×Brent on 400-bit $n$ |
+| **Failures / lessons** | Do not trial-split 300-bit leftovers to $5\cdot10^6$; do not 63×Brent on 400-bit $n$; the Pages lab must not treat a $g=n$ inversion as $[q]Q=O$, nor run the hard55 700-curve ECM on ECPP peels (both hung $10^{130}+1113$ in-tab) |
 
 ---
 

@@ -39,6 +39,10 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "ECPP first" in src or "class-number-1 ECPP first" in src
     assert "lucasUv" in src
     assert "COFACTOR_TRIAL_ISQRT" in src
+    assert re.search(r"POINT_X_MAX\s*=\s*4096", src)
+    assert re.search(r"HUGE_LAB_MS\s*=\s*180_000", src)
+    assert "jacDbl" in src
+    assert "admissiblePairs" in src
     assert "Montgomery ECM" in ui or "ECM" in ui
     assert 'data-phase="lucas"' in ui
     assert 'data-phase="combined"' in ui
@@ -108,6 +112,30 @@ def test_checker_worker_hard55_pocklington() -> None:
         capture_output=True,
         text=True,
         timeout=900,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_checker_worker_p131_ecpp() -> None:
+    """10^130+1113: class-number-1 ECPP (D=−19) in the Pages worker."""
+    script = (
+        "const api=require('./docs/wiki/assets/checker-worker.js');"
+        "const n=10n**130n+1113n;"
+        "const r=api.checkPrime(n);"
+        "if(!r || r.prime!==true || r.path!=='ecpp'){"
+        "  console.error(JSON.stringify(r)); process.exit(1);"
+        "}"
+        "console.log('p131 OK', r.path, r.ms);"
+    )
+    r = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=300,
         check=False,
     )
     assert r.returncode == 0, r.stdout + r.stderr

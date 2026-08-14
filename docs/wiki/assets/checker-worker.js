@@ -5,6 +5,8 @@
  *   → class-number-1 Atkin–Morain ECPP → 30-wheel trial when practical.
  *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
  *   Huge leftovers use a short ECM budget so 131-digit n cannot hang in BLS.
+ *   ECPP point mul is Jacobian (one inversion); a wrong-order curve is the
+ *   next (q,c) pair, not “point at infinity”. Peel of m is a cached stack.
  *   No hard digit / √n size ban: if proof is impractical, return path=inconclusive.
  * Not the OpenMP C core; no stochastic Miller–Rabin. No AKS in-tab.
  * Self-test: node docs/wiki/assets/checker-worker.js --self-test
@@ -31,8 +33,12 @@
   const TRIAL_BOUND_MID = 1_000_000;
   const TRIAL_BOUND_BIG = 5_000_000;
   const TRIAL_BOUND_HUGE = 50_000;
+  /** Match Python _adaptive_trial_bound for 256–280-bit curve orders. */
+  const TRIAL_BOUND_NEAR_HUGE = 200_000;
   /** Match Python: ECPP before a deep BLS peel. */
   const HUGE_BITS = 256;
+  /** Safety net for ≥256-bit ECPP in-tab (user Stop still aborts immediately). */
+  const HUGE_LAB_MS = 180_000;
   const P1_B1 = 250_000;
   /** Exact trial allowed when proving an n−1 cofactor (not the original n). */
   const COFACTOR_TRIAL_ISQRT = 150_000_000_000n;
@@ -261,7 +267,8 @@
     const bits = bitLength(m);
     if (bits <= 40) return TRIAL_BOUND_DEFAULT;
     if (bits <= 80) return TRIAL_BOUND_MID;
-    if (bits >= HUGE_BITS) return TRIAL_BOUND_HUGE;
+    if (bits >= 281) return TRIAL_BOUND_HUGE;
+    if (bits >= HUGE_BITS) return TRIAL_BOUND_NEAR_HUGE;
     return TRIAL_BOUND_BIG;
   }
 
@@ -519,7 +526,7 @@
     if (bits <= 100) return 2000;
     if (bits <= 160) return 8000;
     if (bits < HUGE_BITS) return 60000;
-    return 800;
+    return 2000;
   }
 
   function ecmPhases(bits) {
@@ -541,8 +548,29 @@
         { B1: 50_000, curves: 280 },
       ];
     }
-    // 131-digit yardstick: a few p8-class curves, then give up.
-    return [{ B1: 6_000, curves: 4 }];
+    // 131-digit yardstick: match Python p8-class Montgomery budget.
+    return [{ B1: 6_000, curves: 6 }];
+  }
+
+  /** Python `_schedule` / `_ecm_max_ms` used when peeling ECPP curve orders. */
+  function ecmPeelPhases(bits) {
+    if (bits <= 40) return [{ B1: 200, curves: 8 }];
+    if (bits <= 64) return [{ B1: 2_000, curves: 24 }];
+    if (bits <= 80) return [{ B1: 5_000, curves: 40 }];
+    if (bits <= 100) return [{ B1: 2_000, curves: 20 }];
+    if (bits <= 160) return [{ B1: 5_000, curves: 24 }];
+    if (bits <= 280) return [{ B1: 8_000, curves: 8 }];
+    return [{ B1: 6_000, curves: 6 }];
+  }
+
+  function ecmPeelMaxMs(bits) {
+    if (bits <= 40) return 50;
+    if (bits <= 64) return 200;
+    if (bits <= 80) return 500;
+    if (bits <= 100) return 2000;
+    if (bits <= 160) return 8000;
+    if (bits <= 220) return 2000;
+    return 2000;
   }
 
   function montDbl(x, z, A24, n) {
@@ -596,10 +624,10 @@
   }
 
   /** Deterministic Montgomery ECM (Suyama σ = 6, 7, …). No RNG. */
-  function ecmFactor(n, onTick, shouldStop, sigma0, maxMs) {
+  function ecmFactor(n, onTick, shouldStop, sigma0, maxMs, phasesOpt) {
     if (n < 4n || (n & 1n) === 0n) return n % 2n === 0n && n > 2n ? 2n : null;
     const bits = bitLength(n);
-    const phases = ecmPhases(bits);
+    const phases = phasesOpt || ecmPhases(bits);
     let sigmaBase = sigma0 == null ? 6 : sigma0;
     let doneCurves = 0;
     let totalCurves = 0;
@@ -1002,8 +1030,25 @@
     "-67": -(5280n ** 3n),
     "-163": -(640320n ** 3n),
   };
-  const POINT_X_MAX = 512;
+  const POINT_X_MAX = 4096;
   const TWIST_NONRESIDUE_MAX = 10000;
+  const peelCache = new Map();
+  const proving = new Set();
+
+  function clearPeelCache() {
+    peelCache.clear();
+  }
+
+  function maxSplitsFor(bits) {
+    if (bits <= 160) return 48;
+    if (bits <= 250) return 24;
+    return 8;
+  }
+
+  function modN(x, n) {
+    x %= n;
+    return x < 0n ? x + n : x;
+  }
 
   function tonelliModN(a, n) {
     a %= n;
@@ -1105,55 +1150,103 @@
     return { kind: "ok", t: hits[0][0], v: hits[0][1] };
   }
 
-  function ecAdd(p1, p2, a, n) {
-    if (p1 === null) return { p: p2, g: 1n };
-    if (p2 === null) return { p: p1, g: 1n };
-    const x1 = p1[0];
-    const y1 = p1[1];
-    const x2 = p2[0];
-    const y2 = p2[1];
-    let num;
-    let den;
-    if (x1 === x2) {
-      if ((y1 + y2) % n === 0n) return { p: null, g: 1n };
-      num = (3n * x1 * x1 + a) % n;
-      den = (2n * y1) % n;
-    } else {
-      num = (y2 - y1) % n;
-      den = (x2 - x1) % n;
-    }
-    if (num < 0n) num += n;
-    if (den < 0n) den += n;
-    const g = gcd(den, n);
-    if (g > 1n) return { p: null, g: g };
-    const inv = modInv(den, n);
-    if (inv === null) return { p: null, g: gcd(den, n) };
-    const m = (num * inv) % n;
-    let x3 = (m * m - x1 - x2) % n;
-    let y3 = (m * (x1 - x3) - y1) % n;
-    if (x3 < 0n) x3 += n;
-    if (y3 < 0n) y3 += n;
-    return { p: [x3, y3], g: 1n };
+  /** Jacobian doubling. Infinity is {inf:true}; a proper factor is {factor}. */
+  function jacDbl(x, y, z, a, n) {
+    if (y === 0n) return { inf: true };
+    const y2 = (y * y) % n;
+    const s = (4n * x * y2) % n;
+    const z2 = (z * z) % n;
+    const m = (3n * x * x + ((a * z2) % n) * z2) % n;
+    const x3 = modN(m * m - 2n * s, n);
+    const y3 = modN(m * (s - x3) - 8n * y2 * y2, n);
+    const z3 = (2n * y * z) % n;
+    const g = z3 === 0n ? 1n : gcd(z3, n);
+    if (g > 1n && g < n) return { factor: g };
+    return { x: x3, y: y3, z: z3 };
   }
 
+  function jacAdd(x1, y1, z1, x2, y2, z2, n) {
+    if (z1 === 0n) return { x: x2, y: y2, z: z2 };
+    if (z2 === 0n) return { x: x1, y: y1, z: z1 };
+    const z1z1 = (z1 * z1) % n;
+    const z2z2 = (z2 * z2) % n;
+    const u1 = (x1 * z2z2) % n;
+    const u2 = (x2 * z1z1) % n;
+    const s1 = (((y1 * z2) % n) * z2z2) % n;
+    const s2 = (((y2 * z1) % n) * z1z1) % n;
+    const h = modN(u2 - u1, n);
+    const r = modN(s2 - s1, n);
+    if (h === 0n) {
+      if (r === 0n) return { dbl: true };
+      return { inf: true };
+    }
+    const hh = (h * h) % n;
+    const hhh = (h * hh) % n;
+    const v = (u1 * hh) % n;
+    const x3 = modN(r * r - hhh - 2n * v, n);
+    const y3 = modN(r * (v - x3) - s1 * hhh, n);
+    const z3 = (((z1 * z2) % n) * h) % n;
+    const g = z3 === 0n ? 1n : gcd(z3, n);
+    if (g > 1n && g < n) return { factor: g };
+    return { x: x3, y: y3, z: z3 };
+  }
+
+  /** Scalar mul via Jacobian coordinates (one inversion at the end). */
   function ecMul(k, p, a, n) {
-    let r = null;
-    let b = p;
-    let e = k;
-    while (e > 0n) {
-      if (e & 1n) {
-        const ad = ecAdd(r, b, a, n);
-        if (ad.g > 1n && ad.g < n) return ad;
-        r = ad.p;
+    if (p === null || k <= 0n) return { p: null, g: 1n };
+    let jx = modN(p[0], n);
+    let jy = modN(p[1], n);
+    let jz = 1n;
+    let rx = 0n;
+    let ry = 0n;
+    let rz = 0n;
+    let kk = k;
+    while (kk > 0n) {
+      if (kk & 1n) {
+        if (rz === 0n) {
+          rx = jx;
+          ry = jy;
+          rz = jz;
+        } else {
+          let g = jacAdd(rx, ry, rz, jx, jy, jz, n);
+          if (g.dbl) g = jacDbl(rx, ry, rz, a, n);
+          if (g.factor) return { p: null, g: g.factor };
+          if (g.inf) {
+            rx = 0n;
+            ry = 0n;
+            rz = 0n;
+          } else {
+            rx = g.x;
+            ry = g.y;
+            rz = g.z;
+          }
+        }
       }
-      e >>= 1n;
-      if (e > 0n) {
-        const db = ecAdd(b, b, a, n);
-        if (db.g > 1n && db.g < n) return db;
-        b = db.p;
+      kk >>= 1n;
+      if (kk > 0n) {
+        if (jz !== 0n) {
+          const g = jacDbl(jx, jy, jz, a, n);
+          if (g.factor) return { p: null, g: g.factor };
+          if (g.inf) {
+            jx = 0n;
+            jy = 0n;
+            jz = 0n;
+          } else {
+            jx = g.x;
+            jy = g.y;
+            jz = g.z;
+          }
+        }
       }
     }
-    return { p: r, g: 1n };
+    if (rz === 0n) return { p: null, g: 1n };
+    const zinv = modInv(rz, n);
+    if (zinv === null) {
+      const g = gcd(rz, n);
+      return { p: null, g: g > 1n && g < n ? g : 1n };
+    }
+    const z2 = (zinv * zinv) % n;
+    return { p: [(rx * z2) % n, (((ry * z2) % n) * zinv) % n], g: 1n };
   }
 
   function twistGenNeg4(n) {
@@ -1182,114 +1275,261 @@
   }
 
   function peelM(m, n, onTick, shouldStop) {
+    const key = String(m) + ":" + String(n);
+    const hit = peelCache.get(key);
+    if (hit) {
+      return {
+        fac: new Map(hit.fac),
+        rem: hit.rem,
+        unproven: hit.unproven.slice(),
+      };
+    }
     const ts = trialSplit(m, adaptiveTrialBound(m));
     const fac = ts.fac;
-    let rem = ts.rem;
-    // Fermat-holding leftovers are q-candidates. Do not ECM a probable prime.
-    if (rem > 1n && rem < m && fermatSaysComposite(rem)) {
-      const f = trySplitCofactor(rem, onTick, shouldStop);
-      if (f && f > 1n && f < rem) {
-        const other = rem / f;
-        if (f * f <= rem) {
-          fac.set(f, (fac.get(f) || 0) + 1);
-          rem = other;
-        } else {
-          fac.set(other, (fac.get(other) || 0) + 1);
-          rem = f;
-        }
+    const unproven = [];
+    if (ts.rem <= 1n) {
+      const stored = { fac: Array.from(fac), rem: 1n, unproven: [] };
+      peelCache.set(key, stored);
+      return { fac: fac, rem: 1n, unproven: [] };
+    }
+    const stack = [ts.rem];
+    let splits = 0;
+    const cap = maxSplitsFor(bitLength(m));
+    while (stack.length) {
+      if (shouldStop && shouldStop()) break;
+      let c = stack.pop();
+      if (c <= 1n) continue;
+      const sub = trialSplit(c, adaptiveTrialBound(c));
+      for (const [p, e] of sub.fac) fac.set(p, (fac.get(p) || 0) + e);
+      if (sub.rem <= 1n) continue;
+      c = sub.rem;
+      // Fermat-holding leftovers are q-candidates. Do not ECM a holding prime.
+      if (c < n && !fermatSaysComposite(c)) {
+        unproven.push(c);
+        continue;
+      }
+      if (splits >= cap) {
+        if (!fermatSaysComposite(c)) unproven.push(c);
+        continue;
+      }
+      splits++;
+      const cb = bitLength(c);
+      const f = ecmFactor(
+        c,
+        onTick,
+        shouldStop,
+        6,
+        ecmPeelMaxMs(cb),
+        ecmPeelPhases(cb)
+      );
+      if (!f || f <= 1n || f >= c) {
+        if (!fermatSaysComposite(c)) unproven.push(c);
+        continue;
+      }
+      stack.push(f);
+      stack.push(c / f);
+    }
+    let prod = 1n;
+    for (const [p, e] of fac) {
+      for (let i = 0; i < e; i++) prod *= p;
+    }
+    let leftover = prod === 0n ? m : m / prod;
+    if (leftover <= 1n) leftover = 1n;
+    if (!(shouldStop && shouldStop())) {
+      peelCache.set(key, {
+        fac: Array.from(fac),
+        rem: leftover,
+        unproven: unproven.slice(),
+      });
+    }
+    return { fac: fac, rem: leftover, unproven: unproven };
+  }
+
+  function admissiblePairs(m, n, fac, leftover, unproven) {
+    const minQ = gkMinQ(n);
+    const pairs = [];
+    const seen = new Set();
+    for (const q of fac.keys()) {
+      const k = String(q);
+      if (seen.has(k) || q < minQ || m % q !== 0n) continue;
+      const c = m / q;
+      if (c >= 2n) {
+        pairs.push({ q: q, c: c, proven: true });
+        seen.add(k);
       }
     }
-    return { fac: fac, rem: rem };
+    const cands = unproven.slice();
+    if (leftover > 1n && leftover < n && !fermatSaysComposite(leftover)) {
+      cands.push(leftover);
+    }
+    for (let i = 0; i < cands.length; i++) {
+      const q = cands[i];
+      const k = String(q);
+      if (seen.has(k) || q < minQ || q >= n || m % q !== 0n) continue;
+      const c = m / q;
+      if (c >= 2n) {
+        pairs.push({ q: q, c: c, proven: false });
+        seen.add(k);
+      }
+    }
+    pairs.sort(function (a, b) {
+      return a.q === b.q ? 0 : a.q < b.q ? -1 : 1;
+    });
+    return pairs;
+  }
+
+  /**
+   * Goldwasser–Kilian point predicate.
+   * g==n is “try next x”, not O. Wrong order aborts this (q,c) pair only.
+   */
+  function pointSearch(n, a, b, c, q) {
+    for (let x = 1n; x <= BigInt(POINT_X_MAX); x++) {
+      const rhs = (powBig(x, 3n, n) + a * x + b) % n;
+      let j;
+      try {
+        j = jacobi(rhs, n);
+      } catch (_) {
+        return { prime: false };
+      }
+      if (j === 0) {
+        const g = gcd(rhs, n);
+        if (g > 1n && g < n) return { prime: false, factor: g };
+        continue;
+      }
+      if (j === -1) continue;
+      const y = tonelliModN(rhs, n);
+      if (y && y.factor) return { prime: false, factor: y.factor };
+      if (y == null || typeof y !== "bigint") continue;
+      const Q = ecMul(c, [x, y], a, n);
+      if (Q.g > 1n && Q.g < n) return { prime: false, factor: Q.g };
+      if (Q.g > 1n || Q.p === null) continue;
+      const R = ecMul(q, Q.p, a, n);
+      if (R.g > 1n && R.g < n) return { prime: false, factor: R.g };
+      if (R.g > 1n) continue;
+      if (R.p === null) return { prime: true };
+      return { prime: null };
+    }
+    return { prime: null };
   }
 
   /** Prove a strictly smaller Goldwasser–Kilian q. Recurse ECPP when BLS cannot. */
-  function proveQ(q, depth, onTick, shouldStop) {
-    if (q < 2n) return false;
-    if (q === 2n || q === 3n) return true;
-    if ((q & 1n) === 0n) return false;
+  function proveQ(q, depth, onTick, shouldStop, proven) {
+    if (proven) return { prime: true };
+    if (shouldStop && shouldStop()) return { aborted: true };
+    if (q < 2n) return { prime: false };
+    if (q === 2n || q === 3n) return { prime: true };
+    if ((q & 1n) === 0n) return { prime: false };
     const lim = isqrt(q);
     if (lim <= 2_000_000n) {
-      return trialIsPrimeCofactor(q, lim, onTick, shouldStop) === true;
+      const t = trialIsPrimeCofactor(q, lim, onTick, shouldStop);
+      if (t === true) return { prime: true };
+      if (t === false) return { prime: false };
+      return { prime: null };
     }
-    // ≥200-bit q: ECPP, not a deep BLS n±1 peel (that hang is why 131-digit
-    // checks never finished in the tab).
-    if (bitLength(q) < 200) {
-      const b = blsPrimality(q, depth + 1, onTick, shouldStop);
-      if (b.prime === true) return true;
-      if (b.prime === false) return false;
-    }
+    // Downrun q: class-number-1 ECPP first. A mid-size BLS peel uses the
+    // hard55 700-curve ECM and is what hung 10^130+1113 in the tab.
     if (depth < 10) {
       const e = ecppPrimality(q, depth + 1, onTick, shouldStop);
-      if (e.prime === true) return true;
-      if (e.prime === false) return false;
+      if (e.aborted) return { aborted: true };
+      if (e.prime === true) return { prime: true };
+      if (e.prime === false) return { prime: false };
     }
-    return false;
+    if (bitLength(q) < 200) {
+      const b = blsPrimality(q, depth + 1, onTick, shouldStop);
+      if (b.prime === true) return { prime: true };
+      if (b.prime === false) return { prime: false };
+    }
+    return { prime: null };
   }
 
-  function tryCurveEcpp(n, a, b, m, depth, onTick, shouldStop) {
-    if (m <= 2n) return { prime: null };
-    const g0 = gcd(m, n);
-    if (g0 > 1n && g0 < n) return { prime: false, factor: g0 };
+  function tryCurveOrders(n, a, b, orders, depth, onTick, shouldStop) {
     const disc = (4n * powBig(a, 3n, n) + 27n * ((b * b) % n)) % n;
     const gd = gcd(disc, n);
     if (gd > 1n && gd < n) return { prime: false, factor: gd };
     if (gd === n) return { prime: null };
-    const peeled = peelM(m, n, onTick, shouldStop);
-    const candidates = [];
-    let prod = 1n;
-    for (const [p, e] of peeled.fac) {
-      for (let i = 0; i < e; i++) prod *= p;
+    const cands = [];
+    for (let i = 0; i < orders.length; i++) {
+      const m = orders[i];
+      if (m <= 2n) continue;
+      const g0 = gcd(m, n);
+      if (g0 > 1n && g0 < n) return { prime: false, factor: g0 };
+      const peeled = peelM(m, n, onTick, shouldStop);
+      if (shouldStop && shouldStop()) return { prime: null, aborted: true };
+      const pairs = admissiblePairs(m, n, peeled.fac, peeled.rem, peeled.unproven);
+      for (let j = 0; j < pairs.length; j++) {
+        cands.push({
+          q: pairs[j].q,
+          c: pairs[j].c,
+          proven: pairs[j].proven,
+          m: m,
+        });
+      }
     }
-    if (peeled.rem > 1n) {
-      candidates.push(peeled.rem);
-    }
-    for (const p of peeled.fac.keys()) candidates.push(p);
-    candidates.sort(function (x, y) {
-      return x === y ? 0 : x < y ? -1 : 1;
+    cands.sort(function (x, y) {
+      return x.q === y.q ? 0 : x.q < y.q ? -1 : 1;
     });
-    const minQ = gkMinQ(n);
-    for (let i = 0; i < candidates.length; i++) {
-      const q = candidates[i];
-      if (q < minQ || m % q !== 0n) continue;
-      const c = m / q;
-      if (c < 2n) continue;
-      for (let x = 1n; x <= BigInt(POINT_X_MAX); x++) {
-        const rhs = (powBig(x, 3n, n) + a * x + b) % n;
-        const j = jacobi(rhs, n);
-        if (j === 0) {
-          const g = gcd(rhs, n);
-          if (g > 1n && g < n) return { prime: false, factor: g };
-          continue;
-        }
-        if (j === -1) continue;
-        const y = tonelliModN(rhs, n);
-        if (y && y.factor) return { prime: false, factor: y.factor };
-        if (y == null || typeof y !== "bigint") continue;
-        const Q = ecMul(c, [x, y], a, n);
-        if (Q.g > 1n && Q.g < n) return { prime: false, factor: Q.g };
-        if (Q.p === null) continue;
-        const R = ecMul(q, Q.p, a, n);
-        if (R.g > 1n && R.g < n) return { prime: false, factor: R.g };
-        // [c]P ≠ O and [q]Q ≠ O with inversions ok: this curve has the wrong order.
-        if (R.p !== null) return { prime: null };
-        if (proveQ(q, depth, onTick, shouldStop)) {
-          return { prime: true };
-        }
+    for (let i = 0; i < cands.length; i++) {
+      if (shouldStop && shouldStop()) return { prime: null, aborted: true };
+      const hit = pointSearch(n, a, b, cands[i].c, cands[i].q);
+      if (hit.prime === false) return hit;
+      if (hit.prime === true) {
+        const pq = proveQ(cands[i].q, depth, onTick, shouldStop, cands[i].proven);
+        if (pq.aborted) return { prime: null, aborted: true };
+        if (pq.prime === true) return { prime: true };
+        if (pq.prime === false) return { prime: false };
       }
     }
     return { prime: null };
+  }
+
+  function collectTwistPairs(n, t, coeff, isA, onTick, shouldStop) {
+    const orders = [n + 1n - t, n + 1n + t];
+    const cands = [];
+    for (let i = 0; i < coeff.length; i++) {
+      const tw = coeff[i];
+      if (tw === 0n) continue;
+      for (let j = 0; j < orders.length; j++) {
+        const m = orders[j];
+        if (m <= 2n) continue;
+        const peeled = peelM(m, n, onTick, shouldStop);
+        if (shouldStop && shouldStop()) return { aborted: true };
+        const pairs = admissiblePairs(m, n, peeled.fac, peeled.rem, peeled.unproven);
+        for (let k = 0; k < pairs.length; k++) {
+          cands.push({
+            q: pairs[k].q,
+            c: pairs[k].c,
+            proven: pairs[k].proven,
+            m: m,
+            a: isA ? tw : 0n,
+            b: isA ? 0n : tw,
+          });
+        }
+      }
+    }
+    cands.sort(function (x, y) {
+      return x.q === y.q ? 0 : x.q < y.q ? -1 : 1;
+    });
+    return { cands: cands };
   }
 
   function tryDNeg4(n, t, depth, onTick, shouldStop) {
     const beta = twistGenNeg4(n);
     if (beta && beta.factor) return { prime: false, factor: beta.factor };
     if (beta == null || typeof beta !== "bigint") return { prime: null };
-    for (let k = 0n; k < 4n; k++) {
-      const a = powBig(beta, k, n);
-      if (a === 0n) continue;
-      for (const m of [n + 1n - t, n + 1n + t]) {
-        const dec = tryCurveEcpp(n, a, 0n, m, depth, onTick, shouldStop);
-        if (dec.prime !== null) return dec;
+    const coeff = [];
+    for (let k = 0n; k < 4n; k++) coeff.push(powBig(beta, k, n));
+    const bag = collectTwistPairs(n, t, coeff, true, onTick, shouldStop);
+    if (bag.aborted) return { prime: null, aborted: true };
+    const cands = bag.cands;
+    for (let i = 0; i < cands.length; i++) {
+      if (shouldStop && shouldStop()) return { prime: null, aborted: true };
+      const hit = pointSearch(n, cands[i].a, 0n, cands[i].c, cands[i].q);
+      if (hit.prime === false) return hit;
+      if (hit.prime === true) {
+        const pq = proveQ(cands[i].q, depth, onTick, shouldStop, cands[i].proven);
+        if (pq.aborted) return { prime: null, aborted: true };
+        if (pq.prime === true) return { prime: true };
+        if (pq.prime === false) return { prime: false };
       }
     }
     return { prime: null };
@@ -1299,12 +1539,20 @@
     const alpha = twistGenNeg3(n);
     if (alpha && alpha.factor) return { prime: false, factor: alpha.factor };
     if (alpha == null || typeof alpha !== "bigint") return { prime: null };
-    for (let k = 0n; k < 6n; k++) {
-      const b = powBig(alpha, k, n);
-      if (b === 0n) continue;
-      for (const m of [n + 1n - t, n + 1n + t]) {
-        const dec = tryCurveEcpp(n, 0n, b, m, depth, onTick, shouldStop);
-        if (dec.prime !== null) return dec;
+    const coeff = [];
+    for (let k = 0n; k < 6n; k++) coeff.push(powBig(alpha, k, n));
+    const bag = collectTwistPairs(n, t, coeff, false, onTick, shouldStop);
+    if (bag.aborted) return { prime: null, aborted: true };
+    const cands = bag.cands;
+    for (let i = 0; i < cands.length; i++) {
+      if (shouldStop && shouldStop()) return { prime: null, aborted: true };
+      const hit = pointSearch(n, 0n, cands[i].b, cands[i].c, cands[i].q);
+      if (hit.prime === false) return hit;
+      if (hit.prime === true) {
+        const pq = proveQ(cands[i].q, depth, onTick, shouldStop, cands[i].proven);
+        if (pq.aborted) return { prime: null, aborted: true };
+        if (pq.prime === true) return { prime: true };
+        if (pq.prime === false) return { prime: false };
       }
     }
     return { prime: null };
@@ -1334,12 +1582,18 @@
     for (let r = 0n; r < 2n; r++) {
       const cr2 = powBig(c, 2n * r, n);
       const cr3 = powBig(c, 3n * r, n);
-      const a = (-3n * k * cr2) % n;
-      const b = (2n * k * cr3) % n;
-      for (const m of [n + 1n - t, n + 1n + t]) {
-        const dec = tryCurveEcpp(n, (a + n) % n, (b + n) % n, m, depth, onTick, shouldStop);
-        if (dec.prime !== null) return dec;
-      }
+      const a = modN(-3n * k * cr2, n);
+      const b = modN(2n * k * cr3, n);
+      const dec = tryCurveOrders(
+        n,
+        a,
+        b,
+        [n + 1n - t, n + 1n + t],
+        depth,
+        onTick,
+        shouldStop
+      );
+      if (dec.aborted || dec.prime !== null) return dec;
     }
     return { prime: null };
   }
@@ -1349,22 +1603,32 @@
     if (n === 2n || n === 3n) return { prime: true };
     if ((n & 1n) === 0n) return { prime: false, factor: 2n };
     if (isSquare(n)) return { prime: false, factor: isqrt(n) };
-    for (let i = 0; i < CLASS_NUMBER_1_D.length; i++) {
-      const D = CLASS_NUMBER_1_D[i];
-      emit(onTick, "ecpp", BigInt(i + 1), BigInt(CLASS_NUMBER_1_D.length), {
-        D: String(D),
-      });
-      if (shouldStop && shouldStop()) return { prime: null };
-      const cr = cornacchia(D, n);
-      if (cr.kind === "factor") return { prime: false, factor: cr.g };
-      if (cr.kind !== "ok") continue;
-      let dec;
-      if (D === -4n) dec = tryDNeg4(n, cr.t, depth, onTick, shouldStop);
-      else if (D === -3n) dec = tryDNeg3(n, cr.t, depth, onTick, shouldStop);
-      else dec = tryDFromJ(n, D, cr.t, depth, onTick, shouldStop);
-      if (dec.prime !== null) return dec;
+    if (!depth) clearPeelCache();
+    const key = String(n);
+    if (proving.has(key)) return { prime: null };
+    if (proving.size >= bitLength(n)) return { prime: null };
+    proving.add(key);
+    try {
+      for (let i = 0; i < CLASS_NUMBER_1_D.length; i++) {
+        const D = CLASS_NUMBER_1_D[i];
+        emit(onTick, "ecpp", BigInt(i + 1), BigInt(CLASS_NUMBER_1_D.length), {
+          D: String(D),
+        });
+        if (shouldStop && shouldStop()) return { prime: null, aborted: true };
+        const cr = cornacchia(D, n);
+        if (cr.kind === "factor") return { prime: false, factor: cr.g };
+        if (cr.kind !== "ok") continue;
+        let dec;
+        if (D === -4n) dec = tryDNeg4(n, cr.t, depth, onTick, shouldStop);
+        else if (D === -3n) dec = tryDNeg3(n, cr.t, depth, onTick, shouldStop);
+        else dec = tryDFromJ(n, D, cr.t, depth, onTick, shouldStop);
+        if (dec.aborted) return dec;
+        if (dec.prime !== null) return dec;
+      }
+      return { prime: null };
+    } finally {
+      proving.delete(key);
     }
-    return { prime: null };
   }
 
   function checkPrime(n, onTick, shouldStop) {
@@ -1391,7 +1655,7 @@
     if (n >= TWO64 || limit >= NM1_ISQRT) {
       if (bits >= HUGE_BITS) {
         const labDeadline =
-          typeof performance !== "undefined" ? performance.now() + 45_000 : null;
+          typeof performance !== "undefined" ? performance.now() + HUGE_LAB_MS : null;
         function hugeStop() {
           if (shouldStop && shouldStop()) return true;
           return labDeadline != null && performance.now() >= labDeadline;
@@ -1427,8 +1691,9 @@
           factor: null,
           isqrt: limit.toString(),
           ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
-          note:
-            "No size ban: class-number-1 ECPP did not settle this ≥256-bit n in the tab budget. The tab does not run a multi-minute BLS/SIQS peel here. Python is_prime proves 10^130+1113 in a few seconds.",
+          note: ecHuge.aborted
+            ? "Stopped or hit the in-tab ECPP time budget before a class-number-1 proof finished. Try again, or use Python is_prime."
+            : "No size ban: class-number-1 ECPP did not settle this ≥256-bit n. The tab does not run a multi-minute BLS/SIQS peel here. Hostile n (no CM-friendly D) stays inconclusive in-tab; Python is_prime continues with small-h ECPP / AKS.",
         };
       }
       emit(onTick, "fermat", 0n, 6n, { label: "combined BLS n±1" });
@@ -1594,6 +1859,8 @@
     COFACTOR_TRIAL_ISQRT: COFACTOR_TRIAL_ISQRT,
     NM1_ISQRT: NM1_ISQRT,
     HUGE_BITS: HUGE_BITS,
+    HUGE_LAB_MS: HUGE_LAB_MS,
+    POINT_X_MAX: POINT_X_MAX,
     adaptiveTrialBound: adaptiveTrialBound,
     ecmPhases: ecmPhases,
     SMALL_N: SMALL_N,
@@ -1706,10 +1973,12 @@
     const p131 = 10n ** 130n + 1113n;
     assert(bitLength(p131) >= HUGE_BITS, "P131 is the ≥256-bit ECPP-first yardstick");
     assert(adaptiveTrialBound(p131) === TRIAL_BOUND_HUGE, "huge n trial bound");
+    assert(POINT_X_MAX === 4096, "POINT_X_MAX matches the Python library");
+    assert(HUGE_LAB_MS >= 120000, "in-tab ECPP budget must cover the 131-digit downrun");
     let hugeCurves = 0;
     const hugePh = ecmPhases(bitLength(p131));
     for (let i = 0; i < hugePh.length; i++) hugeCurves += hugePh[i].curves;
-    assert(hugeCurves <= 16, "huge ECM must be short, got " + hugeCurves);
+    assert(hugeCurves >= 6 && hugeCurves <= 16, "huge ECM must match Python p8 budget, got " + hugeCurves);
     const huge = 10n ** 96n + 127n;
     const Fbls =
       2n * 55667n * 195376548589n * 323382331513450093n;

@@ -9,7 +9,7 @@ A deterministic primality proof for $n$ that is **too large for complete cubic s
 
 Kronecker AKS is a teaching/CI engine: `_aks_is_prime(10007)` is already ~0.79 s. For a 100-digit prime the modulus $r$ is thousands and each $(X+a)^n \bmod (X^r-1,\,n)$ is hopeless. ECPP is the product path for *general* 100-digit $n$ (hostile $n\pm 1$, no hand-picked discriminant). Combined BLS still wins first on special form (smooth-ish $n\pm 1$).
 
-No RNG. No “random curve.” No probable-prime control flow. Discriminants, twists, and points are walked in a **fixed order**. A failed point inversion that yields $1 < g < n$ is a composite proof; a curve of the wrong order is “try the next pair,” not a primality claim.
+No RNG. No “random curve.” No probable-prime control flow. Discriminants, twists, and points are walked in a **fixed order**. A failed point inversion that yields $1 < g < n$ is a composite proof; a curve of the wrong order is “try the next pair,” not a primality claim. The [Pages lab](https://burakahmet.github.io/Best-Prime-Number-Function/) runs the same class-number-1 ladder (Jacobian mul, stacked Montgomery peel) and proves the 131-digit specimen $10^{130}+1113$ in-tab.
 
 ## Goldwasser–Kilian (the only ECPP primality claim)
 

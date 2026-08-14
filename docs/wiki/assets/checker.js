@@ -362,7 +362,8 @@
           (n−1 Pocklington, Lucas n+1, Combined Theorem 1), then ECPP, then exact 30-wheel trial.
           Factoring uses trial / Brent / p−1 / <strong>ECM</strong>.
           <strong>No digit-length limit.</strong> Smooth <em>n</em>±1 is typically sub-second;
-          a 131-digit CM-friendly prime may take about a minute here. Hostile mid-size
+          the 131-digit CM-friendly prime 10^130+1113 proves in this tab via class-number-1
+          ECPP (often tens of seconds). Hostile mid-size
           <em>n</em>−1 can take a minute or two of ECM. Stop anytime.
           Composites print a factor when one is found.</p>
         ${stageMarkup()}
@@ -743,7 +744,7 @@
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
               <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">There is no maximum digit length. The tab runs ECPP first on ≥256-bit <em>n</em> (no multi-minute BLS peel), else combined BLS then class-number-1 ECPP, plus trial / Brent / p−1 / Montgomery ECM. If that still cannot settle <em>n</em> and pure trial is impractical (~⌊√n⌋ steps), the lab stops rather than spinning forever. The Python library continues with small-h ECPP, SIQS, and AKS.</p>`
+              <p class="lab-hint">There is no maximum digit length. The tab runs ECPP first on ≥256-bit <em>n</em> (Jacobian point mul, stacked Montgomery ECM peel; no multi-minute BLS peel), else combined BLS then class-number-1 ECPP, plus trial / Brent / p−1 / Montgomery ECM. CM-friendly huge primes such as 10^130+1113 are in scope. If that still cannot settle <em>n</em> and pure trial is impractical (~⌊√n⌋ steps), the lab stops rather than spinning forever. The Python library continues with small-h ECPP, SIQS, and AKS.</p>`
             );
           } else {
             renderCert({
