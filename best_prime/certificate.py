@@ -126,7 +126,7 @@ def _child_cert(
 
 
 def _build_bls_cert(
-    n: int, data: dict[str, Any], *, parallel: bool, memo: dict[int, dict[str, Any]]
+    n: int, data: dict, *, parallel: bool, memo: dict[int, dict[str, Any]]
 ) -> dict[str, Any]:
     side = data["side"]
     cert: dict[str, Any] = {
@@ -216,7 +216,7 @@ def _certificate(
         from .primality_nm1 import _bls_proof
 
         decided, data = _bls_proof(n, parallel=parallel)
-        if decided is True and _bls_settled(data):
+        if decided is True and data is not None and _bls_settled(data):
             return _build_bls_cert(n, data, parallel=parallel, memo=memo)
         if decided is False:
             return _composite_record(n, parallel=parallel)
@@ -244,7 +244,7 @@ def _certificate(
 
     if cubic_complete_ready(n):
         decided, data = _bls_proof(n, parallel=parallel)
-        if decided is True and _bls_settled(data):
+        if decided is True and data is not None and _bls_settled(data):
             return _build_bls_cert(n, data, parallel=parallel, memo=memo)
         if decided is False:
             return _composite_record(n, parallel=parallel)
@@ -266,7 +266,7 @@ def _certificate(
 
     # Huge n: BLS → split → ECPP (no complete n−1 factoring, no AKS).
     decided, data = _bls_proof(n, parallel=parallel)
-    if decided is True and _bls_settled(data):
+    if decided is True and data is not None and _bls_settled(data):
         return _build_bls_cert(n, data, parallel=parallel, memo=memo)
     if decided is False:
         return _composite_record(n, parallel=parallel)
