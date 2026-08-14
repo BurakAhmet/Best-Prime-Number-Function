@@ -61,6 +61,13 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "data-res=" in ui
     assert "extractFactor" in src
     assert "emit(onTick" in src or "function emit(" in src
+    assert "nextPrime" in src
+    assert "prevPrime" in src
+    assert "lab-digits" in ui
+    assert "lab-next" in ui
+    assert "lab-prev" in ui
+    assert "formatDigitCount" in ui
+    assert "Next / previous prime" in ui
 
 
 def test_og_png_is_social_card():
@@ -91,6 +98,27 @@ def test_checker_worker_self_test():
     )
     assert r.returncode == 0, r.stdout + r.stderr
     assert "self-test OK" in r.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_checker_worker_next_prev_prime() -> None:
+    script = (
+        "const api=require('./docs/wiki/assets/checker-worker.js');"
+        "const n=api.nextPrime(14n,1); const p=api.prevPrime(14n,1);"
+        "if(!n.ok||n.value!=='17'||!p.ok||p.value!=='13'){"
+        "  console.error(JSON.stringify({n,p})); process.exit(1);"
+        "}"
+        "console.log('neighbors OK', n.value, p.value);"
+    )
+    r = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
 
 
 @pytest.mark.slow

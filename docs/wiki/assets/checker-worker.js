@@ -1776,6 +1776,202 @@
     return trialBig(n, limit, t0, onTick, shouldStop);
   }
 
+  const NEIGHBOR_MAX_TRIES = 10_000;
+  const NEIGHBOR_MAX_K = 64;
+
+  function parseK(raw) {
+    const k = Number(raw);
+    if (!Number.isInteger(k) || k < 1 || k > NEIGHBOR_MAX_K) return null;
+    return k;
+  }
+
+  function smallComposite(n) {
+    if (n < 2n) return true;
+    if (n === 2n || n === 3n) return false;
+    if ((n & 1n) === 0n) return true;
+    for (let i = 0; i < SMALL.length; i++) {
+      const p = SMALL[i];
+      if (n === p) return false;
+      if (n % p === 0n) return true;
+      if (p * p > n) return false;
+    }
+    return false;
+  }
+
+  function nextPrime(n, k, onTick, shouldStop) {
+    const kk = parseK(k == null ? 1 : k);
+    if (kk == null) {
+      return { ok: false, error: "k must be an integer from 1 to " + NEIGHBOR_MAX_K };
+    }
+    const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+    const found = [];
+    let cand = n < 2n ? 2n : n + 1n;
+    let tried = 0;
+    while (found.length < kk) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      if (cand > 3n && (cand & 1n) === 0n) cand += 1n;
+      tried++;
+      if (tried > NEIGHBOR_MAX_TRIES) {
+        return {
+          ok: false,
+          inconclusive: true,
+          n: n.toString(),
+          k: kk,
+          direction: "next",
+          tried: tried,
+          last: cand.toString(),
+          ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+          note:
+            "Walked " +
+            NEIGHBOR_MAX_TRIES +
+            " candidates without finding the " +
+            kk +
+            "-th prime > n. Stop and try a smaller n, or use Python next_prime.",
+        };
+      }
+      emit(onTick, "neighbor", BigInt(found.length + 1), BigInt(kk), {
+        label: "next prime · candidate " + cand.toString(),
+        candidate: cand.toString(),
+        found: String(found.length),
+      });
+      if (!smallComposite(cand)) {
+        const r = checkPrime(cand, onTick, shouldStop);
+        if (r && r.aborted) return { aborted: true };
+        if (r && r.prime === true) {
+          found.push({ p: cand, path: r.path, ms: r.ms });
+        } else if (r && r.prime == null) {
+          return {
+            ok: false,
+            inconclusive: true,
+            n: n.toString(),
+            k: kk,
+            direction: "next",
+            tried: tried,
+            last: cand.toString(),
+            ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+            note:
+              "Candidate " +
+              cand.toString() +
+              " was inconclusive in-tab, so the walk stopped. Python next_prime continues.",
+          };
+        }
+      }
+      if (cand === 2n) cand = 3n;
+      else cand += 2n;
+    }
+    const last = found[found.length - 1];
+    return {
+      ok: true,
+      n: n.toString(),
+      k: kk,
+      direction: "next",
+      value: last.p.toString(),
+      path: last.path,
+      tried: tried,
+      ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+      note:
+        kk === 1
+          ? "least prime strictly greater than n (same engines as Check)"
+          : kk + "-th prime strictly greater than n",
+    };
+  }
+
+  function prevPrime(n, k, onTick, shouldStop) {
+    const kk = parseK(k == null ? 1 : k);
+    if (kk == null) {
+      return { ok: false, error: "k must be an integer from 1 to " + NEIGHBOR_MAX_K };
+    }
+    const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+    if (n <= 2n) {
+      return {
+        ok: false,
+        error: "there is no prime strictly less than " + n.toString(),
+      };
+    }
+    const found = [];
+    let cand = n - 1n;
+    let tried = 0;
+    while (found.length < kk) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      if (cand < 2n) {
+        return {
+          ok: false,
+          error:
+            "only " +
+            found.length +
+            " prime(s) strictly less than n; cannot take the " +
+            kk +
+            "-th previous",
+        };
+      }
+      if (cand > 3n && (cand & 1n) === 0n) cand -= 1n;
+      tried++;
+      if (tried > NEIGHBOR_MAX_TRIES) {
+        return {
+          ok: false,
+          inconclusive: true,
+          n: n.toString(),
+          k: kk,
+          direction: "prev",
+          tried: tried,
+          last: cand.toString(),
+          ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+          note:
+            "Walked " +
+            NEIGHBOR_MAX_TRIES +
+            " candidates without finding the " +
+            kk +
+            "-th prime < n.",
+        };
+      }
+      emit(onTick, "neighbor", BigInt(found.length + 1), BigInt(kk), {
+        label: "previous prime · candidate " + cand.toString(),
+        candidate: cand.toString(),
+        found: String(found.length),
+      });
+      if (!smallComposite(cand)) {
+        const r = checkPrime(cand, onTick, shouldStop);
+        if (r && r.aborted) return { aborted: true };
+        if (r && r.prime === true) {
+          found.push({ p: cand, path: r.path, ms: r.ms });
+        } else if (r && r.prime == null) {
+          return {
+            ok: false,
+            inconclusive: true,
+            n: n.toString(),
+            k: kk,
+            direction: "prev",
+            tried: tried,
+            last: cand.toString(),
+            ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+            note:
+              "Candidate " +
+              cand.toString() +
+              " was inconclusive in-tab, so the walk stopped. Python prev_prime continues.",
+          };
+        }
+      }
+      if (cand === 3n) cand = 2n;
+      else if (cand === 2n) cand = 1n;
+      else cand -= 2n;
+    }
+    const last = found[found.length - 1];
+    return {
+      ok: true,
+      n: n.toString(),
+      k: kk,
+      direction: "prev",
+      value: last.p.toString(),
+      path: last.path,
+      tried: tried,
+      ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+      note:
+        kk === 1
+          ? "greatest prime strictly less than n (same engines as Check)"
+          : kk + "-th prime strictly less than n",
+    };
+  }
+
   function trialNumber(n, limit, t0, onTick, shouldStop) {
     let i = 59;
     let si = 6;
@@ -1849,6 +2045,8 @@
     lucasUv: lucasUv,
     cornacchia: cornacchia,
     checkPrime: checkPrime,
+    nextPrime: nextPrime,
+    prevPrime: prevPrime,
     ecmFactor: ecmFactor,
     umod64: umod64,
     nm1Primality: nm1Primality,
@@ -1879,40 +2077,43 @@
         stop = true;
         return;
       }
-      if (msg.cmd !== "check") return;
+      if (msg.cmd !== "check" && msg.cmd !== "nextPrime" && msg.cmd !== "prevPrime") {
+        return;
+      }
       stop = false;
       try {
         const n = BigInt(String(msg.n));
-        const res = checkPrime(
-          n,
-          function (info, lim) {
-            if (info && typeof info === "object") {
-              g.postMessage({
-                type: "progress",
-                phase: info.phase || "wheel",
-                i: String(info.i),
-                limit: String(info.limit),
-                extra: info.extra || {},
-              });
-            } else {
-              g.postMessage({
-                type: "progress",
-                phase: "wheel",
-                i: String(info),
-                limit: String(lim),
-                extra: {},
-              });
-            }
-          },
-          function () {
-            return stop;
+        const onTick = function (info, lim) {
+          if (info && typeof info === "object") {
+            g.postMessage({
+              type: "progress",
+              phase: info.phase || "wheel",
+              i: String(info.i),
+              limit: String(info.limit),
+              extra: info.extra || {},
+            });
+          } else {
+            g.postMessage({
+              type: "progress",
+              phase: "wheel",
+              i: String(info),
+              limit: String(lim),
+              extra: {},
+            });
           }
-        );
+        };
+        const shouldStop = function () {
+          return stop;
+        };
+        let res;
+        if (msg.cmd === "nextPrime") res = nextPrime(n, msg.k, onTick, shouldStop);
+        else if (msg.cmd === "prevPrime") res = prevPrime(n, msg.k, onTick, shouldStop);
+        else res = checkPrime(n, onTick, shouldStop);
         if (res && res.aborted) {
           g.postMessage({ type: "aborted" });
           return;
         }
-        g.postMessage({ type: "done", result: res });
+        g.postMessage({ type: "done", result: res, kind: msg.cmd });
       } catch (err) {
         g.postMessage({ type: "error", message: String(err && err.message ? err.message : err) });
       }
@@ -2011,6 +2212,17 @@
 
     const overSafe = 59n * (MAX_SAFE / 59n + 11n);
     assert(overSafe > MAX_SAFE && overSafe < TWO64, "u64 fixture range");
+    assert(nextPrime(0n, 1).value === "2", "next(0)=2");
+    assert(nextPrime(1n, 1).value === "2", "next(1)=2");
+    assert(nextPrime(2n, 1).value === "3", "next(2)=3");
+    assert(nextPrime(14n, 1).value === "17", "next(14)=17");
+    assert(nextPrime(14n, 3).value === "23", "next(14,3)=23");
+    assert(nextPrime(100n, 1).value === "101", "next(100)=101");
+    assert(prevPrime(14n, 1).value === "13", "prev(14)=13");
+    assert(prevPrime(14n, 2).value === "11", "prev(14,2)=11");
+    assert(prevPrime(3n, 1).value === "2", "prev(3)=2");
+    assert(prevPrime(2n, 1).ok === false, "no prime < 2");
+
     const over = checkPrime(overSafe);
     assert(over.prime === false, "u64 composite should be composite");
     assert(overSafe % BigInt(over.factor) === 0n, "u64 factor must divide n");

@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- Pages lab shows the **digit count** of $n$ as you type, and a **next / previous prime** panel under the checker (same deterministic worker; optional $k$-th neighbor).
 - **Small-h CM ECPP** ($h(D)\le 16$) from transcribed Hilbert class polynomials
   $H_D$ (Cohen Tables 7.1 / 7.6, Fungrim 20b6d2). Numbered Cantor–Zassenhaus
   for a root of $H_D$ mod $n$. The general 100-digit gate is this layer.

@@ -14,6 +14,45 @@
   font-size: 1.05rem;
   margin-bottom: 0.35rem;
 }
+.prime-lab .lab-nhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.prime-lab .lab-nhead .lab-label { margin-bottom: 0.35rem; }
+.prime-lab .lab-digits {
+  margin: 0 0 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.prime-lab.lab-neighbors {
+  margin-top: 0;
+  border-top: 0;
+}
+.prime-lab .lab-subhead {
+  margin: 0 0 0.35rem;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+.prime-lab .lab-kwrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.95rem;
+}
+.prime-lab #lab-k {
+  width: 3.6rem;
+  flex: 0 0 auto;
+  text-align: center;
+}
 .prime-lab .row {
   display: flex;
   gap: 0.5rem;

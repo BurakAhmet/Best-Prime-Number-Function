@@ -53,6 +53,7 @@
       "Best-Prime-Number-Function",
       "",
       "n = " + state.n,
+      "digits = " + String(state.n).length,
       "floor(sqrt(n)) = " + state.isqrt.toString(),
       "verdict = " + (state.prime ? "prime" : "composite"),
       "path = " + state.path,
@@ -85,6 +86,7 @@
     const ink = state.prime ? "#245c3d" : "#c45c2c";
     const rows = [
       ["n", state.n],
+      ["digits", String(state.n).length],
       ["⌊√n⌋", fmt(state.isqrt)],
       ["path", state.path],
     ];
@@ -346,10 +348,27 @@
       </div>`;
   }
 
+  function digitCountOf(raw) {
+    const n = parseN(raw);
+    if (n === null) return null;
+    return n.toString().length;
+  }
+
+  function formatDigitCount(raw) {
+    const s = String(raw == null ? "" : raw).trim();
+    if (!s) return "—";
+    const d = digitCountOf(s);
+    if (d == null) return "not a natural number";
+    return d === 1 ? "1 digit" : d + " digits";
+  }
+
   function mount(root) {
     root.innerHTML = `
       <section class="prime-lab" aria-label="Interactive primality lab">
-        <label class="lab-label" for="lab-n">n</label>
+        <div class="lab-nhead">
+          <label class="lab-label" for="lab-n">n</label>
+          <p class="lab-digits" id="lab-digits" aria-live="polite">—</p>
+        </div>
         <div class="row">
           <input id="lab-n" type="text" inputmode="numeric" autocomplete="off"
             placeholder="Enter a natural number" aria-label="n"/>
@@ -369,12 +388,33 @@
         ${stageMarkup()}
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
+      </section>
+      <section class="prime-lab lab-neighbors" aria-label="Next and previous prime">
+        <h3 class="lab-subhead">Next / previous prime</h3>
+        <p class="lab-hint">Uses the same <em>n</em> above. Finds the
+          <em>k</em>-th prime strictly greater or strictly less than <em>n</em>
+          (default <em>k</em> = 1), with the same deterministic engines. Composites
+          are skipped by a small-prime filter, then Check.</p>
+        <div class="row">
+          <label class="lab-kwrap" for="lab-k">k
+            <input id="lab-k" type="text" inputmode="numeric" value="1"
+              aria-label="k-th neighbor"/>
+          </label>
+          <button type="button" id="lab-prev">Previous prime</button>
+          <button type="button" id="lab-next">Next prime</button>
+        </div>
+        <div class="lab-out" id="lab-nb-out" aria-live="polite"></div>
       </section>`;
 
     const input = $("#lab-n", root);
+    const digits = $("#lab-digits", root);
     const go = $("#lab-go", root);
     const stop = $("#lab-stop", root);
+    const nextBtn = $("#lab-next", root);
+    const prevBtn = $("#lab-prev", root);
+    const kInput = $("#lab-k", root);
     const out = $("#lab-out", root);
+    const nbOut = $("#lab-nb-out", root);
     const bar = $("#lab-bar", root);
     const barFill = $("i", bar);
     const stage = $("#lab-stage", root);
@@ -577,6 +617,9 @@
       if (phase === "split") return extra.label || "factoring a cofactor of n±1";
       if (phase === "precheck") return "small-prime / parity filter";
       if (phase === "wheel") return "30-wheel trial division";
+      if (phase === "neighbor") {
+        return extra.label || "searching neighboring primes";
+      }
       return phase;
     }
 
@@ -584,6 +627,7 @@
       out.className = "lab-out show busy";
       out.innerHTML = `<p class="verdict">Checking…</p>
         <dl><dt>n</dt><dd>${escapeHtml(state.n)}</dd>
+        <dt>digits</dt><dd>${String(state.n).length}</dd>
         <dt>⌊√n⌋</dt><dd>${state.isqrt}</dd>
         <dt>stage</dt><dd>${escapeHtml(state.stage || "—")}</dd>
         <dt>step</dt><dd>${escapeHtml(state.i || "—")}</dd></dl>`;
@@ -598,6 +642,7 @@
         <p class="verdict">${verdict}</p>
         <dl>
           <dt>n</dt><dd>${escapeHtml(state.n)}</dd>
+          <dt>digits</dt><dd>${state.n.length}</dd>
           <dt>path</dt><dd>${escapeHtml(state.path)}</dd>
           <dt>⌊√n⌋</dt><dd>${fmt(state.isqrt)}</dd>
           ${factorRows(state)}
@@ -647,18 +692,96 @@
 
     function finishIdle() {
       go.disabled = false;
+      if (nextBtn) nextBtn.disabled = false;
+      if (prevBtn) prevBtn.disabled = false;
       stop.disabled = true;
       bar.classList.remove("show");
       hideStage();
       killWorker();
     }
 
-    function run() {
+    function updateDigits() {
+      if (digits) digits.textContent = formatDigitCount(input.value);
+    }
+
+    function parseK() {
+      const s = String(kInput ? kInput.value : "1").trim() || "1";
+      if (!/^\d+$/.test(s)) return null;
+      const k = Number(s);
+      if (!Number.isInteger(k) || k < 1 || k > 64) return null;
+      return k;
+    }
+
+    function renderNeighbor(res) {
+      if (!nbOut) return;
+      if (res.ok) {
+        nbOut.className = "lab-out show yes";
+        nbOut.innerHTML =
+          '<p class="verdict">' +
+          (res.direction === "prev" ? "Previous prime" : "Next prime") +
+          "</p><dl>" +
+          "<dt>n</dt><dd>" +
+          escapeHtml(res.n) +
+          "</dd>" +
+          "<dt>digits</dt><dd>" +
+          escapeHtml(String(res.n.length)) +
+          "</dd>" +
+          "<dt>k</dt><dd>" +
+          escapeHtml(String(res.k)) +
+          "</dd>" +
+          "<dt>result</dt><dd>" +
+          escapeHtml(res.value) +
+          "</dd>" +
+          "<dt>result digits</dt><dd>" +
+          escapeHtml(String(res.value.length)) +
+          "</dd>" +
+          "<dt>path</dt><dd>" +
+          escapeHtml(res.path || "") +
+          "</dd>" +
+          "<dt>tried</dt><dd>" +
+          escapeHtml(String(res.tried)) +
+          " candidates</dd>" +
+          "<dt>time</dt><dd>" +
+          Number(res.ms).toFixed(2) +
+          " ms</dd>" +
+          "<dt>note</dt><dd>" +
+          escapeHtml(res.note || "") +
+          "</dd></dl>";
+        return;
+      }
+      nbOut.className = "lab-out show " + (res.inconclusive ? "busy" : "no");
+      nbOut.innerHTML =
+        '<p class="verdict">' +
+        (res.inconclusive ? "Inconclusive here" : "No neighbor") +
+        "</p><p>" +
+        escapeHtml(res.error || res.note || "Could not find that prime in-tab.") +
+        "</p>";
+    }
+
+    function run(kind) {
+      kind = kind || "check";
       const n = parseN(input.value);
       if (n === null) {
         hideStage();
-        renderSimple("no", "Invalid n", "<p>Enter a non-negative decimal integer.</p>");
+        if (kind === "check") {
+          renderSimple("no", "Invalid n", "<p>Enter a non-negative decimal integer.</p>");
+        } else if (nbOut) {
+          nbOut.className = "lab-out show no";
+          nbOut.innerHTML = '<p class="verdict">Invalid n</p><p>Enter a non-negative decimal integer above.</p>';
+        }
         return;
+      }
+      let k = 1;
+      if (kind !== "check") {
+        k = parseK();
+        if (k == null) {
+          if (nbOut) {
+            nbOut.className = "lab-out show no";
+            nbOut.innerHTML =
+              '<p class="verdict">Invalid k</p><p>k must be an integer from 1 to 64.</p>';
+          }
+          return;
+        }
       }
       if (typeof Worker === "undefined") {
         hideStage();
@@ -673,7 +796,7 @@
       const limit = isqrt(n);
       const multiLimb = n >= TWO64;
       // No digit / √n hard ban. Optional confirm only for long pure-trial class (64-bit hard).
-      if (!multiLimb && limit > WARN_ISQRT) {
+      if (kind === "check" && !multiLimb && limit > WARN_ISQRT) {
         const ok = window.confirm(
           "⌊√n⌋ ≈ " +
             fmt(limit) +
@@ -685,11 +808,32 @@
 
       killWorker();
       go.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      if (prevBtn) prevBtn.disabled = true;
       stop.disabled = false;
       bar.classList.add("show");
       barFill.style.width = "0%";
-      showPhase("precheck");
-      renderBusy({ n: n.toString(), isqrt: fmt(limit), i: "starting", stage: "precheck" });
+      showPhase(kind === "check" ? "precheck" : "precheck");
+      const busyState = {
+        n: n.toString(),
+        isqrt: fmt(limit),
+        i: "starting",
+        stage: kind === "check" ? "precheck" : kind === "nextPrime" ? "next prime" : "previous prime",
+      };
+      if (kind === "check") renderBusy(busyState);
+      else if (nbOut) {
+        nbOut.className = "lab-out show busy";
+        nbOut.innerHTML =
+          '<p class="verdict">' +
+          (kind === "nextPrime" ? "Searching next…" : "Searching previous…") +
+          "</p><dl><dt>n</dt><dd>" +
+          escapeHtml(n.toString()) +
+          "</dd><dt>digits</dt><dd>" +
+          n.toString().length +
+          "</dd><dt>k</dt><dd>" +
+          k +
+          "</dd></dl>";
+      }
 
       try {
         worker = new Worker(workerUrl());
@@ -708,12 +852,27 @@
             const pct = lim === 0n ? 100 : Number((i * 1000n) / lim) / 10;
             barFill.style.width = Math.min(100, Math.max(0, pct)) + "%";
             applyPhase(msg);
-            renderBusy({
-              n: n.toString(),
-              isqrt: fmt(isqrt(n)),
-              stage: phaseLabel(msg.phase || "wheel", msg.extra || {}),
-              i: fmt(i) + " / " + fmt(lim),
-            });
+            const stageTxt = phaseLabel(msg.phase || "wheel", msg.extra || {});
+            if (kind === "check") {
+              renderBusy({
+                n: n.toString(),
+                isqrt: fmt(isqrt(n)),
+                stage: stageTxt,
+                i: fmt(i) + " / " + fmt(lim),
+              });
+            } else if (nbOut) {
+              nbOut.className = "lab-out show busy";
+              nbOut.innerHTML =
+                '<p class="verdict">Searching…</p><dl><dt>n</dt><dd>' +
+                escapeHtml(n.toString()) +
+                "</dd><dt>stage</dt><dd>" +
+                escapeHtml(stageTxt) +
+                "</dd><dt>step</dt><dd>" +
+                fmt(i) +
+                " / " +
+                fmt(lim) +
+                "</dd></dl>";
+            }
           } catch (_) {
             /* ignore malformed progress */
           }
@@ -721,7 +880,12 @@
         }
         if (msg.type === "aborted") {
           finishIdle();
-          renderSimple("busy", "Stopped", "<p>Trial cancelled.</p>");
+          if (kind === "check") {
+            renderSimple("busy", "Stopped", "<p>Trial cancelled.</p>");
+          } else if (nbOut) {
+            nbOut.className = "lab-out show busy";
+            nbOut.innerHTML = '<p class="verdict">Stopped</p><p>Search cancelled.</p>';
+          }
           return;
         }
         if (msg.type === "error") {
@@ -733,13 +897,16 @@
           const res = msg.result;
           barFill.style.width = "100%";
           hideStage();
-          if (res.prime === null) {
+          if (kind !== "check") {
+            renderNeighbor(res);
+          } else if (res.prime === null) {
             const title =
               res.path === "inconclusive" ? "Inconclusive here" : "No decision";
             renderSimple(
               "busy",
               title,
               `<dl><dt>n</dt><dd>${escapeHtml(n.toString())}</dd>
+              <dt>digits</dt><dd>${n.toString().length}</dd>
               <dt>path</dt><dd>${escapeHtml(res.path || "")}</dd>
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
@@ -757,10 +924,7 @@
               note: res.note,
             });
           }
-          go.disabled = false;
-          stop.disabled = true;
-          bar.classList.remove("show");
-          killWorker();
+          finishIdle();
         }
       };
 
@@ -773,13 +937,31 @@
         );
       };
 
-      worker.postMessage({ cmd: "check", n: n.toString() });
+      worker.postMessage({ cmd: kind, n: n.toString(), k: k });
     }
 
-    go.addEventListener("click", run);
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") run();
+    function updateDigitsAndMaybeRun(e) {
+      updateDigits();
+    }
+
+    go.addEventListener("click", function () {
+      run("check");
     });
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () {
+        run("nextPrime");
+      });
+    }
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () {
+        run("prevPrime");
+      });
+    }
+    input.addEventListener("input", updateDigitsAndMaybeRun);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") run("check");
+    });
+    updateDigits();
     stop.addEventListener("click", function () {
       if (worker) {
         try {
@@ -790,9 +972,11 @@
         killWorker();
         hideStage();
         renderSimple("busy", "Stopped", "<p>Trial cancelled.</p>");
-        go.disabled = false;
-        stop.disabled = true;
-        bar.classList.remove("show");
+        if (nbOut && nbOut.classList.contains("show")) {
+          nbOut.className = "lab-out show busy";
+          nbOut.innerHTML = '<p class="verdict">Stopped</p><p>Search cancelled.</p>';
+        }
+        finishIdle();
       }
     });
   }
@@ -814,6 +998,7 @@
       const input = document.getElementById("lab-n");
       if (!input) return;
       input.value = btn.getAttribute("data-n") || "";
+      input.dispatchEvent(new Event("input"));
       input.focus();
       input.select();
     });
