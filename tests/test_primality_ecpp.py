@@ -65,13 +65,14 @@ class TestEcppDecisions:
             assert ecpp_primality(p) is not False
 
     def test_composites_never_true(self):
-        for n in (9, 15, 25, 91, 121, 561) + CARMICHAEL[:4]:
+        for n in (9, 15, 25, 91, 121, 561, 1147, 2047) + CARMICHAEL[:4]:
             assert ecpp_primality(n) is not True
+            assert ecpp_primality(n, max_h=16) is not True
 
     def test_serial_parallel_same_boolean(self):
         for n in (97, 91, 1_000_003, 9, P10_9_7):
-            assert ecpp_primality(n, parallel=True) == ecpp_primality(
-                n, parallel=False
+            assert ecpp_primality(n, parallel=True, max_h=16) == ecpp_primality(
+                n, parallel=False, max_h=16
             )
 
     def test_squares_false(self):
@@ -134,6 +135,16 @@ class TestHilbertClassPoly:
             found = True
             break
         assert found
+
+    def test_cz_extracts_factor_on_composite(self):
+        root = hilbert_root_mod_n(HILBERT_CLASS_POLY[-15], 91)
+        assert isinstance(root, tuple) and root[0] == "factor"
+        assert 1 < root[1] < 91
+
+    def test_small_h_proves_59(self):
+        assert ecpp_primality(59) is not False
+        assert ecpp_primality(59, max_h=1) is None
+        assert ecpp_primality(59, max_h=16) is True
 
 
 @pytest.mark.slow
