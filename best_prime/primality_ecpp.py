@@ -274,6 +274,9 @@ def _fermat_composite(n: int) -> bool:
     return False
 
 
+_PEEL_CACHE: dict[tuple[int, int], tuple[dict[int, int], int, list[int]]] = {}
+
+
 def _peel_m(
     m: int, parent: int, *, parallel: bool
 ) -> tuple[dict[int, int], int, list[int]]:
@@ -281,7 +284,7 @@ def _peel_m(
 
     Returns ``(fac, leftover, unproven)`` where ``leftover = m / ∏ fac``
     (or 1) and ``unproven`` is each isolated splitter piece not absorbed
-    into ``fac``.
+    into ``fac``. Fermat-composite leftovers are not q-candidates.
     """
     from .primality_nm1 import (
         _adaptive_trial_bound,
@@ -290,10 +293,16 @@ def _peel_m(
         _try_split_cofactor,
     )
 
+    key = (int(m), int(parent))
+    hit = _PEEL_CACHE.get(key)
+    if hit is not None:
+        return hit[0].copy(), hit[1], list(hit[2])
+
     fac: dict[int, int] = {}
     peeled, rem = _trial_split(m, _adaptive_trial_bound(m))
     fac.update(peeled)
     if rem <= 1:
+        _PEEL_CACHE[key] = (dict(fac), 1, [])
         return fac, 1, []
     stack = [rem]
     unproven: list[int] = []
@@ -313,12 +322,14 @@ def _peel_m(
             unproven.append(c)
             continue
         if splits >= max_splits:
-            unproven.append(c)
+            if not _fermat_composite(c):
+                unproven.append(c)
             continue
         splits += 1
         f = _try_split_cofactor(c, parallel=parallel)
         if f is None or f <= 1 or f >= c:
-            unproven.append(c)
+            if not _fermat_composite(c):
+                unproven.append(c)
             continue
         stack.append(f)
         stack.append(c // f)
@@ -328,6 +339,9 @@ def _peel_m(
     leftover = m // prod if prod else m
     if leftover <= 1:
         leftover = 1
+    elif _fermat_composite(leftover):
+        leftover = leftover  # kept for bookkeeping; pairs skip composites
+    _PEEL_CACHE[key] = (dict(fac), leftover, list(unproven))
     return fac, leftover, unproven
 
 
@@ -351,7 +365,7 @@ def _admissible_pairs(
     for q in unproven:
         if q > 1:
             candidates.append(q)
-    if leftover > 1:
+    if leftover > 1 and not _fermat_composite(leftover):
         candidates.append(leftover)
     for q in candidates:
         if q in seen or q < min_q or q >= n or m % q != 0:
@@ -421,19 +435,31 @@ def _try_curve(
     n: int, a: int, b: int, m: int, *, parallel: bool, max_h: int
 ) -> Result:
     """Run point search on E(a,b) with order m. False = n composite."""
-    if m <= 2:
-        return None
-    g = math.gcd(m, n)
-    if 1 < g < n:
-        return False
+    return _try_curve_orders(n, a, b, (m,), parallel=parallel, max_h=max_h)
+
+
+def _try_curve_orders(
+    n: int, a: int, b: int, orders: tuple[int, ...], *, parallel: bool, max_h: int
+) -> Result:
+    """Like ``_try_curve`` but peels every order and tries the smallest q first."""
     disc = (4 * pow(a, 3, n) + 27 * ((b * b) % n)) % n
     g = math.gcd(disc, n)
     if 1 < g < n:
         return False
     if g == n:
         return None
-    fac, leftover, unproven = _peel_m(m, n, parallel=parallel)
-    for q, c, proven in _admissible_pairs(m, n, fac, leftover, unproven):
+    cands: list[tuple[int, int, bool, int]] = []
+    for m in orders:
+        if m <= 2:
+            continue
+        g = math.gcd(m, n)
+        if 1 < g < n:
+            return False
+        fac, leftover, unproven = _peel_m(m, n, parallel=parallel)
+        for q, c, proven in _admissible_pairs(m, n, fac, leftover, unproven):
+            cands.append((q, c, proven, m))
+    cands.sort(key=lambda item: item[0])
+    for q, c, proven, m in cands:
         hit = _point_search(n, a, b, c, q)
         if hit is False:
             return False
@@ -442,8 +468,6 @@ def _try_curve(
             if dec is True:
                 _note(a=int(a), b=int(b), m=int(m), c=int(c), q=int(q))
                 return True
-            # Unproven / composite leftover: try the next admissible q.
-            continue
     return None
 
 
@@ -463,14 +487,28 @@ def _try_d_neg4(n: int, t: int, *, parallel: bool, max_h: int) -> Result:
         return False
     if beta is None:
         return None
+    orders = (n + 1 - t, n + 1 + t)
+    cands: list[tuple[int, int, bool, int, int]] = []
     for k in range(4):
         a = pow(beta, k, n)
         if a == 0:
             continue
-        for m in (n + 1 - t, n + 1 + t):
-            dec = _try_curve(n, a, 0, m, parallel=parallel, max_h=max_h)
-            if dec is not None:
-                return dec
+        for m in orders:
+            if m <= 2:
+                continue
+            fac, leftover, unproven = _peel_m(m, n, parallel=parallel)
+            for q, c, proven in _admissible_pairs(m, n, fac, leftover, unproven):
+                cands.append((q, c, proven, m, a))
+    cands.sort(key=lambda item: item[0])
+    for q, c, proven, m, a in cands:
+        hit = _point_search(n, a, 0, c, q)
+        if hit is False:
+            return False
+        if hit is True:
+            dec = _prove_q(q, n, parallel=parallel, proven=proven, max_h=max_h)
+            if dec is True:
+                _note(a=int(a), b=0, m=int(m), c=int(c), q=int(q))
+                return True
     return None
 
 
@@ -480,14 +518,28 @@ def _try_d_neg3(n: int, t: int, *, parallel: bool, max_h: int) -> Result:
         return False
     if alpha is None:
         return None
+    orders = (n + 1 - t, n + 1 + t)
+    cands: list[tuple[int, int, bool, int, int]] = []
     for k in range(6):
         b = pow(alpha, k, n)
         if b == 0:
             continue
-        for m in (n + 1 - t, n + 1 + t):
-            dec = _try_curve(n, 0, b, m, parallel=parallel, max_h=max_h)
-            if dec is not None:
-                return dec
+        for m in orders:
+            if m <= 2:
+                continue
+            fac, leftover, unproven = _peel_m(m, n, parallel=parallel)
+            for q, c, proven in _admissible_pairs(m, n, fac, leftover, unproven):
+                cands.append((q, c, proven, m, b))
+    cands.sort(key=lambda item: item[0])
+    for q, c, proven, m, b in cands:
+        hit = _point_search(n, 0, b, c, q)
+        if hit is False:
+            return False
+        if hit is True:
+            dec = _prove_q(q, n, parallel=parallel, proven=proven, max_h=max_h)
+            if dec is True:
+                _note(a=0, b=int(b), m=int(m), c=int(c), q=int(q))
+                return True
     return None
 
 
@@ -515,10 +567,11 @@ def _try_curve_from_j(n: int, j: int, t: int, *, parallel: bool, max_h: int) -> 
         cr3 = pow(c, 3 * r, n)
         a = (-3 * k * cr2) % n
         b = (2 * k * cr3) % n
-        for m in (n + 1 - t, n + 1 + t):
-            dec = _try_curve(n, a, b, m, parallel=parallel, max_h=max_h)
-            if dec is not None:
-                return dec
+        dec = _try_curve_orders(
+            n, a, b, (n + 1 - t, n + 1 + t), parallel=parallel, max_h=max_h
+        )
+        if dec is not None:
+            return dec
     return None
 
 
@@ -843,6 +896,7 @@ def _ecpp_search(
 ) -> tuple[Result, dict | None]:
     """True / False / None plus an ECPP witness when the proof succeeds."""
     _cert_stack.append({})
+    _PEEL_CACHE.clear()
     try:
         if n < 2:
             return False, None

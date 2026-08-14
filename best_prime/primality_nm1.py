@@ -50,7 +50,11 @@ def _adaptive_trial_bound(m: int) -> int:
         return _TRIAL_BOUND
     if bits <= 80:
         return 1_000_000
-    return _TRIAL_PRIME_CACHE_MAX
+    if bits <= 160:
+        return _TRIAL_PRIME_CACHE_MAX
+    if bits <= 280:
+        return 200_000
+    return 50_000
 
 
 def _max_splits(bits: int) -> int:
@@ -59,8 +63,24 @@ def _max_splits(bits: int) -> int:
     if bits <= 160:
         return 48
     if bits <= 250:
-        return 64
-    return 80
+        return 24
+    return 8
+
+
+def _p1_b1(bits: int) -> int:
+    if bits <= 80:
+        return P1_B1_SMALL
+    if bits <= 160:
+        return 250_000
+    return 200_000
+
+
+def _brent_curve_count(bits: int) -> int:
+    if bits <= 80:
+        return 63
+    if bits <= 160:
+        return 16
+    return 0
 
 
 def _ecm_max_ms(bits: int) -> int:
@@ -74,7 +94,9 @@ def _ecm_max_ms(bits: int) -> int:
         return 2000
     if bits <= 160:
         return 8000
-    return 15000
+    if bits <= 220:
+        return 600
+    return 200
 
 
 def _siqs_max_ms(bits: int) -> int:
@@ -148,6 +170,12 @@ def _prove_strictly_smaller(
         math.isqrt(c) <= _MAX_FULL_TRIAL_ISQRT and c.bit_length() <= 128
     ):
         return bool(is_prime(c, parallel=parallel))
+    if allow_ecpp and c.bit_length() >= 200:
+        from .primality_ecpp import ecpp_primality
+
+        decided = ecpp_primality(c, parallel=parallel, max_h=max_h)
+        if decided is not None:
+            return decided
     decided = bls_primality(c, parallel=parallel)
     if decided is not None:
         return decided
@@ -184,14 +212,14 @@ def _pollard_p1(n: int, B1: int = P1_B1_SMALL) -> int | None:
 def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
     """Proper factor of composite c, or None.
 
-    Order: trial → Fermat → Brent → p−1 → short cubic → ECM → SIQS.
-    Brent before long cubic: ~1e9 factors often fall in tens of ms.
-    SIQS only for SIQS_MIN_BITS ≤ bits ≤ SIQS_MAX_BITS; budgets abort with None.
+    Mid-size: trial → Fermat → Brent → p−1 → cubic → ECM → SIQS.
+    Multi-limb (bits > 160): p−1 then Montgomery ECM; skip long Brent/cubic.
     """
     from .factor_ecm import ecm_factor
     from .factor_lehman import _c_lehman_ready, _ceil_icbrt, lehman_factor
     from .prime_factors import _brent, _fermat_split
 
+    bits = c.bit_length()
     fac, rem = _trial_split(c, _adaptive_trial_bound(c))
     if fac:
         if rem == 1:
@@ -199,35 +227,41 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
         if rem > 1 and rem < c:
             return min(fac)
 
-    f = _fermat_split(c)
-    if f is not None and 1 < f < c:
-        return f
+    if bits <= 200:
+        f = _fermat_split(c)
+        if f is not None and 1 < f < c:
+            return f
 
-    for cv in range(1, 64):
+    if bits > 160:
+        f = _pollard_p1(c, B1=_p1_b1(bits))
+        if f is not None:
+            return f
+
+    for cv in range(1, _brent_curve_count(bits) + 1):
         g = _brent(c, cv)
         if 1 < g < c:
             return g
 
-    f = _pollard_p1(c, B1=P1_B1_SMALL)
-    if f is not None:
-        return f
+    if bits <= 160:
+        f = _pollard_p1(c, B1=_p1_b1(bits))
+        if f is not None:
+            return f
 
-    cub = _ceil_icbrt(c)
-    if _c_lehman_ready() and c.bit_length() <= 128 and c > 1:
-        max_k = ((1 << 128) - 1) // (4 * c)
-        budget = min(max_k, cub, 100_000)
-        if budget >= 16:
-            f = lehman_factor(c, k_max=int(budget), parallel=parallel)
-            if f is not None and 1 < f < c:
-                return f
-    else:
-        budget = min(cub, 50_000)
-        if budget >= 16:
-            f = lehman_factor(c, k_max=int(budget), parallel=parallel)
-            if f is not None and 1 < f < c:
-                return f
+        cub = _ceil_icbrt(c)
+        if _c_lehman_ready() and bits <= 128 and c > 1:
+            max_k = ((1 << 128) - 1) // (4 * c)
+            budget = min(max_k, cub, 100_000)
+            if budget >= 16:
+                f = lehman_factor(c, k_max=int(budget), parallel=parallel)
+                if f is not None and 1 < f < c:
+                    return f
+        else:
+            budget = min(cub, 50_000)
+            if budget >= 16:
+                f = lehman_factor(c, k_max=int(budget), parallel=parallel)
+                if f is not None and 1 < f < c:
+                    return f
 
-    bits = c.bit_length()
     f = ecm_factor(c, max_ms=_ecm_max_ms(bits))
     if f is not None and 1 < f < c:
         return f

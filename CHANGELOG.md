@@ -22,6 +22,7 @@ All notable changes to this project are documented in this file.
   `max_ms` abort on ECM/SIQS (no raise).
 
 ### Changed
+- Deterministic **Montgomery/Suyama ECM** (fixed σ=6,7,…) replaces affine Weierstrass as the factorer; Weierstrass `_mul` stays Jacobian for ECPP point search. Huge-n `is_prime` tries ECPP before a deep BLS peel (`bits≥256`; `DEFAULT_N` unchanged). Peel of curve orders is cached; smallest Goldwasser–Kilian `q` is tried first.
 - Pages interactive lab mirrors the new huge-n ladder: **combined BLS** (n−1, Lucas n+1, Combined Theorem 1), then class-number-1 **ECPP**, then 30-wheel trial. Stage panel adds Lucas / Combined / ECPP views.
 - **PR CI is leaner:** one Linux 3.12 job does tests + lint + determinism trials; auto-merge waits only for branch-protection gates; **Publish wiki** is dispatched after a successful merge. The Pages workflow no longer also hooks Auto-merge via `workflow_run` (that cancelled the real deploy). Full extra-version determinism and 3.9/3.12/3.13 + macOS/Windows run on `main`.
 - Pages interactive lab uses **Montgomery ECM (Suyama)** on hostile $n-1$, so $10^{54}+31$ proves prime in-tab (~1–2 min) instead of returning inconclusive.

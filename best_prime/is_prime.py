@@ -872,6 +872,17 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
         return False
     from .primality_nm1 import _try_split_cofactor, bls_primality
 
+    # Huge n: ECPP before a deep BLS peel. Class-number-1 CM often hits
+    # while n±1 is still hostile (131-digit yardstick). DEFAULT_N is 147-bit
+    # and stays on BLS first.
+    if n.bit_length() >= 256:
+        from .primality_ecpp import ecpp_primality
+
+        decided = ecpp_primality(n, parallel=parallel, max_h=_ECPP_MAX_H)
+        if decided is not None:
+            _last_is_prime_big_path = "bigint_ecpp"
+            return decided
+
     # BLS n−1 / n+1 / combined whenever it settles — even past the u128 cubic
     # wall (4kn > 128 bits). Skipping it sent easy special-form primes into AKS.
     if not skip_nm1:

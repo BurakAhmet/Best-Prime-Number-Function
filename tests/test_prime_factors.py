@@ -78,6 +78,15 @@ class TestPrimeFactors:
         g = ecm_factor(n, B1=200, B2=2000, max_curves=20)
         assert g is not None and 1 < g < n and n % g == 0
 
+    def test_montgomery_ecm_finds_p8_on_p131_curve_order(self):
+        from best_prime.factor_ecm import ecm_factor
+
+        # Leftover of n+1+t for n=10^130+1113, D=−19 after trial 7²·17.
+        rem = 12004801920768307322929171668667466986794717887154861944777911164527598772363331844974638920327241985549465171925430057992153551
+        g = ecm_factor(rem, B1=8000, B2=8000, max_curves=8, max_ms=2000)
+        assert g is not None and rem % g == 0
+        assert g == 57629443 or rem // g == 57629443
+
     def test_siqs_small_semiprime(self):
         from best_prime.factor_siqs import siqs_factor
 

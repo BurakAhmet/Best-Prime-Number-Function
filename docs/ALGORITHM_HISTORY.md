@@ -695,6 +695,20 @@ Guides: [`docs/guide/nm1-proof.md`](guide/nm1-proof.md) · [`docs/guide/ecpp-pro
 
 ---
 
+## Era — unreleased (2026-08-14): Montgomery ECM + huge-n ECPP first
+
+**Design.** `ecm_factor` is deterministic Suyama/Montgomery ($\sigma=6,7,\ldots$), not affine Weierstrass. ECPP point search uses Jacobian `_mul` (same Weierstrass curve). For $n$ with `bit_length≥256`, `is_prime` tries ECPP before a deep BLS peel. Curve-order peels are cached; the smallest Goldwasser–Kilian $q$ is proved first. Multi-limb leftovers skip 63-curve Brent and 5e6 trial (those hung 131-digit $m$).
+
+**Specimen.** $n=10^{130}+1113$ (131-digit) is ECPP-true via $D=-19$ (in-tree). Not a 2-second proof yet: the downrun is several CM steps and failed $D$ still pay a short ECM. `DEFAULT_N` stays 147-bit `u128_nm1`.
+
+| | |
+|--|--|
+| **Advantages** | p8-class factors of $m$ in ~0.15 s; 131-digit $n$ now has a proof path; no RNG; F6/F7 hold |
+| **Disadvantages** | Python Montgomery is not FastECPP; 131-digit e2e is tens of seconds, not 2 s |
+| **Failures / lessons** | Do not trial-split 300-bit leftovers to $5\cdot10^6$; do not 63×Brent on 400-bit $n$ |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:

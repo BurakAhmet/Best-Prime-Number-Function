@@ -91,3 +91,7 @@ P40_H1_Q = 34899421401875313457
 
 # Smallest 100-digit prime (OEIS A003617). Tests-only; not a default-CI gate.
 P100_DIGIT = 10**99 + 289
+
+# 131-digit CM-friendly prime 10^130+1113. Proved by in-tree ECPP (D=−19).
+# Not the CLI default (F6). Default-suite tests must not call is_prime on it.
+P131_DIGIT = 10**130 + 1113
