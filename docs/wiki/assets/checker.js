@@ -394,7 +394,8 @@
         <p class="lab-hint">Uses the same <em>n</em> above. Finds the
           <em>k</em>-th prime strictly greater or strictly less than <em>n</em>
           (default <em>k</em> = 1), with the same deterministic engines. Composites
-          are skipped by a small-prime filter, then Check.</p>
+          are skipped by a small-prime filter, then Check. No candidate-count
+          or time cap — Stop whenever you want.</p>
         <div class="row">
           <label class="lab-kwrap" for="lab-k">k
             <input id="lab-k" type="text" inputmode="numeric" value="1"
@@ -753,9 +754,16 @@
       nbOut.innerHTML =
         '<p class="verdict">' +
         (res.inconclusive ? "Inconclusive here" : "No neighbor") +
-        "</p><p>" +
+        "</p><dl>" +
+        (res.last
+          ? "<dt>candidate</dt><dd>" + escapeHtml(res.last) + "</dd>"
+          : "") +
+        (res.tried != null
+          ? "<dt>tried</dt><dd>" + escapeHtml(String(res.tried)) + " candidates</dd>"
+          : "") +
+        "<dt>note</dt><dd>" +
         escapeHtml(res.error || res.note || "Could not find that prime in-tab.") +
-        "</p>";
+        "</dd></dl>";
     }
 
     function run(kind) {

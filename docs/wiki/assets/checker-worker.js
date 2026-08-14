@@ -37,8 +37,7 @@
   const TRIAL_BOUND_NEAR_HUGE = 200_000;
   /** Match Python: ECPP before a deep BLS peel. */
   const HUGE_BITS = 256;
-  /** Safety net for ≥256-bit ECPP in-tab (user Stop still aborts immediately). */
-  const HUGE_LAB_MS = 180_000;
+
   const P1_B1 = 250_000;
   /** Exact trial allowed when proving an n−1 cofactor (not the original n). */
   const COFACTOR_TRIAL_ISQRT = 150_000_000_000n;
@@ -1651,17 +1650,34 @@
     const limit = isqrt(n);
     const bits = bitLength(n);
 
-    // Hard / multi-limb. ≥256-bit: ECPP first (same as Python is_prime).
+    // Hard / multi-limb. ≥256-bit: Fermat composite reject, then ECPP first
+    // (same as Python is_prime). No wall-clock budget — only user Stop.
     if (n >= TWO64 || limit >= NM1_ISQRT) {
       if (bits >= HUGE_BITS) {
-        const labDeadline =
-          typeof performance !== "undefined" ? performance.now() + HUGE_LAB_MS : null;
-        function hugeStop() {
-          if (shouldStop && shouldStop()) return true;
-          return labDeadline != null && performance.now() >= labDeadline;
+        for (let i = 0; i < 6; i++) {
+          const a = BASES[i];
+          emit(onTick, "fermat", BigInt(i + 1), 6n, {
+            base: String(a),
+            label: "Fermat composite filter",
+          });
+          if (a % n === 0n) {
+            return done(n === a, "fermat", n === a ? null : a, "divisible by Fermat base", limit, t0);
+          }
+          if (powBig(a, n - 1n, n) !== 1n) {
+            let g = gcd(powBig(a, n - 1n, n) - 1n, n);
+            if (!(g > 1n && g < n)) g = null;
+            return done(
+              false,
+              "fermat",
+              g,
+              g ? "Fermat composite; factor " + g.toString() : "failed Fermat a^{n−1} ≡ 1 (composite)",
+              limit,
+              t0
+            );
+          }
         }
         emit(onTick, "ecpp", 0n, 13n, { label: "class-number-1 ECPP first" });
-        const ecHuge = ecppPrimality(n, 0, onTick, hugeStop);
+        const ecHuge = ecppPrimality(n, 0, onTick, shouldStop);
         if (shouldStop && shouldStop()) return { aborted: true };
         if (ecHuge.prime === true) {
           return done(
@@ -1685,16 +1701,7 @@
             t0
           );
         }
-        return {
-          prime: null,
-          path: "inconclusive",
-          factor: null,
-          isqrt: limit.toString(),
-          ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
-          note: ecHuge.aborted
-            ? "Stopped or hit the in-tab ECPP time budget before a class-number-1 proof finished. Try again, or use Python is_prime."
-            : "No size ban: class-number-1 ECPP did not settle this ≥256-bit n. The tab does not run a multi-minute BLS/SIQS peel here. Hostile n (no CM-friendly D) stays inconclusive in-tab; Python is_prime continues with small-h ECPP / AKS.",
-        };
+        // ECPP missed: fall through to combined BLS (no try/time cap).
       }
       emit(onTick, "fermat", 0n, 6n, { label: "combined BLS n±1" });
       const decided = blsPrimality(n, 0, onTick, shouldStop);
@@ -1776,7 +1783,6 @@
     return trialBig(n, limit, t0, onTick, shouldStop);
   }
 
-  const NEIGHBOR_MAX_TRIES = 10_000;
   const NEIGHBOR_MAX_K = 64;
 
   function parseK(raw) {
@@ -1811,24 +1817,6 @@
       if (shouldStop && shouldStop()) return { aborted: true };
       if (cand > 3n && (cand & 1n) === 0n) cand += 1n;
       tried++;
-      if (tried > NEIGHBOR_MAX_TRIES) {
-        return {
-          ok: false,
-          inconclusive: true,
-          n: n.toString(),
-          k: kk,
-          direction: "next",
-          tried: tried,
-          last: cand.toString(),
-          ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
-          note:
-            "Walked " +
-            NEIGHBOR_MAX_TRIES +
-            " candidates without finding the " +
-            kk +
-            "-th prime > n. Stop and try a smaller n, or use Python next_prime.",
-        };
-      }
       emit(onTick, "neighbor", BigInt(found.length + 1), BigInt(kk), {
         label: "next prime · candidate " + cand.toString(),
         candidate: cand.toString(),
@@ -1852,7 +1840,7 @@
             note:
               "Candidate " +
               cand.toString() +
-              " was inconclusive in-tab, so the walk stopped. Python next_prime continues.",
+              " held Fermat but class-number-1 ECPP / BLS did not settle. The walk cannot skip it (it may be prime). Stop and try Python next_prime, or Check that candidate.",
           };
         }
       }
@@ -1906,24 +1894,6 @@
       }
       if (cand > 3n && (cand & 1n) === 0n) cand -= 1n;
       tried++;
-      if (tried > NEIGHBOR_MAX_TRIES) {
-        return {
-          ok: false,
-          inconclusive: true,
-          n: n.toString(),
-          k: kk,
-          direction: "prev",
-          tried: tried,
-          last: cand.toString(),
-          ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
-          note:
-            "Walked " +
-            NEIGHBOR_MAX_TRIES +
-            " candidates without finding the " +
-            kk +
-            "-th prime < n.",
-        };
-      }
       emit(onTick, "neighbor", BigInt(found.length + 1), BigInt(kk), {
         label: "previous prime · candidate " + cand.toString(),
         candidate: cand.toString(),
@@ -1947,7 +1917,7 @@
             note:
               "Candidate " +
               cand.toString() +
-              " was inconclusive in-tab, so the walk stopped. Python prev_prime continues.",
+              " held Fermat but class-number-1 ECPP / BLS did not settle. The walk cannot skip it (it may be prime). Stop and try Python prev_prime, or Check that candidate.",
           };
         }
       }
@@ -2057,7 +2027,6 @@
     COFACTOR_TRIAL_ISQRT: COFACTOR_TRIAL_ISQRT,
     NM1_ISQRT: NM1_ISQRT,
     HUGE_BITS: HUGE_BITS,
-    HUGE_LAB_MS: HUGE_LAB_MS,
     POINT_X_MAX: POINT_X_MAX,
     adaptiveTrialBound: adaptiveTrialBound,
     ecmPhases: ecmPhases,
@@ -2175,7 +2144,9 @@
     assert(bitLength(p131) >= HUGE_BITS, "P131 is the ≥256-bit ECPP-first yardstick");
     assert(adaptiveTrialBound(p131) === TRIAL_BOUND_HUGE, "huge n trial bound");
     assert(POINT_X_MAX === 4096, "POINT_X_MAX matches the Python library");
-    assert(HUGE_LAB_MS >= 120000, "in-tab ECPP budget must cover the 131-digit downrun");
+    const cHuge = 10n ** 130n + 1117n;
+    const rh = checkPrime(cHuge);
+    assert(rh.prime === false, "131-digit Fermat composite must not be inconclusive: " + JSON.stringify(rh));
     let hugeCurves = 0;
     const hugePh = ecmPhases(bitLength(p131));
     for (let i = 0; i < hugePh.length; i++) hugeCurves += hugePh[i].curves;

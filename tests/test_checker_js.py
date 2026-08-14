@@ -40,7 +40,8 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "lucasUv" in src
     assert "COFACTOR_TRIAL_ISQRT" in src
     assert re.search(r"POINT_X_MAX\s*=\s*4096", src)
-    assert re.search(r"HUGE_LAB_MS\s*=\s*180_000", src)
+    assert "Fermat composite filter" in src
+    assert "NEIGHBOR_MAX_TRIES" not in src
     assert "jacDbl" in src
     assert "admissiblePairs" in src
     assert "Montgomery ECM" in ui or "ECM" in ui
