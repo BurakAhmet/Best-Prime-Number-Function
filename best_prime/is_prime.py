@@ -841,18 +841,18 @@ def _is_prime_big_full_trial(n: int, parallel: bool) -> bool:
 
 
 def _hard_path_prime(n: int, *, parallel: bool) -> bool:
-    """Hard 64-bit / multi-limb: n−1 Pocklington, else complete cubic search."""
+    """Hard 64-bit / multi-limb: BLS n±1, else complete cubic search."""
     from .factor_lehman import lehman_factor
-    from .primality_nm1 import nm1_primality
+    from .primality_nm1 import bls_primality
 
-    decided = nm1_primality(n, parallel=parallel)
+    decided = bls_primality(n, parallel=parallel)
     if decided is not None:
         return decided
     return lehman_factor(n, parallel=parallel) is None
 
 
 def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> bool:
-    """Primality for n >= 2^64. n−1 / cubic C when complete; else trial or AKS."""
+    """Primality for n >= 2^64. BLS / cubic C when complete; else trial or AKS."""
     for p in _PRECHECK_BIG:
         if n == p:
             return True
@@ -860,19 +860,21 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
             return False
         if p * p > n:
             return True
+    sq = math.isqrt(n)
+    if sq * sq == n:
+        return False
     from .factor_lehman import cubic_complete_ready, lehman_factor
-    from .primality_nm1 import nm1_primality
+    from .primality_nm1 import bls_primality
 
-    # n−1 Pocklington whenever it settles — even past the u128 cubic wall
-    # (4kn > 128 bits). Skipping it sent easy primes (smooth-ish n−1) into AKS.
+    # BLS n−1 / n+1 / combined whenever it settles — even past the u128 cubic
+    # wall (4kn > 128 bits). Skipping it sent easy special-form primes into AKS.
     if not skip_nm1:
-        decided = nm1_primality(n, parallel=parallel)
+        decided = bls_primality(n, parallel=parallel)
         if decided is not None:
             return decided
 
     if cubic_complete_ready(n):
         return lehman_factor(n, parallel=parallel) is None
-    sq = math.isqrt(n)
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
         return _is_prime_big_full_trial(n, parallel)
@@ -888,7 +890,7 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
             return n == a
         if pow(a, n - 1, n) != 1:
             return False
-    # Deterministic split attempt (Fermat / cubic probe / Brent / ECM).
+    # Deterministic split attempt (Fermat / cubic probe / Brent / ECM / SIQS).
     # A factor proves composite without AKS. Primes fall through to AKS.
     try:
         from .primality_nm1 import _try_split_cofactor
@@ -896,6 +898,7 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
         if _try_split_cofactor(n, parallel=parallel) is not None:
             return False
     except Exception:
+        # Last-resort composite probe around the whole split, not the SIQS abort path.
         from .factor_lehman import LEHMAN_PROBE_K_MAX
 
         if n.bit_length() <= 110:
@@ -976,11 +979,14 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         prime = _is_prime_small(n_int)
     elif n_int < (1 << 64):
         from .factor_lehman import cubic_complete_ready
-        from .primality_nm1 import nm1_primality
+        from .primality_nm1 import _bls_decide
 
         if cubic_complete_ready(n_int):
-            decided = nm1_primality(n_int, parallel=parallel)
-            if decided is not None:
+            decided, side = _bls_decide(n_int, parallel=parallel)
+            if decided is not None and side in ("np1", "combined"):
+                path = "bigint_bls"
+                prime = decided
+            elif decided is not None:
                 path = "u64_nm1"
                 prime = decided
             else:
@@ -1001,10 +1007,13 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         sq = math.isqrt(n_int) if n_int >= 2 else 0
         lib = _load_c_core()
         from .factor_lehman import cubic_complete_ready, lehman_factor
-        from .primality_nm1 import nm1_primality
+        from .primality_nm1 import _bls_decide
 
-        decided = nm1_primality(n_int, parallel=parallel)
-        if decided is not None:
+        decided, side = _bls_decide(n_int, parallel=parallel)
+        if decided is not None and side in ("np1", "combined"):
+            path = "bigint_bls"
+            prime = decided
+        elif decided is not None:
             path = "u128_nm1"
             prime = decided
         elif cubic_complete_ready(n_int):
@@ -1063,6 +1072,8 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "u128_wheel_c": "OpenMP C full trial for 65–128-bit n (wheel / seg-primes; no AKS).",
         "bigint_wheel": "Stdlib 9699690-wheel full trial for moderate big ints (no AKS).",
         "bigint_trial_or_aks": "Huge-int path: 30030-wheel partial trial, then AKS (Kronecker; may be slow).",
+        "bigint_bls": "BLS n+1 or combined n±1 proof (n−1 did not settle).",
+        "bigint_ecpp": "Deterministic Atkin–Morain ECPP.",
     }
     info["note"] = notes[path]
     return info

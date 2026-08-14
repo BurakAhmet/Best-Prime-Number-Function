@@ -73,3 +73,9 @@ LARGE_COMPOSITES = [
     SEMIPRIME_1E9,
     MR_LIAR,
 ]
+
+# 66-bit prime; n+1 = 2^10 · 5^7 · 7^9 · 11^4 (fully trial-smooth). n−1 is
+# not trial-smooth enough for Pocklington, so BLS settles on the n+1 side.
+NP1_SMOOTH_PRIME = 47_265_372_806_959_999_999
+# Smaller n+1-smooth prime for Lucas / default-suite checks.
+NP1_SMOOTH_SMALL = 4_801_999  # n+1 = 2^4 · 5^3 · 7^4

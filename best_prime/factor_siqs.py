@@ -11,6 +11,7 @@ Does not import ``ntheory`` / ``prime_factors``.
 from __future__ import annotations
 
 import math
+import time
 def _jacobi(a: int, n: int) -> int:
     """Jacobi (a/n) for odd positive n."""
     if n <= 0 or (n & 1) == 0:
@@ -320,18 +321,43 @@ def _bounds(bits: int) -> tuple[int, int, int]:
     return 5_000, 120_000, 14
 
 
-def siqs_factor(n: int, *, fb_bound: int | None = None, interval: int | None = None) -> int | None:
-    """Proper factor of composite ``n`` via SIQS, or None."""
+def siqs_factor(
+    n: int,
+    *,
+    fb_bound: int | None = None,
+    interval: int | None = None,
+    max_ms: int | None = None,
+) -> int | None:
+    """Proper factor of composite ``n`` via SIQS, or None.
+
+    ``max_ms`` is a wall-clock abort; on exhaust return None (do not raise).
+    """
     if n < 4 or n % 2 == 0:
         return 2 if n % 2 == 0 and n > 2 else None
+    try:
+        return _siqs_factor_body(n, fb_bound=fb_bound, interval=interval, max_ms=max_ms)
+    except (MemoryError, ValueError):
+        return None
+
+
+def _siqs_factor_body(
+    n: int,
+    *,
+    fb_bound: int | None,
+    interval: int | None,
+    max_ms: int | None,
+) -> int | None:
     bits = n.bit_length()
     b0, m0, npoly = _bounds(bits)
     if fb_bound is None:
         fb_bound = b0
     if interval is None:
         interval = m0
+    deadline = None if max_ms is None else time.perf_counter() + max_ms / 1000.0
     fb = _factor_base(n, fb_bound)
     if len(fb) < 6:
+        return None
+    if deadline is not None and time.perf_counter() >= deadline:
         return None
     # Target A ≈ √(2n) / M  (SIQS heuristic).
     target_a = max(3, math.isqrt(max(n * 2, 1)) // max(interval, 1))
@@ -343,7 +369,11 @@ def siqs_factor(n: int, *, fb_bound: int | None = None, interval: int | None = N
     g = _dependency_split(n, 1, r, rels)
     if g is not None:
         return g
+    if deadline is not None and time.perf_counter() >= deadline:
+        return None
     for which in range(npoly):
+        if deadline is not None and time.perf_counter() >= deadline:
+            return None
         factors = _pick_a(fb, target_a, which)
         got = _sqrt_mod_a(n, factors)
         if got is None:
