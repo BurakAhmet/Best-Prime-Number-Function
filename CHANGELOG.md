@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **`UnsettledPrimalityError`** when $n$ has $\ge 512$ bits and ECPP/BLS cannot settle. Kronecker AKS is not started (it would hang at 10k digits). CLI prints `RESULT: unsettled` and exits $3$. `sys.set_int_max_str_digits(0)` so 10k-digit decimals parse. FastECPP is the planned engine for this band.
 - Pages lab shows the **digit count** of $n$ as you type, and a **next / previous prime** panel under the checker (same deterministic worker; optional $k$-th neighbor; no try-count / wall-clock cap).
 - **Small-h CM ECPP** ($h(D)\le 16$) from transcribed Hilbert class polynomials
   $H_D$ (Cohen Tables 7.1 / 7.6, Fungrim 20b6d2). Numbered Cantor–Zassenhaus

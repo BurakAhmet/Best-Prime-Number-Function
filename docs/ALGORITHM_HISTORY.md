@@ -705,7 +705,15 @@ Guides: [`docs/guide/nm1-proof.md`](guide/nm1-proof.md) · [`docs/guide/ecpp-pro
 |--|--|
 | **Advantages** | p8-class factors of $m$ in ~0.15 s; 131-digit $n$ now has a proof path; no RNG; F6/F7 hold |
 | **Disadvantages** | Python Montgomery is not FastECPP; 131-digit e2e is tens of seconds, not 2 s |
-| **Failures / lessons** | Do not trial-split 300-bit leftovers to $5\cdot10^6$; do not 63×Brent on 400-bit $n$; the Pages lab must not treat a $g=n$ inversion as $[q]Q=O$, nor run the hard55 700-curve ECM on ECPP peels (both hung $10^{130}+1113$ in-tab); do not 5e6-scan $n+1$ when $n-1=2\cdot5\cdot13\cdot q$ already proves `DEFAULT_N` |
+| **Failures / lessons** | Do not trial-split 300-bit leftovers to $5\cdot10^6$; do not 63×Brent on 400-bit $n$; the Pages lab must not treat a $g=n$ inversion as $[q]Q=O$, nor run the hard55 700-curve ECM on ECPP peels (both hung $10^{130}+1113$ in-tab); do not 5e6-scan $n+1$ when $n-1=2\cdot5\cdot13\cdot q$ already proves `DEFAULT_N`; do not start AKS on $\ge 512$-bit $n$ (10k-digit hang) |
+
+---
+
+## Era — unreleased: 10k-digit FastECPP program (M0)
+
+**Problem.** A 10 000-digit prime (~33 219 bits) falls into `_aks_is_prime` after ECPP/BLS miss. Kronecker AKS at this width is a hard hang. CPython 3.11+ also refuses `int()` of $>4300$ digit strings.
+
+**Change.** `AKS_SKIP_BITS = 512`: after ECPP (only for $256\le$ bits $<512$, so P131 stays) and BLS, raise `UnsettledPrimalityError` instead of AKS. CLI `RESULT: unsettled`, exit $3$. `lab` path `bigint_unsettled`, `is_prime is None`. `sys.set_int_max_str_digits(0)`. FastECPP (computed class polynomials, larger $D$) is the next engine; 10 s for a *general* 10k-digit prime is the north-star metric, not this PR's gate.
 
 ---
 

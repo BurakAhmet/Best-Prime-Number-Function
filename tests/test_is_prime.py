@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import os
 import sys
+import time
 
 import numpy as np
 import pytest
@@ -297,6 +298,23 @@ class TestLarge64Bit:
 
     def test_near_int64_max_prime_listed(self):
         assert LARGE_64BIT_PRIME in LARGE_PRIMES_SLOW
+
+    def test_wide_fermat_holder_is_unsettled_not_aks(self):
+        from best_prime.errors import UnsettledPrimalityError
+        from best_prime.is_prime import AKS_SKIP_BITS
+
+        n = 10**200 + 357
+        assert n.bit_length() >= AKS_SKIP_BITS
+        t0 = time.perf_counter()
+        with pytest.raises(UnsettledPrimalityError) as ei:
+            is_prime(n)
+        assert time.perf_counter() - t0 < 8.0
+        assert ei.value.n == n
+
+    def test_ten_thousand_digit_even_is_composite(self):
+        n = 10**9999
+        assert len(str(n)) == 10000
+        assert is_prime(n) is False
 
     def test_default_n_is_147bit_u128_yardstick(self):
         assert DEFAULT_N == DEFAULT_CLI_N

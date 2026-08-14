@@ -26,7 +26,15 @@ import sys
 import zlib
 from array import array
 
+# CPython 3.11+ defaults to 4300 digits. 10k-digit n must parse.
+try:
+    sys.set_int_max_str_digits(0)
+except AttributeError:
+    pass
+
 import is_prime_data
+
+from .errors import UnsettledPrimalityError
 
 _DATA_DIR = os.path.dirname(os.path.abspath(is_prime_data.__file__))
 WHEEL_MOD = 9_699_690
@@ -45,6 +53,8 @@ _ECPP_MAX_H = 16
 _last_is_prime_big_path: str | None = None
 # Before AKS: 30030-wheel trial up to this (or isqrt, whichever is smaller).
 _AKS_TRIAL_BOUND = 100_000_000
+# Never start Kronecker AKS at this width (10k-digit hang). Raise instead.
+AKS_SKIP_BITS = 512
 _PRECHECK_BIG = (
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61,
     67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139,
@@ -874,8 +884,9 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
 
     # Huge n: ECPP before a deep BLS peel. Class-number-1 CM often hits
     # while n±1 is still hostile (131-digit yardstick). DEFAULT_N is 147-bit
-    # and stays on BLS first.
-    if n.bit_length() >= 256:
+    # and stays on BLS first. Above AKS_SKIP_BITS the current H_D table cannot
+    # settle a general prime; skip it so 10k-digit inputs fail fast.
+    if 256 <= n.bit_length() < AKS_SKIP_BITS:
         from .primality_ecpp import ecpp_primality
 
         decided = ecpp_primality(n, parallel=parallel, max_h=_ECPP_MAX_H)
@@ -893,6 +904,18 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
     # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
     if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
         return _is_prime_big_full_trial(n, parallel)
+    bits = n.bit_length()
+    # Wider than AKS_SKIP_BITS: do not start a 1e8 wheel or Kronecker AKS.
+    if bits >= AKS_SKIP_BITS:
+        for a in (2, 3, 5, 7, 11, 13):
+            if a % n == 0:
+                return n == a
+            if pow(a, n - 1, n) != 1:
+                return False
+        if _try_split_cofactor(n, parallel=parallel) is not None:
+            return False
+        _last_is_prime_big_path = "bigint_unsettled"
+        raise UnsettledPrimalityError(n)
     # Larger: wheel trial, Fermat filter, then split / ECPP / AKS.
     bound = min(_AKS_TRIAL_BOUND, sq)
     if not _wheel_trial(n, _get_steps_30030(), 17, limit=bound):
@@ -1032,20 +1055,25 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
             prime = lehman_factor(n_int, parallel=parallel) is None
         else:
             # Mirror _is_prime_big after nm1 without re-running n−1.
-            prime = _is_prime_big(n_int, parallel=parallel, skip_nm1=True)
-            if (
-                sq <= _MAX_FULL_TRIAL_ISQRT
-                and n_int.bit_length() <= 128
-                and lib
-                and hasattr(lib, "is_prime_u128_core")
-            ):
-                path = "u128_wheel_c"
-            elif sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
-                path = "bigint_wheel"
-            elif _last_is_prime_big_path == "bigint_ecpp":
-                path = "bigint_ecpp"
+            try:
+                prime = _is_prime_big(n_int, parallel=parallel, skip_nm1=True)
+            except UnsettledPrimalityError:
+                path = "bigint_unsettled"
+                prime = None
             else:
-                path = "bigint_trial_or_aks"
+                if (
+                    sq <= _MAX_FULL_TRIAL_ISQRT
+                    and n_int.bit_length() <= 128
+                    and lib
+                    and hasattr(lib, "is_prime_u128_core")
+                ):
+                    path = "u128_wheel_c"
+                elif sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
+                    path = "bigint_wheel"
+                elif _last_is_prime_big_path == "bigint_ecpp":
+                    path = "bigint_ecpp"
+                else:
+                    path = "bigint_trial_or_aks"
 
     elapsed_ms = (time.perf_counter() - t1) * 1000.0
     info = {
@@ -1087,6 +1115,10 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "bigint_trial_or_aks": "Huge-int path: 30030-wheel partial trial, then AKS (Kronecker; may be slow).",
         "bigint_bls": "BLS n+1 or combined n±1 proof (n−1 did not settle).",
         "bigint_ecpp": "Deterministic Atkin–Morain ECPP.",
+        "bigint_unsettled": (
+            "Too wide for AKS; ECPP / BLS did not settle. "
+            "FastECPP is the planned engine. is_prime raises UnsettledPrimalityError."
+        ),
     }
     info["note"] = notes[path]
     return info
@@ -1175,12 +1207,20 @@ def _one_factor(n: int, *, parallel: bool = True) -> int | None:
 
 
 def _print_result(
-    arg: str, prime: bool, threads: int, factor: int | None = None
+    arg: str,
+    prime: bool | None,
+    threads: int,
+    factor: int | None = None,
+    *,
+    unsettled: bool = False,
 ) -> None:
     print(f"TEST:    {arg} ({len(arg)} chars)")
     print(f"THREADS: {threads}")
-    print(f"RESULT:  {'prime' if prime else 'not prime'}")
-    if not prime and factor is not None:
+    if unsettled or prime is None:
+        print("RESULT:  unsettled")
+    else:
+        print(f"RESULT:  {'prime' if prime else 'not prime'}")
+    if prime is False and factor is not None:
         print(f"FACTOR:  {factor}")
     dt = time.perf_counter_ns() - t0
     print(f"TIME:    {dt} ns  ({dt / 1e6:.6f} ms)")
@@ -1252,7 +1292,11 @@ def _main_simple(argv: list[str]) -> int:
             prime = _is_prime_python_wheel(n)
             threads = 1
     else:
-        prime = _is_prime_big(n, parallel=parallel)
+        try:
+            prime = _is_prime_big(n, parallel=parallel)
+        except UnsettledPrimalityError:
+            _print_result(str(n) if positional else arg, None, 1, unsettled=True)
+            return 3
         # u128 OpenMP path sets _thread_count in _load_c_core.
         threads = (
             _thread_count
@@ -1286,7 +1330,7 @@ def _main_full(argv: list[str] | None = None) -> int:
     if args.lab:
         info = lab(args.n, parallel=parallel)
         factor = None
-        if not info["is_prime"]:
+        if info["is_prime"] is False:
             factor = _one_factor(info["n"], parallel=parallel)
         info["factor"] = factor
         if args.json:
@@ -1297,12 +1341,17 @@ def _main_full(argv: list[str] | None = None) -> int:
             print(f"PATH:      {info['path']}")
             print(f"ISQRT:     {info['isqrt']}")
             print(f"PARALLEL:  {info['parallel']}")
-            print(f"RESULT:    {'prime' if info['is_prime'] else 'not prime'}")
+            if info["is_prime"] is None:
+                print("RESULT:    unsettled")
+            else:
+                print(f"RESULT:    {'prime' if info['is_prime'] else 'not prime'}")
             if factor is not None:
                 print(f"FACTOR:    {factor}")
             print(f"TIME_MS:   {info['elapsed_ms']:.6f}")
             print(f"E2E_MS:    {info['e2e_ms']:.6f}")
             print(f"NOTE:      {info['note']}")
+        if info["is_prime"] is None:
+            return 3
         return 0 if info["is_prime"] else 1
     return _main_simple(
         ([args.n] if args.n else []) + (["--serial"] if args.serial else [])

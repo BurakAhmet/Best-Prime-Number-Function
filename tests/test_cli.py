@@ -59,6 +59,12 @@ class TestCliExitCodes:
         r = _run("-17")
         assert r.returncode == 2, r.stdout + r.stderr
 
+    def test_wide_unsettled_exits_three(self):
+        r = _run(str(10**200 + 357), timeout=15.0)
+        assert r.returncode == 3, r.stdout + r.stderr
+        assert "RESULT:  unsettled" in r.stdout
+        assert "not prime" not in r.stdout.split("RESULT:", 1)[-1]
+
 
 class TestCliDefault:
     def test_package_default_is_147bit_hard_yardstick(self):

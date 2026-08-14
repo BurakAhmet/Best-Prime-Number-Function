@@ -9,6 +9,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from best_prime import (  # noqa: E402
+    AKS_SKIP_BITS,
     DEFAULT_N,
     PRIME_COUNT_MAX_N,
     TOTIENT_RANGE_MAX,
@@ -49,6 +50,7 @@ from best_prime import (  # noqa: E402
     totient,
     totient_range,
     verify_certificate,
+    UnsettledPrimalityError,
 )
 from best_prime.next_prime import NEXT_PRIME_SIEVE_ISQRT_MAX  # noqa: E402
 
@@ -68,6 +70,8 @@ def main() -> None:
     show("PRIME_COUNT_MAX_N", PRIME_COUNT_MAX_N)
     show("TOTIENT_RANGE_MAX", TOTIENT_RANGE_MAX)
     show("NEXT_PRIME_SIEVE_ISQRT_MAX", NEXT_PRIME_SIEVE_ISQRT_MAX)
+    show("AKS_SKIP_BITS", AKS_SKIP_BITS)
+    show("UnsettledPrimalityError", UnsettledPrimalityError.__name__)
 
     print("\nprimality")
     show("is_prime(17)", is_prime(17))

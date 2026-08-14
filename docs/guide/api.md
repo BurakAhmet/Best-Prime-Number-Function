@@ -39,7 +39,7 @@ assert is_prime(DEFAULT_N)  # n−1 Pocklington on the 147-bit CLI default
 
 ### `is_prime(n, *, parallel=True) -> bool | list[bool]`
 
-`True` iff $n$ is prime. Fully deterministic: exact trial through $\sqrt{n}$ for mid-size 64-bit $n$; **n−1 Pocklington** then complete cubic search for hard 64-bit $n$ ($\lfloor\sqrt{n}\rfloor\ge 10^{7}$) and for $n\ge 2^{64}$ in budget; AKS only for huge $n$.
+`True` iff $n$ is prime. Fully deterministic: exact trial through $\sqrt{n}$ for mid-size 64-bit $n$; **n−1 Pocklington** then complete cubic search for hard 64-bit $n$ ($\lfloor\sqrt{n}\rfloor\ge 10^{7}$) and for $n\ge 2^{64}$ in budget; AKS only when $n$ has fewer than `AKS_SKIP_BITS` (512) bits. Wider $n$ that ECPP/BLS cannot settle raise `UnsettledPrimalityError` (CLI `RESULT: unsettled`, exit 3) instead of starting AKS. FastECPP is the planned engine for that band.
 
 ```python
 is_prime(17)                       # True

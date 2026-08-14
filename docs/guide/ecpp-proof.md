@@ -86,7 +86,8 @@ still-larger n (past cubic / u128 trial)
          then small-h CM (h(D) ≤ 16)
          True / False → settle
   else combined BLS, then the same ECPP
-  None → _aks_is_prime
+  None → _aks_is_prime if bits < 512
+         else UnsettledPrimalityError (FastECPP planned; AKS would hang)
 ```
 
 `lab(n)["path"]` is `bigint_ecpp` when ECPP settles. The 147-bit CLI default `DEFAULT_N` stays on `u128_nm1` (n−1 cooperates). It is **not** moved to a 100-digit prime.

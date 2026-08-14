@@ -18,7 +18,8 @@ is_prime(n)
          ├─ cubic budget (4·k·n fits in 128 bits (no artificial cub cap))
          │              → BLS n±1, else lehman_factor_u128
          ├─ isqrt(n) ≤ 2.5·10¹⁰ (≤128-bit) → OpenMP u128 full trial / stdlib wheel
-         └─ larger still            → combined BLS (CLI default: 147-bit n−1) → ECPP (h=1 then small-h) → AKS
+         └─ larger still            → combined BLS (CLI default: 147-bit n−1) → ECPP (h=1 then small-h)
+                                      → AKS if bits < 512; else UnsettledPrimalityError (FastECPP planned)
 ```
 
 ```mermaid
