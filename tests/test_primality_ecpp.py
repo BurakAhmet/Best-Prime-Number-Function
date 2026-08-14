@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from best_prime.primality_ecpp import ecpp_primality, gk_min_q
+from best_prime.primality_ecpp import _admissible_pairs, ecpp_primality, gk_min_q
 from tests.numbers import (
     CARMICHAEL,
     P10_9_7,
@@ -69,3 +69,16 @@ class TestEcppDecisions:
     def test_below_two_false(self):
         assert ecpp_primality(0) is False
         assert ecpp_primality(1) is False
+
+    def test_admissible_pairs_include_split_pieces(self):
+        # Two large factors of m must both be offered (smallest first),
+        # not only their product leftover.
+        n = 10**8 + 7
+        min_q = gk_min_q(n)
+        p, r = min_q + 10, min_q + 30
+        m = 2 * p * r
+        pairs = _admissible_pairs(m, n, {2: 1}, p * r, [p, r])
+        qs = [q for q, _c, proven in pairs if not proven]
+        assert p in qs and r in qs
+        assert qs[0] == p and qs[1] == r
+        assert all(m // q >= 2 for q, _c, _pr in pairs)

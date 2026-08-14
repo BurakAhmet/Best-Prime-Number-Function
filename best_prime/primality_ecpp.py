@@ -265,8 +265,15 @@ def _fermat_composite(n: int) -> bool:
     return False
 
 
-def _peel_m(m: int, parent: int, *, parallel: bool) -> tuple[dict[int, int], int]:
-    """Trial / splitter peel of ``m``. Leftover is 1 if fully factored."""
+def _peel_m(
+    m: int, parent: int, *, parallel: bool
+) -> tuple[dict[int, int], int, list[int]]:
+    """Trial / splitter peel of ``m``.
+
+    Returns ``(fac, leftover, unproven)`` where ``leftover = m / ∏ fac``
+    (or 1) and ``unproven`` is each isolated splitter piece not absorbed
+    into ``fac``.
+    """
     from .primality_nm1 import (
         _adaptive_trial_bound,
         _max_splits,
@@ -278,7 +285,7 @@ def _peel_m(m: int, parent: int, *, parallel: bool) -> tuple[dict[int, int], int
     peeled, rem = _trial_split(m, _adaptive_trial_bound(m))
     fac.update(peeled)
     if rem <= 1:
-        return fac, 1
+        return fac, 1, []
     stack = [rem]
     unproven: list[int] = []
     splits = 0
@@ -311,12 +318,12 @@ def _peel_m(m: int, parent: int, *, parallel: bool) -> tuple[dict[int, int], int
         prod *= pow(p, e)
     leftover = m // prod if prod else m
     if leftover <= 1:
-        return fac, 1
-    return fac, leftover
+        leftover = 1
+    return fac, leftover, unproven
 
 
 def _admissible_pairs(
-    m: int, n: int, fac: dict[int, int], leftover: int
+    m: int, n: int, fac: dict[int, int], leftover: int, unproven: list[int]
 ) -> list[tuple[int, int, bool]]:
     """(q, c, proven) with q | m, c = m/q ≥ 2, q ≥ gk_min_q(n). Smallest q first."""
     min_q = gk_min_q(n)
@@ -329,11 +336,21 @@ def _admissible_pairs(
         if c >= 2:
             pairs.append((q, c, True))
             seen.add(q)
-    if leftover > 1 and leftover < n and leftover >= min_q and leftover not in seen:
-        if m % leftover == 0:
-            c = m // leftover
-            if c >= 2:
-                pairs.append((leftover, c, False))
+    # Isolated splitter pieces (e.g. two large prime factors of m), then
+    # the combined cofactor m/∏fac. All unproven until _prove_q.
+    candidates: list[int] = []
+    for q in unproven:
+        if q > 1:
+            candidates.append(q)
+    if leftover > 1:
+        candidates.append(leftover)
+    for q in candidates:
+        if q in seen or q < min_q or q >= n or m % q != 0:
+            continue
+        c = m // q
+        if c >= 2:
+            pairs.append((q, c, False))
+            seen.add(q)
     pairs.sort(key=lambda item: item[0])
     return pairs
 
@@ -399,8 +416,8 @@ def _try_curve(n: int, a: int, b: int, m: int, *, parallel: bool) -> Result:
         return False
     if g == n:
         return None
-    fac, leftover = _peel_m(m, n, parallel=parallel)
-    for q, c, proven in _admissible_pairs(m, n, fac, leftover):
+    fac, leftover, unproven = _peel_m(m, n, parallel=parallel)
+    for q, c, proven in _admissible_pairs(m, n, fac, leftover, unproven):
         hit = _point_search(n, a, b, c, q)
         if hit is False:
             return False
