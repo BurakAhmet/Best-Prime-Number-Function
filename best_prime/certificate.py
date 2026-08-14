@@ -53,11 +53,12 @@ def primality_certificate(n: int | str, *, parallel: bool = True) -> dict[str, A
     Prime ``n``: Pratt tree (``kind='pratt'`` or ``'axiom'`` for 2).
     Composite ``n``: ``{"n", "prime": False, "factor": d}`` with ``1 < d < n``.
     ``n < 2``: ``{"n", "prime": False, "reason": "non-prime-by-definition"}``.
+    ``n >= 2**64`` outside the complete cubic engine:
+    ``{"n": n, "kind": "unsupported"}`` (no ``prime`` field).
     """
     n_int = _parse_n(n)
     if n_int < 2:
         return {"n": n_int, "prime": False, "reason": "non-prime-by-definition"}
-    # Between PR2 and PR3: refuse huge-n Pratt rather than hang in AKS / n−1.
     if n_int >= (1 << 64):
         from .factor_lehman import cubic_complete_ready
 
