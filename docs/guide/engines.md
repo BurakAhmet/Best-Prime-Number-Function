@@ -16,9 +16,9 @@ is_prime(n)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
          ├─ cubic budget (4·k·n fits in 128 bits (no artificial cub cap))
-         │              → BLS n±1, else lehman_factor_u128 (CLI default)
+         │              → BLS n±1, else lehman_factor_u128
          ├─ isqrt(n) ≤ 2.5·10¹⁰ (≤128-bit) → OpenMP u128 full trial / stdlib wheel
-         └─ larger still            → combined BLS → ECPP (h=1 then small-h) → AKS
+         └─ larger still            → combined BLS (CLI default: 147-bit n−1) → ECPP (h=1 then small-h) → AKS
 ```
 
 ```mermaid
@@ -50,7 +50,7 @@ flowchart TD
   H0 -->|no| H{isqrt n ≤ 2.5·10^10 and ≤128-bit?}
   H -->|yes| P5[OpenMP u128 full trial / stdlib wheel]
   P5 --> G
-  H -->|no| I[combined BLS, then ECPP h=1 then small-h, then AKS]
+  H -->|no| I[combined BLS (CLI default: 147-bit n−1), then ECPP h=1 then small-h, then AKS]
   I --> L{prime?}
   L -->|yes| Z2
   L -->|no| Z1
@@ -91,7 +91,7 @@ All of these reuse **our** sieves / `is_prime`. No external prime engine.
 | `primes` / `primerange` | Cached odds-only Eratosthenes; **`primerange` yields** (256 KiB windows) |
 | `totient` / `primorial` / `divisors` | From `factorint`; `totient_range` is a linear sieve; primorial is a product tree |
 | `prime_factors` / `factorint` | 30-wheel trial, Fermat, **two-band cubic search**, deterministic Brent–Pollard ($c=1,2,\ldots$), ECM, SIQS; each prime confirmed with `is_prime` |
-| `lehman_factor` | Rising-product 30-wheel to the cube-root budget, then integer-safe Lehman windows. Also the hard-path **fallback** after n−1. [Cubic search](cubic-search.md) · [n−1 proof](nm1-proof.md) |
+| `lehman_factor` | Rising-product 30-wheel to the cube-root budget, then integer-safe Lehman windows. Also the hard-path **fallback** after combined BLS. [Cubic search](cubic-search.md) · [n−1 / BLS](nm1-proof.md) |
 | `is_perfect_power` / `is_prime_power` | Newton $k$-th roots; prime exponents only |
 
 ## Complexity (word operations)

@@ -149,11 +149,11 @@ is_prime(n)
        └─ else                   →  lazy NumPy/Numba 9699690-wheel
   n ≥ 2⁶⁴
        ├─ cubic budget (4·k·n fits in 128 bits (no artificial cub cap))
-       │     →  BLS n±1, else OpenMP cubic (CLI default)
+       │     →  BLS n±1, else OpenMP cubic
        ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
        │                      →  OpenMP C full trial (u128 limbs; no AKS)
        ├─ same size, no .so  →  stdlib 9699690-wheel full trial
-       └─ larger still       →  combined BLS → ECPP (h=1 then small-h) → AKS
+       └─ larger still       →  combined BLS (CLI default: 147-bit n−1) → ECPP (h=1 then small-h) → AKS
 
   ✗  stochastic Miller–Rabin · prime sieving libraries
   ✓  deterministic for every natural number
@@ -181,20 +181,20 @@ flowchart TD
   G -->|yes| Z1
   G -->|no| Z2[True]
   D -->|no| H0{cubic budget complete?}
-  H0 -->|yes| P6[BLS n±1 then cubic<br/>CLI default]
+  H0 -->|yes| P6[BLS n±1 then cubic]
   P6 --> Z3{factor / proved composite?}
   Z3 -->|yes| Z1
   Z3 -->|no| Z2
   H0 -->|no| H{isqrt n ≤ 2.5·10¹⁰ and ≤128-bit?}
   H -->|yes| P5[OpenMP C u128 full trial / stdlib wheel]
   P5 --> G
-  H -->|no| I[combined BLS, then ECPP h=1 then small-h, then AKS]
+  H -->|no| I[combined BLS (CLI default: 147-bit n−1), then ECPP h=1 then small-h, then AKS]
   I --> L{prime?}
   L -->|yes| Z2
   L -->|no| Z1
 ```
 
-Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on mid-size 64-bit paths. Hard 64-bit and $n\ge 2^{64}$ (CLI default) try **combined BLS** first (n−1 / n+1 / Combined Theorem 1); complete **cubic search** remains the fallback when $n\pm 1$ is hostile and in budget. Still-larger $n$: deterministic Atkin–Morain **ECPP** (class-number-1, then small-$h$ — the general 100-digit layer), then **AKS**. The 147-bit `DEFAULT_N` is unchanged.
+Exact **trial division** up to $\lfloor\sqrt{n}\rfloor$ on mid-size 64-bit paths. Hard 64-bit and cubic-budget multi-limb try **combined BLS** first (n−1 / n+1 / Combined Theorem 1); complete **cubic search** remains the fallback when $n\pm 1$ is hostile and in budget. Still-larger $n$ (the **147-bit CLI default**, `u128_nm1`): combined BLS, then deterministic Atkin–Morain **ECPP** (class-number-1, then small-$h$ — the general 100-digit layer), then **AKS**. `DEFAULT_N` is unchanged.
 
 `primality_certificate` / `factorint` sit on top of this predicate (Pratt; trial + Fermat + deterministic Brent + ECM + SIQS). They do not change the boolean contract.
 

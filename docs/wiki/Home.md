@@ -1,6 +1,6 @@
 # Best-Prime-Number-Function Wiki
 
-**Fully deterministic** primality testing for natural numbers — tiered engines (stdlib / OpenMP C / Numba) optimizing end-to-end CLI `TIME`, with full trial through practical multi-limb sizes and **AKS** only for huge inputs.
+**Fully deterministic** primality testing for natural numbers — tiered engines (stdlib / OpenMP C / Numba) optimizing end-to-end CLI `TIME`, with full trial through practical multi-limb sizes; still-larger $n$ uses **combined BLS**, then **ECPP**, then **AKS**.
 
 > [!WARNING]
 > **This entire project (code, tests, docs, and wiki) was created and designed by an AI agent**. Treat it as AI-generated work: review code and results before production or research-critical use. Human oversight is recommended.
@@ -27,8 +27,8 @@ This project refuses that bargain: same $n$, any machine, serial or parallel →
 |--|--|
 | **Library** | `is_prime`, `next_prime` / `prev_prime`, `nth_prime`, `prime_count`, `primes` / `primerange`, `prime_factors` / `factorint`, `totient` / `primorial` / `divisors`, `is_prime_power` / `is_perfect_power` |
 | **Fast path** | $n \lt 2^{64}$: OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
-| **Mid-large path** | $n \ge 2^{64}$: n−1 Pocklington then cubic C (CLI default); else OpenMP **u128** full trial / stdlib wheel |
-| **Huge path** | Partial trial, then **AKS** if needed (deterministic, can be slow) |
+| **Mid-large path** | $n \ge 2^{64}$ in cubic budget: **combined BLS** then cubic C; else OpenMP **u128** full trial / stdlib wheel |
+| **Huge path** | Combined BLS, then deterministic Atkin–Morain **ECPP** (class-number-1 then small-$h$), then **AKS**. CLI default is the **147-bit** n−1 yardstick (`u128_nm1`), not the largest prime $<2^{64}$. |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
 **Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function)
@@ -45,8 +45,9 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 | **[Library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)** | Standalone MkDocs site (install, API, CLI, engines) at `/guide/` |
 | **[Library reference](Library)** | Every public function, with examples (wiki copy) |
 | **[Project restrictions](Project-restrictions)** | Non-negotiable rules for humans **and agents** |
-| **[Algorithm overview](Algorithm-overview)** | Tiered wheel trial (u64/u128) + AKS for huge n |
-| **[n−1 Pocklington](https://burakahmet.github.io/Best-Prime-Number-Function/guide/nm1-proof/)** | Hard-path proof when $n-1$ factors (beats cubic) |
+| **[Algorithm overview](Algorithm-overview)** | Wheel trial (u64/u128); still-larger: combined BLS → ECPP → AKS |
+| **[n−1 / BLS](https://burakahmet.github.io/Best-Prime-Number-Function/guide/nm1-proof/)** | Combined Theorem 1 when $n\pm 1$ factors (beats cubic) |
+| **[ECPP](https://burakahmet.github.io/Best-Prime-Number-Function/guide/ecpp-proof/)** | Deterministic Atkin–Morain; general 100-digit = small-$h$ |
 | **[Cubic search](https://burakahmet.github.io/Best-Prime-Number-Function/guide/cubic-search/)** | Two-band $O(n^{1/3})$ fallback / `factorint` splitter |
 | **[Algorithm history](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)** | Performance eras, opts, tradeoffs, failures to avoid |
 | **[CI and automation](CI-and-automation)** | Tests, determinism, e2e performance, issue/PR agents |
@@ -80,7 +81,8 @@ prev-prime 14                          # 13
 nth-prime 5                            # 11
 prime-count 10                         # 4
 prime-factors 360                      # 2 2 2 3 3 5
-python -m best_prime                     # default: largest prime < 2^64
+python -m best_prime                     # default: 147-bit n−1 yardstick (u128_nm1)
+python -m best_prime 18446744073709551557   # largest prime < 2^64
 python -m best_prime 100000000000000000039  # ~10^20 prime (u128_wheel_c)
 pytest -q -m "not slow"
 ```
@@ -99,14 +101,14 @@ pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
 is_prime(n)
     ├─ n < 10⁴         → pure-Python small loop
     ├─ n < 2⁶⁴
-    │    ├─ isqrt ≥ 10⁷ → n−1 Pocklington, else cubic C
+    │    ├─ isqrt ≥ 10⁷ → BLS n±1, else cubic C
     │    ├─ wheel_core.so → OpenMP C precomputed primes / seg-primes
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
-         ├─ cubic budget → BLS n±1, else cubic C (CLI default)
+         ├─ cubic budget → BLS n±1, else cubic C
          ├─ practical √n (≤128-bit) → OpenMP u128 full trial / stdlib wheel
-         └─ larger still            → combined BLS → ECPP (h=1 then small-h) → AKS
+         └─ larger still            → combined BLS (CLI default: 147-bit n−1) → ECPP (h=1 then small-h) → AKS
 ```
 
 ---
