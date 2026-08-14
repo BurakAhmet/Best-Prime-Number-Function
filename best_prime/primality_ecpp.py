@@ -55,6 +55,13 @@ _FERMAT_BASES = (2, 3, 5, 7, 11, 13)
 Result = Optional[bool]
 
 _proving: set[int] = set()
+# Stack of witness dicts so nested ecpp_primality(q) cannot clobber n's payload.
+_cert_stack: list[dict] = []
+
+
+def _note(**kwargs: int) -> None:
+    if _cert_stack:
+        _cert_stack[-1].update(kwargs)
 
 
 def gk_min_q(n: int) -> int:
@@ -387,6 +394,7 @@ def _point_search(n: int, a: int, b: int, c: int, q: int) -> Result:
         if g > 1:
             continue
         if rpt is None:
+            _note(x=int(x), y=int(y))
             return True
         # [m]P ≠ O with inversions ok: this (curve, sign) has the wrong order.
         return None
@@ -424,6 +432,7 @@ def _try_curve(n: int, a: int, b: int, m: int, *, parallel: bool) -> Result:
         if hit is True:
             dec = _prove_q(q, n, parallel=parallel, proven=proven)
             if dec is True:
+                _note(a=int(a), b=int(b), m=int(m), c=int(c), q=int(q))
                 return True
             # Unproven / composite leftover: try the next admissible q.
             continue
@@ -514,42 +523,73 @@ def _try_discriminant(D: int, n: int, *, parallel: bool) -> Result:
     if cr[0] != "ok":
         return None
     t = cr[1]
+    v = cr[2]
     if t <= 0:
         return None
     if D == -4:
-        return _try_d_neg4(n, t, parallel=parallel)
-    if D == -3:
-        return _try_d_neg3(n, t, parallel=parallel)
-    return _try_d_from_j(n, D, t, parallel=parallel)
+        dec = _try_d_neg4(n, t, parallel=parallel)
+    elif D == -3:
+        dec = _try_d_neg3(n, t, parallel=parallel)
+    else:
+        dec = _try_d_from_j(n, D, t, parallel=parallel)
+    if dec is True:
+        _note(D=int(D), t=int(t), v=int(v), j=int(_J_INVARIANT[D]))
+    return dec
+
+
+def _ecpp_search(
+    n: int, *, parallel: bool = True, max_h: int = 1
+) -> tuple[Result, dict | None]:
+    """True / False / None plus an ECPP witness when the proof succeeds."""
+    _cert_stack.append({})
+    try:
+        if n < 2:
+            return False, None
+        if n in (2, 3):
+            return True, None
+        if (n & 1) == 0:
+            return False, None
+        if math.isqrt(n) ** 2 == n:
+            return False, None
+        if max_h < 1:
+            return None, None
+        if n in _proving:
+            return None, None
+        if len(_proving) >= n.bit_length():
+            return None, None
+        _proving.add(n)
+        try:
+            # Prefix barrier: each D fully fails (incl. factoring) before the next.
+            for D in CLASS_NUMBER_1_D[:MAX_D_TRIALS_2A]:
+                dec = _try_discriminant(D, n, parallel=parallel)
+                if dec is not None:
+                    rec = dict(_cert_stack[-1]) if dec is True else None
+                    return dec, rec
+            return None, None
+        finally:
+            _proving.discard(n)
+    finally:
+        _cert_stack.pop()
 
 
 def ecpp_primality(n: int, *, parallel: bool = True, max_h: int = 1) -> Optional[bool]:
     """True / False / None. Class-number-1 only when max_h==1.
 
     ``parallel`` may speed cofactor engines; it does not change which
-    (D, twist, point) wins.
+    (D, twist, point) wins. Returns a boolean only — no certificate tree.
     """
-    if n < 2:
-        return False
-    if n in (2, 3):
-        return True
-    if (n & 1) == 0:
-        return False
-    if math.isqrt(n) ** 2 == n:
-        return False
-    if max_h < 1:
-        return None
-    if n in _proving:
-        return None
-    if len(_proving) >= n.bit_length():
-        return None
-    _proving.add(n)
-    try:
-        # Prefix barrier: each D fully fails (incl. factoring) before the next.
-        for D in CLASS_NUMBER_1_D[:MAX_D_TRIALS_2A]:
-            dec = _try_discriminant(D, n, parallel=parallel)
-            if dec is not None:
-                return dec
-        return None
-    finally:
-        _proving.discard(n)
+    decided, _rec = _ecpp_search(n, parallel=parallel, max_h=max_h)
+    return decided
+
+
+def ecpp_certificate_data(
+    n: int, *, parallel: bool = True, max_h: int = 1
+) -> dict | None:
+    """Witness payload for an ECPP prime proof. None if ECPP does not settle prime.
+
+    Does not build a certificate tree. Boolean APIs stay boolean-only.
+    """
+    decided, rec = _ecpp_search(n, parallel=parallel, max_h=max_h)
+    if decided is True and rec and "q" in rec:
+        return rec
+    return None

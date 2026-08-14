@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **BLS and Atkin–GKM certificates** (`primality_certificate` / `verify_certificate`):
+  same ladder as `is_prime`, arithmetic-only verifier. `is_prime` remains
+  boolean-only.
 - **Class-number-1 deterministic Atkin–Morain ECPP** skeleton (`primality_ecpp`):
   13 discriminants, canonical Cornacchia, $C_4$/$C_6$ twist generators.
   Not a general 100-digit engine.
