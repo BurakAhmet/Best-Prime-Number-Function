@@ -265,6 +265,10 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
     f = ecm_factor(c, max_ms=_ecm_max_ms(bits))
     if f is not None and 1 < f < c:
         return f
+    # bits > 160: ECPP peels need a cheap miss, not a multi-minute SIQS.
+    # Mid-size BLS (DEFAULT_N / hard55 leftovers) stays ≤160 and may SIQS.
+    if bits > 160:
+        return None
     if SIQS_MIN_BITS <= bits <= SIQS_MAX_BITS:
         from .factor_siqs import siqs_factor
 

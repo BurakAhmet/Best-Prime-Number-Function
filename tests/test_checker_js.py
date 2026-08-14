@@ -34,6 +34,9 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "ecmFactor" in src
     assert "combinedTheorem1Ok" in src
     assert "ecppPrimality" in src
+    assert "HUGE_BITS" in src
+    assert "proveQ" in src
+    assert "ECPP first" in src or "class-number-1 ECPP first" in src
     assert "lucasUv" in src
     assert "COFACTOR_TRIAL_ISQRT" in src
     assert "Montgomery ECM" in ui or "ECM" in ui

@@ -1,8 +1,10 @@
 /* Deterministic primality lab worker (Pages).
  * Mirrors the library ladder in-browser:
- *   small precheck → combined BLS (n−1 Pocklington / Lucas n+1 / Combined Theorem 1)
+ *   small precheck → (n ≥ 256 bits: class-number-1 ECPP first)
+ *   → combined BLS (n−1 Pocklington / Lucas n+1 / Combined Theorem 1)
  *   → class-number-1 Atkin–Morain ECPP → 30-wheel trial when practical.
  *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
+ *   Huge leftovers use a short ECM budget so 131-digit n cannot hang in BLS.
  *   No hard digit / √n size ban: if proof is impractical, return path=inconclusive.
  * Not the OpenMP C core; no stochastic Miller–Rabin. No AKS in-tab.
  * Self-test: node docs/wiki/assets/checker-worker.js --self-test
@@ -28,6 +30,9 @@
   const TRIAL_BOUND_DEFAULT = 100_000;
   const TRIAL_BOUND_MID = 1_000_000;
   const TRIAL_BOUND_BIG = 5_000_000;
+  const TRIAL_BOUND_HUGE = 50_000;
+  /** Match Python: ECPP before a deep BLS peel. */
+  const HUGE_BITS = 256;
   const P1_B1 = 250_000;
   /** Exact trial allowed when proving an n−1 cofactor (not the original n). */
   const COFACTOR_TRIAL_ISQRT = 150_000_000_000n;
@@ -256,6 +261,7 @@
     const bits = bitLength(m);
     if (bits <= 40) return TRIAL_BOUND_DEFAULT;
     if (bits <= 80) return TRIAL_BOUND_MID;
+    if (bits >= HUGE_BITS) return TRIAL_BOUND_HUGE;
     return TRIAL_BOUND_BIG;
   }
 
@@ -471,13 +477,12 @@
     if (ts.rem > 1n && ts.rem < c) return ts.rem;
 
     const bits = bitLength(c);
-    // Scale *up* with size: hostile n−1 needs more work, not less.
-    // Stop button still aborts via shouldStop in the caller.
-    const fermatRounds = bits > 140 ? 8192 : bits > 100 ? 4096 : 2048;
-    // Brent finds small/medium factors; huge cofactors go to ECM quickly.
+    // Mid-size hostile n−1 (hard55) still gets a deep peel.
+    // ≥256-bit leftovers skip that: ECPP needs a cheap p8-class ECM, not minutes.
+    const fermatRounds = bits >= HUGE_BITS ? 256 : bits > 140 ? 8192 : bits > 100 ? 4096 : 2048;
     const brentCurves = bits > 200 ? 0n : bits > 140 ? 16n : bits > 100 ? 32n : 64n;
     const brentMaxR = bits > 140 ? (1n << 18n) : bits > 100 ? (1n << 20n) : BRENT_MAX_R;
-    const p1B1 = bits > 140 ? 1_000_000 : bits > 100 ? 500_000 : P1_B1;
+    const p1B1 = bits >= HUGE_BITS ? 0 : bits > 140 ? 1_000_000 : bits > 100 ? 500_000 : P1_B1;
 
     emit(onTick, "split", 0n, 4n, { label: "Fermat near-square probe" });
     let f = fermatSplit(c, fermatRounds);
@@ -492,15 +497,29 @@
       if (g > 1n && g < c) return g;
     }
 
-    emit(onTick, "p1", 1n, 1n, { B1: String(p1B1) });
-    f = pollardP1(c, p1B1);
-    if (f && f > 1n && f < c) return f;
+    if (p1B1 > 0) {
+      emit(onTick, "p1", 1n, 1n, { B1: String(p1B1) });
+      f = pollardP1(c, p1B1);
+      if (f && f > 1n && f < c) return f;
+    }
 
-    f = ecmFactor(c, onTick, shouldStop, 6);
+    f = ecmFactor(c, onTick, shouldStop, 6, ecmMaxMs(bits));
     if (f && f > 1n && f < c) return f;
-    f = ecmFactor(c, onTick, shouldStop, 806);
-    if (f && f > 1n && f < c) return f;
+    if (bits < HUGE_BITS) {
+      f = ecmFactor(c, onTick, shouldStop, 806, ecmMaxMs(bits));
+      if (f && f > 1n && f < c) return f;
+    }
     return null;
+  }
+
+  function ecmMaxMs(bits) {
+    if (bits <= 40) return 50;
+    if (bits <= 64) return 200;
+    if (bits <= 80) return 500;
+    if (bits <= 100) return 2000;
+    if (bits <= 160) return 8000;
+    if (bits < HUGE_BITS) return 60000;
+    return 800;
   }
 
   function ecmPhases(bits) {
@@ -513,13 +532,17 @@
       { B1: 11_000, curves: 100 },
       { B1: 25_000, curves: 140 },
     ];
-    // 22-digit factors of ~170-bit n−1 cofactors (hard55 exhibit).
-    return [
-      { B1: 2_000, curves: 40 },
-      { B1: 11_000, curves: 160 },
-      { B1: 25_000, curves: 220 },
-      { B1: 50_000, curves: 280 },
-    ];
+    if (bits < HUGE_BITS) {
+      // 22-digit factors of ~170-bit n−1 cofactors (hard55 exhibit).
+      return [
+        { B1: 2_000, curves: 40 },
+        { B1: 11_000, curves: 160 },
+        { B1: 25_000, curves: 220 },
+        { B1: 50_000, curves: 280 },
+      ];
+    }
+    // 131-digit yardstick: a few p8-class curves, then give up.
+    return [{ B1: 6_000, curves: 4 }];
   }
 
   function montDbl(x, z, A24, n) {
@@ -573,13 +596,15 @@
   }
 
   /** Deterministic Montgomery ECM (Suyama σ = 6, 7, …). No RNG. */
-  function ecmFactor(n, onTick, shouldStop, sigma0) {
+  function ecmFactor(n, onTick, shouldStop, sigma0, maxMs) {
     if (n < 4n || (n & 1n) === 0n) return n % 2n === 0n && n > 2n ? 2n : null;
     const bits = bitLength(n);
     const phases = ecmPhases(bits);
     let sigmaBase = sigma0 == null ? 6 : sigma0;
     let doneCurves = 0;
     let totalCurves = 0;
+    const tEcm =
+      maxMs != null && typeof performance !== "undefined" ? performance.now() : null;
     for (let p = 0; p < phases.length; p++) totalCurves += phases[p].curves;
     for (let ph = 0; ph < phases.length; ph++) {
       const sch = phases[ph];
@@ -590,6 +615,7 @@
       }
       for (let i = 0; i < sch.curves; i++) {
         if (shouldStop && shouldStop()) return null;
+        if (tEcm != null && performance.now() - tEcm >= maxMs) return null;
         doneCurves++;
         const sigma = BigInt(sigmaBase + i);
         emit(onTick, "ecm", BigInt(doneCurves), BigInt(totalCurves), {
@@ -1159,7 +1185,8 @@
     const ts = trialSplit(m, adaptiveTrialBound(m));
     const fac = ts.fac;
     let rem = ts.rem;
-    if (rem > 1n && rem < m) {
+    // Fermat-holding leftovers are q-candidates. Do not ECM a probable prime.
+    if (rem > 1n && rem < m && fermatSaysComposite(rem)) {
       const f = trySplitCofactor(rem, onTick, shouldStop);
       if (f && f > 1n && f < rem) {
         const other = rem / f;
@@ -1173,6 +1200,30 @@
       }
     }
     return { fac: fac, rem: rem };
+  }
+
+  /** Prove a strictly smaller Goldwasser–Kilian q. Recurse ECPP when BLS cannot. */
+  function proveQ(q, depth, onTick, shouldStop) {
+    if (q < 2n) return false;
+    if (q === 2n || q === 3n) return true;
+    if ((q & 1n) === 0n) return false;
+    const lim = isqrt(q);
+    if (lim <= 2_000_000n) {
+      return trialIsPrimeCofactor(q, lim, onTick, shouldStop) === true;
+    }
+    // ≥200-bit q: ECPP, not a deep BLS n±1 peel (that hang is why 131-digit
+    // checks never finished in the tab).
+    if (bitLength(q) < 200) {
+      const b = blsPrimality(q, depth + 1, onTick, shouldStop);
+      if (b.prime === true) return true;
+      if (b.prime === false) return false;
+    }
+    if (depth < 10) {
+      const e = ecppPrimality(q, depth + 1, onTick, shouldStop);
+      if (e.prime === true) return true;
+      if (e.prime === false) return false;
+    }
+    return false;
   }
 
   function tryCurveEcpp(n, a, b, m, depth, onTick, shouldStop) {
@@ -1219,8 +1270,9 @@
         if (Q.p === null) continue;
         const R = ecMul(q, Q.p, a, n);
         if (R.g > 1n && R.g < n) return { prime: false, factor: R.g };
-        if (R.p !== null) continue;
-        if (cofactorIsPrime(q, depth, onTick, shouldStop) || (depth < 4 && blsPrimality(q, depth + 1, onTick, shouldStop).prime === true)) {
+        // [c]P ≠ O and [q]Q ≠ O with inversions ok: this curve has the wrong order.
+        if (R.p !== null) return { prime: null };
+        if (proveQ(q, depth, onTick, shouldStop)) {
           return { prime: true };
         }
       }
@@ -1333,9 +1385,52 @@
     }
 
     const limit = isqrt(n);
+    const bits = bitLength(n);
 
-    // Hard / multi-limb: combined BLS, then class-number-1 ECPP.
+    // Hard / multi-limb. ≥256-bit: ECPP first (same as Python is_prime).
     if (n >= TWO64 || limit >= NM1_ISQRT) {
+      if (bits >= HUGE_BITS) {
+        const labDeadline =
+          typeof performance !== "undefined" ? performance.now() + 45_000 : null;
+        function hugeStop() {
+          if (shouldStop && shouldStop()) return true;
+          return labDeadline != null && performance.now() >= labDeadline;
+        }
+        emit(onTick, "ecpp", 0n, 13n, { label: "class-number-1 ECPP first" });
+        const ecHuge = ecppPrimality(n, 0, onTick, hugeStop);
+        if (shouldStop && shouldStop()) return { aborted: true };
+        if (ecHuge.prime === true) {
+          return done(
+            true,
+            "ecpp",
+            null,
+            "deterministic Atkin–Morain ECPP (class-number-1; browser)",
+            limit,
+            t0
+          );
+        }
+        if (ecHuge.prime === false) {
+          return done(
+            false,
+            "ecpp",
+            ecHuge.factor,
+            ecHuge.factor
+              ? "ECPP extracted a factor " + ecHuge.factor.toString()
+              : "ECPP proved composite",
+            limit,
+            t0
+          );
+        }
+        return {
+          prime: null,
+          path: "inconclusive",
+          factor: null,
+          isqrt: limit.toString(),
+          ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+          note:
+            "No size ban: class-number-1 ECPP did not settle this ≥256-bit n in the tab budget. The tab does not run a multi-minute BLS/SIQS peel here. Python is_prime proves 10^130+1113 in a few seconds.",
+        };
+      }
       emit(onTick, "fermat", 0n, 6n, { label: "combined BLS n±1" });
       const decided = blsPrimality(n, 0, onTick, shouldStop);
       if (shouldStop && shouldStop()) return { aborted: true };
@@ -1498,6 +1593,9 @@
     TRIAL_SOFT_ISQRT: TRIAL_SOFT_ISQRT,
     COFACTOR_TRIAL_ISQRT: COFACTOR_TRIAL_ISQRT,
     NM1_ISQRT: NM1_ISQRT,
+    HUGE_BITS: HUGE_BITS,
+    adaptiveTrialBound: adaptiveTrialBound,
+    ecmPhases: ecmPhases,
     SMALL_N: SMALL_N,
   };
 
@@ -1605,6 +1703,13 @@
     // docs/wiki/assets/checker-worker.js must not hard-ban by digit length.
     assert(typeof TRIAL_SOFT_ISQRT === "bigint", "soft trial budget");
     assert(typeof COFACTOR_TRIAL_ISQRT === "bigint", "cofactor trial budget");
+    const p131 = 10n ** 130n + 1113n;
+    assert(bitLength(p131) >= HUGE_BITS, "P131 is the ≥256-bit ECPP-first yardstick");
+    assert(adaptiveTrialBound(p131) === TRIAL_BOUND_HUGE, "huge n trial bound");
+    let hugeCurves = 0;
+    const hugePh = ecmPhases(bitLength(p131));
+    for (let i = 0; i < hugePh.length; i++) hugeCurves += hugePh[i].curves;
+    assert(hugeCurves <= 16, "huge ECM must be short, got " + hugeCurves);
     const huge = 10n ** 96n + 127n;
     const Fbls =
       2n * 55667n * 195376548589n * 323382331513450093n;

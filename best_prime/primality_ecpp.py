@@ -286,11 +286,12 @@ def _peel_m(
     (or 1) and ``unproven`` is each isolated splitter piece not absorbed
     into ``fac``. Fermat-composite leftovers are not q-candidates.
     """
+    from .factor_ecm import ecm_factor
     from .primality_nm1 import (
         _adaptive_trial_bound,
+        _ecm_max_ms,
         _max_splits,
         _trial_split,
-        _try_split_cofactor,
     )
 
     key = (int(m), int(parent))
@@ -326,7 +327,7 @@ def _peel_m(
                 unproven.append(c)
             continue
         splits += 1
-        f = _try_split_cofactor(c, parallel=parallel)
+        f = ecm_factor(c, max_ms=_ecm_max_ms(c.bit_length()))
         if f is None or f <= 1 or f >= c:
             if not _fermat_composite(c):
                 unproven.append(c)
@@ -426,8 +427,11 @@ def _prove_q(
         return None
     from .primality_nm1 import _prove_strictly_smaller
 
+    # Cofactors: class-number-1 + BLS/trial. Walking small-h (h≤16, |D|≤2000)
+    # on every downrun q is what made 10^130+1113 hang for minutes.
+    # General 100-digit small-h stays on the original n (is_prime max_h=16).
     return _prove_strictly_smaller(
-        q, n, parallel=parallel, allow_ecpp=True, max_h=max_h
+        q, n, parallel=parallel, allow_ecpp=True, max_h=1
     )
 
 
