@@ -1,9 +1,10 @@
 /* Deterministic primality lab worker (Pages).
  * Mirrors the library ladder in-browser:
- *   small precheck → n−1 Pocklington (when n−1 factors) → 30-wheel trial when practical.
- *   n−1 factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
+ *   small precheck → combined BLS (n−1 Pocklington / Lucas n+1 / Combined Theorem 1)
+ *   → class-number-1 Atkin–Morain ECPP → 30-wheel trial when practical.
+ *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
  *   No hard digit / √n size ban: if proof is impractical, return path=inconclusive.
- * Not the OpenMP C core; no stochastic Miller–Rabin.
+ * Not the OpenMP C core; no stochastic Miller–Rabin. No AKS in-tab.
  * Self-test: node docs/wiki/assets/checker-worker.js --self-test
  */
 (function (g) {
@@ -77,6 +78,118 @@
     if (s <= 0n || s >= F) return false;
     if ((r & 1n) === 1n) return true;
     return !isSquare(s * s - 4n * r);
+  }
+
+  /** Combined Theorem 1: n < max(F²G/2, FG²/2) and gcd(F,G)=2. Not FG > √n. */
+  function combinedTheorem1Ok(n, F, G) {
+    if (F <= 1n || G <= 1n) return false;
+    if (gcd(F, G) !== 2n) return false;
+    if ((n - 1n) % F !== 0n || (n + 1n) % G !== 0n) return false;
+    const a = (F * F * G) / 2n;
+    const b = (F * G * G) / 2n;
+    return n < (a > b ? a : b);
+  }
+
+  function gkMinQ(n) {
+    const r = isqrt(isqrt(n));
+    return (r + 2n) * (r + 2n);
+  }
+
+  function jacobi(a, n) {
+    if (n <= 0n || (n & 1n) === 0n) return 0;
+    a %= n;
+    if (a < 0n) a += n;
+    let t = 1;
+    while (a !== 0n) {
+      while ((a & 1n) === 0n) {
+        a >>= 1n;
+        const r = n & 7n;
+        if (r === 3n || r === 5n) t = -t;
+      }
+      const tmp = a;
+      a = n;
+      n = tmp;
+      if ((a & 3n) === 3n && (n & 3n) === 3n) t = -t;
+      a %= n;
+    }
+    return n === 1n ? t : 0;
+  }
+
+  /** Selfridge D: 5, −7, 9, −11, … used only to pick a Lucas witness. */
+  function selfridgeParams(n) {
+    let absD = 5n;
+    let sign = 1n;
+    for (let i = 0; i < 80; i++) {
+      const D = sign * absD;
+      const j = jacobi(D, n);
+      if (j === 0) {
+        const g = gcd(D < 0n ? -D : D, n);
+        if (g > 1n && g < n) return { factor: g };
+      } else if (j === -1) {
+        return { D: D, P: 1n, Q: (1n - D) / 4n };
+      }
+      absD += 2n;
+      sign = -sign;
+    }
+    return null;
+  }
+
+  /** Binary Lucas ladder. Returns {U,V,Qk} or {factor}. */
+  function lucasUv(k, P, Q, n) {
+    if ((n & 1n) === 0n) return null;
+    const inv2 = modInv(2n, n);
+    if (inv2 === null) {
+      const g = gcd(2n, n);
+      return g > 1n && g < n ? { factor: g } : null;
+    }
+    const D = P * P - 4n * Q;
+    let U = 0n;
+    let V = 2n;
+    let Qk = 1n;
+    if (k === 0n) return { U: U, V: V, Qk: Qk };
+    const bits = bitLength(k);
+    let seen = false;
+    for (let i = bits - 1; i >= 0; i--) {
+      if (seen) {
+        U = (U * V) % n;
+        V = (V * V - 2n * Qk) % n;
+        if (V < 0n) V += n;
+        Qk = (Qk * Qk) % n;
+      }
+      if ((k >> BigInt(i)) & 1n) {
+        seen = true;
+        const Up = ((P * U + V) * inv2) % n;
+        const Vp = ((D * U + P * V) * inv2) % n;
+        Qk = (Qk * Q) % n;
+        U = Up < 0n ? Up + n : Up;
+        V = Vp < 0n ? Vp + n : Vp;
+      }
+    }
+    return { U: U, V: V, Qk: Qk };
+  }
+
+  function conditionII(n, primesOfG, onTick) {
+    const pick = selfridgeParams(n);
+    if (!pick) return { ok: null, factor: null };
+    if (pick.factor) return { ok: false, factor: pick.factor };
+    const full = lucasUv(n + 1n, pick.P, pick.Q, n);
+    if (!full) return { ok: null, factor: null };
+    if (full.factor) return { ok: false, factor: full.factor };
+    if (full.U % n !== 0n) return { ok: null, factor: null };
+    for (let i = 0; i < primesOfG.length; i++) {
+      const q = primesOfG[i];
+      emit(onTick, "lucas", BigInt(i + 1), BigInt(primesOfG.length), {
+        q: String(q),
+        D: String(pick.D),
+      });
+      const uq = lucasUv((n + 1n) / q, pick.P, pick.Q, n);
+      if (!uq) return { ok: null, factor: null };
+      if (uq.factor) return { ok: false, factor: uq.factor };
+      const g = gcd(uq.U, n);
+      if (g > 1n && g < n) return { ok: false, factor: g };
+      if (g !== 1n) return { ok: null, factor: null };
+    }
+    return { ok: true, factor: null, lucas: pick };
   }
 
   function gcd(a, b) {
@@ -659,6 +772,55 @@
     return doneFac() ? fac : null;
   }
 
+  /** Factor n+1 until G > √n or G = n+1. */
+  function factorEnoughPlus(n, depth, onTick, shouldStop) {
+    const target = isqrt(n);
+    let m = n + 1n;
+    const fac = new Map();
+    const peeled = trialSplit(m, adaptiveTrialBound(m));
+    for (const [p, e] of peeled.fac) fac.set(p, (fac.get(p) || 0) + e);
+    const stack = [];
+    if (peeled.rem > 1n) stack.push(peeled.rem);
+    let splits = 0;
+    const maxSplits = 48;
+
+    function doneG() {
+      const G = FValue(fac);
+      return G > target || G === n + 1n;
+    }
+    if (doneG()) return fac;
+
+    while (stack.length && !doneG()) {
+      if (shouldStop && shouldStop()) return null;
+      let c = stack.pop();
+      if (c <= 1n) continue;
+      const sub = trialSplit(c, adaptiveTrialBound(c));
+      for (const [p, e] of sub.fac) fac.set(p, (fac.get(p) || 0) + e);
+      if (sub.rem === 1n) {
+        if (doneG()) return fac;
+        continue;
+      }
+      c = sub.rem;
+      if (cofactorIsPrime(c, depth, onTick, shouldStop)) {
+        fac.set(c, (fac.get(c) || 0) + 1);
+        if (doneG()) return fac;
+        continue;
+      }
+      if (splits >= maxSplits) return null;
+      splits++;
+      emit(onTick, "split", BigInt(splits), BigInt(maxSplits), {
+        bits: String(bitLength(c)),
+        label: "factoring n+1",
+      });
+      const f = trySplitCofactor(c, onTick, shouldStop);
+      if (f === null || f <= 1n || f >= c) return null;
+      const lo = f < c / f ? f : c / f;
+      stack.push(c / lo);
+      stack.push(lo);
+    }
+    return doneG() ? fac : null;
+  }
+
   function pocklington(n, primesOfF, onTick) {
     const fermatOk = new Map();
     for (let qi = 0; qi < primesOfF.length; qi++) {
@@ -754,6 +916,405 @@
     return { prime: pk.ok, factor: pk.factor || null };
   }
 
+  /** Combined BLS: n−1, then Lucas n+1, then Combined Theorem 1. */
+  function blsPrimality(n, depth, onTick, shouldStop) {
+    const nm1 = nm1Primality(n, depth, onTick, shouldStop);
+    if (nm1.prime === true) return { prime: true, factor: null, side: "nm1" };
+    if (nm1.prime === false) return { prime: false, factor: nm1.factor, side: "nm1" };
+
+    emit(onTick, "split", 0n, 1n, { label: "factoring n+1" });
+    const facG = factorEnoughPlus(n, depth, onTick, shouldStop);
+    if (facG) {
+      const G = FValue(facG);
+      const primesG = Array.from(facG.keys()).sort(function (a, b) {
+        return a === b ? 0 : a > b ? -1 : 1;
+      });
+      if (G > isqrt(n) || G === n + 1n) {
+        const ii = conditionII(n, primesG, onTick);
+        if (ii.ok === false) return { prime: false, factor: ii.factor, side: "np1" };
+        if (ii.ok === true) return { prime: true, factor: null, side: "np1" };
+      }
+
+      emit(onTick, "split", 0n, 1n, { label: "factoring n−1 for Combined Theorem 1" });
+      const facF = factorEnough(n, depth, onTick, shouldStop);
+      if (facF) {
+        const F = FValue(facF);
+        emit(onTick, "combined", F, isqrt(n), {
+          F: String(F),
+          G: String(G),
+        });
+        if (combinedTheorem1Ok(n, F, G)) {
+          const primesF = Array.from(facF.keys()).sort(function (a, b) {
+            return a === b ? 0 : a > b ? -1 : 1;
+          });
+          const pk = pocklington(n, primesF, onTick);
+          if (pk.ok === false) return { prime: false, factor: pk.factor, side: "combined" };
+          const ii = conditionII(n, primesG, onTick);
+          if (ii.ok === false) return { prime: false, factor: ii.factor, side: "combined" };
+          if (pk.ok === true && ii.ok === true) {
+            return { prime: true, factor: null, side: "combined" };
+          }
+        }
+      }
+    }
+    return { prime: null, factor: null, side: null };
+  }
+
+  const CLASS_NUMBER_1_D = [-3n, -4n, -7n, -8n, -11n, -12n, -16n, -19n, -27n, -28n, -43n, -67n, -163n];
+  const J_INVARIANT = {
+    "-3": 0n,
+    "-4": 1728n,
+    "-7": -(15n ** 3n),
+    "-8": 20n ** 3n,
+    "-11": -(32n ** 3n),
+    "-12": 2n * (30n ** 3n),
+    "-16": 66n ** 3n,
+    "-19": -(96n ** 3n),
+    "-27": -3n * (160n ** 3n),
+    "-28": 255n ** 3n,
+    "-43": -(960n ** 3n),
+    "-67": -(5280n ** 3n),
+    "-163": -(640320n ** 3n),
+  };
+  const POINT_X_MAX = 512;
+  const TWIST_NONRESIDUE_MAX = 10000;
+
+  function tonelliModN(a, n) {
+    a %= n;
+    if (a < 0n) a += n;
+    const g0 = gcd(a, n);
+    if (g0 > 1n && g0 < n) return { factor: g0 };
+    if (jacobi(a, n) !== 1) return null;
+    let z = 2n;
+    for (; z <= BigInt(TWIST_NONRESIDUE_MAX); z++) {
+      const gz = gcd(z, n);
+      if (gz > 1n && gz < n) return { factor: gz };
+      if (jacobi(z, n) === -1) break;
+    }
+    if (z > BigInt(TWIST_NONRESIDUE_MAX)) return null;
+    let q = n - 1n;
+    let s = 0;
+    while ((q & 1n) === 0n) {
+      q >>= 1n;
+      s++;
+    }
+    let m = s;
+    let c = powBig(z, q, n);
+    let r = powBig(a, (q + 1n) / 2n, n);
+    let t = powBig(a, q, n);
+    while (t !== 1n) {
+      let i = 1;
+      let tt = (t * t) % n;
+      while (tt !== 1n) {
+        tt = (tt * tt) % n;
+        i++;
+        if (i >= s) return null;
+      }
+      const b = powBig(c, 1n << BigInt(m - i - 1), n);
+      r = (r * b) % n;
+      c = (b * b) % n;
+      t = (t * c) % n;
+      m = i;
+    }
+    if ((r * r) % n !== a % n) return null;
+    if (r > n - r) r = n - r;
+    return r;
+  }
+
+  function cornacchia(D, n) {
+    if (D >= 0n || n <= 2n || (n & 1n) === 0n) return { kind: "no" };
+    const d = -D;
+    const g = gcd(d, n);
+    if (g > 1n && g < n) return { kind: "factor", g: g };
+    if (g === n) return { kind: "no" };
+    if (jacobi(D, n) !== 1) return { kind: "no" };
+    const root = tonelliModN((-d) % n, n);
+    if (root && root.factor) return { kind: "factor", g: root.factor };
+    if (root == null || typeof root !== "bigint") return { kind: "no" };
+    const fourN = 4n * n;
+    const cands = [root, fourN - root, root + n, root + 2n * n, root + 3n * n];
+    const R = [];
+    const seen = new Set();
+    for (let i = 0; i < cands.length; i++) {
+      let r4 = cands[i] % fourN;
+      if (r4 < 0n) r4 += fourN;
+      if ((r4 * r4) % fourN !== ((-d) % fourN + fourN) % fourN) continue;
+      const key = String(r4);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      R.push(r4);
+    }
+    R.sort(function (a, b) {
+      return a === b ? 0 : a < b ? -1 : 1;
+    });
+    const hits = [];
+    for (let i = 0; i < R.length; i++) {
+      let aa = fourN;
+      let b = R[i];
+      if (b > 2n * n) b = fourN - b;
+      let failed = false;
+      while (b * b > fourN) {
+        const nb = aa % b;
+        aa = b;
+        b = nb;
+        if (b === 0n) {
+          failed = true;
+          break;
+        }
+      }
+      if (failed) continue;
+      const t = b < 0n ? -b : b;
+      const rem = fourN - t * t;
+      if (rem < 0n || rem % d !== 0n) continue;
+      const vv = rem / d;
+      const v = isqrt(vv);
+      if (v * v !== vv || t === 0n) continue;
+      hits.push([t, v]);
+    }
+    if (!hits.length) return { kind: "no" };
+    hits.sort(function (x, y) {
+      if (x[0] === y[0]) return x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0;
+      return x[0] < y[0] ? -1 : 1;
+    });
+    return { kind: "ok", t: hits[0][0], v: hits[0][1] };
+  }
+
+  function ecAdd(p1, p2, a, n) {
+    if (p1 === null) return { p: p2, g: 1n };
+    if (p2 === null) return { p: p1, g: 1n };
+    const x1 = p1[0];
+    const y1 = p1[1];
+    const x2 = p2[0];
+    const y2 = p2[1];
+    let num;
+    let den;
+    if (x1 === x2) {
+      if ((y1 + y2) % n === 0n) return { p: null, g: 1n };
+      num = (3n * x1 * x1 + a) % n;
+      den = (2n * y1) % n;
+    } else {
+      num = (y2 - y1) % n;
+      den = (x2 - x1) % n;
+    }
+    if (num < 0n) num += n;
+    if (den < 0n) den += n;
+    const g = gcd(den, n);
+    if (g > 1n) return { p: null, g: g };
+    const inv = modInv(den, n);
+    if (inv === null) return { p: null, g: gcd(den, n) };
+    const m = (num * inv) % n;
+    let x3 = (m * m - x1 - x2) % n;
+    let y3 = (m * (x1 - x3) - y1) % n;
+    if (x3 < 0n) x3 += n;
+    if (y3 < 0n) y3 += n;
+    return { p: [x3, y3], g: 1n };
+  }
+
+  function ecMul(k, p, a, n) {
+    let r = null;
+    let b = p;
+    let e = k;
+    while (e > 0n) {
+      if (e & 1n) {
+        const ad = ecAdd(r, b, a, n);
+        if (ad.g > 1n && ad.g < n) return ad;
+        r = ad.p;
+      }
+      e >>= 1n;
+      if (e > 0n) {
+        const db = ecAdd(b, b, a, n);
+        if (db.g > 1n && db.g < n) return db;
+        b = db.p;
+      }
+    }
+    return { p: r, g: 1n };
+  }
+
+  function twistGenNeg4(n) {
+    for (let beta = 2n; beta <= BigInt(TWIST_NONRESIDUE_MAX); beta++) {
+      const g = gcd(beta, n);
+      if (g > 1n && g < n) return { factor: g };
+      if (jacobi(beta, n) !== -1) continue;
+      const set = new Set();
+      for (let k = 0n; k < 4n; k++) set.add(String(powBig(beta, k, n)));
+      if (set.size === 4) return beta;
+    }
+    return null;
+  }
+
+  function twistGenNeg3(n) {
+    for (let alpha = 2n; alpha <= BigInt(TWIST_NONRESIDUE_MAX); alpha++) {
+      const g = gcd(alpha, n);
+      if (g > 1n && g < n) return { factor: g };
+      if (jacobi(alpha, n) !== -1) continue;
+      if ((n - 1n) % 3n === 0n && powBig(alpha, (n - 1n) / 3n, n) === 1n) continue;
+      const set = new Set();
+      for (let k = 0n; k < 6n; k++) set.add(String(powBig(alpha, k, n)));
+      if (set.size === 6) return alpha;
+    }
+    return null;
+  }
+
+  function peelM(m, n, onTick, shouldStop) {
+    const ts = trialSplit(m, adaptiveTrialBound(m));
+    const fac = ts.fac;
+    let rem = ts.rem;
+    if (rem > 1n && rem < m) {
+      const f = trySplitCofactor(rem, onTick, shouldStop);
+      if (f && f > 1n && f < rem) {
+        const other = rem / f;
+        if (f * f <= rem) {
+          fac.set(f, (fac.get(f) || 0) + 1);
+          rem = other;
+        } else {
+          fac.set(other, (fac.get(other) || 0) + 1);
+          rem = f;
+        }
+      }
+    }
+    return { fac: fac, rem: rem };
+  }
+
+  function tryCurveEcpp(n, a, b, m, depth, onTick, shouldStop) {
+    if (m <= 2n) return { prime: null };
+    const g0 = gcd(m, n);
+    if (g0 > 1n && g0 < n) return { prime: false, factor: g0 };
+    const disc = (4n * powBig(a, 3n, n) + 27n * ((b * b) % n)) % n;
+    const gd = gcd(disc, n);
+    if (gd > 1n && gd < n) return { prime: false, factor: gd };
+    if (gd === n) return { prime: null };
+    const peeled = peelM(m, n, onTick, shouldStop);
+    const candidates = [];
+    let prod = 1n;
+    for (const [p, e] of peeled.fac) {
+      for (let i = 0; i < e; i++) prod *= p;
+    }
+    if (peeled.rem > 1n) {
+      candidates.push(peeled.rem);
+    }
+    for (const p of peeled.fac.keys()) candidates.push(p);
+    candidates.sort(function (x, y) {
+      return x === y ? 0 : x < y ? -1 : 1;
+    });
+    const minQ = gkMinQ(n);
+    for (let i = 0; i < candidates.length; i++) {
+      const q = candidates[i];
+      if (q < minQ || m % q !== 0n) continue;
+      const c = m / q;
+      if (c < 2n) continue;
+      for (let x = 1n; x <= BigInt(POINT_X_MAX); x++) {
+        const rhs = (powBig(x, 3n, n) + a * x + b) % n;
+        const j = jacobi(rhs, n);
+        if (j === 0) {
+          const g = gcd(rhs, n);
+          if (g > 1n && g < n) return { prime: false, factor: g };
+          continue;
+        }
+        if (j === -1) continue;
+        const y = tonelliModN(rhs, n);
+        if (y && y.factor) return { prime: false, factor: y.factor };
+        if (y == null || typeof y !== "bigint") continue;
+        const Q = ecMul(c, [x, y], a, n);
+        if (Q.g > 1n && Q.g < n) return { prime: false, factor: Q.g };
+        if (Q.p === null) continue;
+        const R = ecMul(q, Q.p, a, n);
+        if (R.g > 1n && R.g < n) return { prime: false, factor: R.g };
+        if (R.p !== null) continue;
+        if (cofactorIsPrime(q, depth, onTick, shouldStop) || (depth < 4 && blsPrimality(q, depth + 1, onTick, shouldStop).prime === true)) {
+          return { prime: true };
+        }
+      }
+    }
+    return { prime: null };
+  }
+
+  function tryDNeg4(n, t, depth, onTick, shouldStop) {
+    const beta = twistGenNeg4(n);
+    if (beta && beta.factor) return { prime: false, factor: beta.factor };
+    if (beta == null || typeof beta !== "bigint") return { prime: null };
+    for (let k = 0n; k < 4n; k++) {
+      const a = powBig(beta, k, n);
+      if (a === 0n) continue;
+      for (const m of [n + 1n - t, n + 1n + t]) {
+        const dec = tryCurveEcpp(n, a, 0n, m, depth, onTick, shouldStop);
+        if (dec.prime !== null) return dec;
+      }
+    }
+    return { prime: null };
+  }
+
+  function tryDNeg3(n, t, depth, onTick, shouldStop) {
+    const alpha = twistGenNeg3(n);
+    if (alpha && alpha.factor) return { prime: false, factor: alpha.factor };
+    if (alpha == null || typeof alpha !== "bigint") return { prime: null };
+    for (let k = 0n; k < 6n; k++) {
+      const b = powBig(alpha, k, n);
+      if (b === 0n) continue;
+      for (const m of [n + 1n - t, n + 1n + t]) {
+        const dec = tryCurveEcpp(n, 0n, b, m, depth, onTick, shouldStop);
+        if (dec.prime !== null) return dec;
+      }
+    }
+    return { prime: null };
+  }
+
+  function tryDFromJ(n, D, t, depth, onTick, shouldStop) {
+    const j = ((J_INVARIANT[String(D)] % n) + n) % n;
+    const g = gcd(j - 1728n, n);
+    if (g > 1n && g < n) return { prime: false, factor: g };
+    if (g === n) return { prime: null };
+    const inv = modInv(j - 1728n, n);
+    if (inv === null) {
+      const g2 = gcd(j - 1728n, n);
+      return g2 > 1n && g2 < n ? { prime: false, factor: g2 } : { prime: null };
+    }
+    const k = (j * inv) % n;
+    let c = null;
+    for (let x = 2n; x <= BigInt(TWIST_NONRESIDUE_MAX); x++) {
+      const gx = gcd(x, n);
+      if (gx > 1n && gx < n) return { prime: false, factor: gx };
+      if (jacobi(x, n) === -1) {
+        c = x;
+        break;
+      }
+    }
+    if (c === null) return { prime: null };
+    for (let r = 0n; r < 2n; r++) {
+      const cr2 = powBig(c, 2n * r, n);
+      const cr3 = powBig(c, 3n * r, n);
+      const a = (-3n * k * cr2) % n;
+      const b = (2n * k * cr3) % n;
+      for (const m of [n + 1n - t, n + 1n + t]) {
+        const dec = tryCurveEcpp(n, (a + n) % n, (b + n) % n, m, depth, onTick, shouldStop);
+        if (dec.prime !== null) return dec;
+      }
+    }
+    return { prime: null };
+  }
+
+  function ecppPrimality(n, depth, onTick, shouldStop) {
+    if (n < 2n) return { prime: false };
+    if (n === 2n || n === 3n) return { prime: true };
+    if ((n & 1n) === 0n) return { prime: false, factor: 2n };
+    if (isSquare(n)) return { prime: false, factor: isqrt(n) };
+    for (let i = 0; i < CLASS_NUMBER_1_D.length; i++) {
+      const D = CLASS_NUMBER_1_D[i];
+      emit(onTick, "ecpp", BigInt(i + 1), BigInt(CLASS_NUMBER_1_D.length), {
+        D: String(D),
+      });
+      if (shouldStop && shouldStop()) return { prime: null };
+      const cr = cornacchia(D, n);
+      if (cr.kind === "factor") return { prime: false, factor: cr.g };
+      if (cr.kind !== "ok") continue;
+      let dec;
+      if (D === -4n) dec = tryDNeg4(n, cr.t, depth, onTick, shouldStop);
+      else if (D === -3n) dec = tryDNeg3(n, cr.t, depth, onTick, shouldStop);
+      else dec = tryDFromJ(n, D, cr.t, depth, onTick, shouldStop);
+      if (dec.prime !== null) return dec;
+    }
+    return { prime: null };
+  }
+
   function checkPrime(n, onTick, shouldStop) {
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
     emit(onTick, "precheck", 0n, 1n, { label: "small-prime / parity filter" });
@@ -773,36 +1334,65 @@
 
     const limit = isqrt(n);
 
-    // Hard / multi-limb: n−1 Pocklington first (same idea as the Python library).
+    // Hard / multi-limb: combined BLS, then class-number-1 ECPP.
     if (n >= TWO64 || limit >= NM1_ISQRT) {
-      emit(onTick, "fermat", 0n, 6n, { label: "n−1 Pocklington" });
-      const decided = nm1Primality(n, 0, onTick, shouldStop);
+      emit(onTick, "fermat", 0n, 6n, { label: "combined BLS n±1" });
+      const decided = blsPrimality(n, 0, onTick, shouldStop);
       if (shouldStop && shouldStop()) return { aborted: true };
       if (decided.prime === true) {
-        return done(
-          true,
-          "n-1-pocklington",
-          null,
-          "n−1 Pocklington proof (browser; no RNG)",
-          limit,
-          t0
-        );
+        const path =
+          decided.side === "np1"
+            ? "n+1-lucas"
+            : decided.side === "combined"
+              ? "bls-combined"
+              : "n-1-pocklington";
+        const note =
+          path === "n+1-lucas"
+            ? "BLS n+1 Lucas proof (browser; no RNG)"
+            : path === "bls-combined"
+              ? "Combined Theorem 1 (n < max(F²G/2, FG²/2); not FG>√n)"
+              : "n−1 Pocklington proof (browser; no RNG)";
+        return done(true, path, null, note, limit, t0);
       }
       if (decided.prime === false) {
         let fac = decided.factor;
         if (fac == null) fac = extractFactor(n, onTick, shouldStop);
         return done(
           false,
-          "n-1-pocklington",
+          decided.side === "np1" ? "n+1-lucas" : "n-1-pocklington",
           fac,
           fac
             ? "composite; factor " + fac.toString()
-            : "failed fixed-base Fermat / Pocklington filter (composite)",
+            : "failed Fermat / Lucas / Pocklington filter (composite)",
           limit,
           t0
         );
       }
-      // inconclusive → trial if budget allows
+      emit(onTick, "ecpp", 0n, 13n, { label: "class-number-1 ECPP" });
+      const ec = ecppPrimality(n, 0, onTick, shouldStop);
+      if (shouldStop && shouldStop()) return { aborted: true };
+      if (ec.prime === true) {
+        return done(
+          true,
+          "ecpp",
+          null,
+          "deterministic Atkin–Morain ECPP (class-number-1; browser)",
+          limit,
+          t0
+        );
+      }
+      if (ec.prime === false) {
+        return done(
+          false,
+          "ecpp",
+          ec.factor,
+          ec.factor
+            ? "ECPP extracted a factor " + ec.factor.toString()
+            : "ECPP proved composite",
+          limit,
+          t0
+        );
+      }
     }
 
     if (limit > TRIAL_SOFT_ISQRT) {
@@ -813,7 +1403,7 @@
         isqrt: limit.toString(),
         ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
         note:
-          "No size ban: n−1 could not be factored enough for a Pocklington proof, and automatic pure trial would need ~⌊√n⌋ modular divisions (impractical in a tab). Use the Python / OpenMP library for longer ECM/SIQS factoring, or try a smaller n / a prime with smoother n−1.",
+          "No size ban: combined BLS and class-number-1 ECPP did not settle, and automatic pure trial would need ~⌊√n⌋ modular divisions (impractical in a tab). The Python library continues with small-h ECPP / SIQS / AKS.",
       };
     }
 
@@ -894,10 +1484,16 @@
     isqrt: isqrt,
     icbrt: icbrt,
     blsCubicOk: blsCubicOk,
+    combinedTheorem1Ok: combinedTheorem1Ok,
+    gkMinQ: gkMinQ,
+    lucasUv: lucasUv,
+    cornacchia: cornacchia,
     checkPrime: checkPrime,
     ecmFactor: ecmFactor,
     umod64: umod64,
     nm1Primality: nm1Primality,
+    blsPrimality: blsPrimality,
+    ecppPrimality: ecppPrimality,
     WARN_ISQRT: WARN_ISQRT,
     TRIAL_SOFT_ISQRT: TRIAL_SOFT_ISQRT,
     COFACTOR_TRIAL_ISQRT: COFACTOR_TRIAL_ISQRT,
@@ -1014,6 +1610,30 @@
       2n * 55667n * 195376548589n * 323382331513450093n;
     assert(blsCubicOk(huge, Fbls), "BLS cubic extra must settle 10^96+127");
     assert(!blsCubicOk(huge, 2n * 55667n), "too-small F must fail BLS");
+
+    // Combined Theorem 1 is cubic in F,G — not FG > √n.
+    const nComb = 10007n;
+    const Ffake = 32n;
+    const Gfake = 32n;
+    assert(Ffake * Gfake > isqrt(nComb), "fixture FG > √n");
+    assert(!combinedTheorem1Ok(nComb, Ffake, Gfake), "FG>√n must not prove prime");
+
+    const r = isqrt(isqrt(nComb));
+    const weak = (r + 1n) * (r + 1n);
+    assert(gkMinQ(nComb) === (r + 2n) * (r + 2n), "gkMinQ");
+    assert(weak < gkMinQ(nComb), "weak (r+1)² is below gkMinQ");
+
+    const np1 = 47265372806959999999n;
+    const rnp = checkPrime(np1);
+    assert(rnp.prime === true, "n+1-smooth specimen prime");
+    assert(rnp.path === "n+1-lucas" || rnp.path === "n-1-pocklington", "n+1 specimen path " + rnp.path);
+
+    const p40 = 100000000000000001000000000000000003029n;
+    const cr40 = cornacchia(-4n, p40);
+    assert(cr40.kind === "ok", "P40 Cornacchia");
+    assert(cr40.t === 20000000000000000100n, "P40 t");
+    assert(cr40.v === 23n, "P40 v");
+    assert(4n * p40 === cr40.t * cr40.t + 4n * cr40.v * cr40.v, "P40 4n = t²+4v²");
 
     const overSafe = 59n * (MAX_SAFE / 59n + 11n);
     assert(overSafe > MAX_SAFE && overSafe < TWO64, "u64 fixture range");

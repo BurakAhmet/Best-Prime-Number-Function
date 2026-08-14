@@ -32,8 +32,15 @@ def test_lab_assets_allow_near_2_63_prime():
         y = (y + x // y) // 2
     assert soft >= z
     assert "ecmFactor" in src
+    assert "combinedTheorem1Ok" in src
+    assert "ecppPrimality" in src
+    assert "lucasUv" in src
     assert "COFACTOR_TRIAL_ISQRT" in src
     assert "Montgomery ECM" in ui or "ECM" in ui
+    assert 'data-phase="lucas"' in ui
+    assert 'data-phase="combined"' in ui
+    assert 'data-phase="ecpp"' in ui
+    assert "Combined Theorem 1" in ui
     assert "checker-worker.js" in ui
     assert "lab-orrery" in ui
     assert "lab-stage" in ui

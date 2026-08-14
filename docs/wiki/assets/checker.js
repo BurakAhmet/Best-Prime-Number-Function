@@ -1,10 +1,10 @@
 /* Deterministic lab UI. Heavy work runs in checker-worker.js
- * (n−1 Pocklington when n−1 factors, else 30-wheel trial). */
+ * (combined BLS n±1, then class-number-1 ECPP, then 30-wheel trial). */
 (function () {
   const WARN_ISQRT = 8_000_000n;
   const TWO64 = 1n << 64n;
   const WHEEL30 = [1, 7, 11, 13, 17, 19, 23, 29];
-  const DOCTRINE = "deterministic · n−1 Pocklington / trial · no stochastic Miller–Rabin";
+  const DOCTRINE = "deterministic · combined BLS / ECPP / trial · no stochastic Miller–Rabin";
 
   function $(sel, root) {
     return (root || document).querySelector(sel);
@@ -307,6 +307,37 @@
           </svg>
           <figcaption>need a fully-factored F with F² &gt; n</figcaption>
         </figure>
+        <figure class="lab-viz" data-phase="lucas" hidden>
+          <svg viewBox="0 0 200 72" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Lucas n+1  U<sub>n+1</sub> ≡ 0</text>
+            <rect class="viz-track" x="8" y="32" width="184" height="10" rx="2"/>
+            <rect class="viz-fill viz-fill-alt" id="viz-lucas-fill" x="8" y="32" width="0" height="10" rx="2"/>
+            <text class="viz-mono" id="viz-lucas-q" x="8" y="60">q | G</text>
+          </svg>
+          <figcaption>Selfridge discriminant · Condition (II) on primes of G</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="combined" hidden>
+          <svg viewBox="0 0 200 80" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Combined Theorem 1</text>
+            <text class="viz-mono" x="8" y="32">F</text>
+            <rect class="viz-track" x="28" y="24" width="164" height="8" rx="2"/>
+            <rect class="viz-fill" id="viz-comb-f" x="28" y="24" width="0" height="8" rx="2"/>
+            <text class="viz-mono" x="8" y="52">G</text>
+            <rect class="viz-track" x="28" y="44" width="164" height="8" rx="2"/>
+            <rect class="viz-fill viz-fill-alt" id="viz-comb-g" x="28" y="44" width="0" height="8" rx="2"/>
+            <text class="viz-mono" id="viz-comb-note" x="8" y="72">n &lt; max(F²G/2, FG²/2)</text>
+          </svg>
+          <figcaption>gcd(F,G)=2 · not FG &gt; √n</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="ecpp" hidden>
+          <svg viewBox="0 0 200 80" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Atkin–Morain ECPP</text>
+            <ellipse class="viz-orbit" cx="100" cy="48" rx="72" ry="20"/>
+            <circle class="viz-point" id="viz-ecpp-pt" cx="28" cy="48" r="4.5"/>
+            <text class="viz-mono" id="viz-ecpp-d" x="8" y="76">D = —</text>
+          </svg>
+          <figcaption>class-number-1 discriminants in fixed order (no RNG)</figcaption>
+        </figure>
         <figure class="lab-viz lab-orrery" data-phase="wheel" hidden>
           ${orrerySvg()}
           <figcaption>30-wheel trial · residue <span id="orrery-res">—</span> (mod 30)</figcaption>
@@ -326,11 +357,12 @@
           <button type="button" id="lab-stop" disabled>Stop</button>
         </div>
         <p class="lab-hint">Deterministic lab in this tab (not the OpenMP C core):
-          <strong>n−1 Pocklington</strong> when <em>n</em>−1 factors (trial / Brent / p−1 / <strong>ECM</strong>),
-          else exact 30-wheel trial.
-          <strong>No digit-length limit.</strong> Smooth <em>n</em>−1 (e.g. CLI default) is typically sub-second;
-          hostile <em>n</em>−1 (e.g. the 55-digit exhibit) can take a minute or two of background ECM.
-          Stop anytime. Composites print a factor when one is found.</p>
+          <strong>combined BLS</strong> (n−1 Pocklington, Lucas n+1, Combined Theorem 1),
+          then class-number-1 <strong>ECPP</strong>, then exact 30-wheel trial.
+          Factoring uses trial / Brent / p−1 / <strong>ECM</strong>.
+          <strong>No digit-length limit.</strong> Smooth <em>n</em>±1 is typically sub-second;
+          hostile <em>n</em>−1 can take a minute or two of ECM. Stop anytime.
+          Composites print a factor when one is found.</p>
         ${stageMarkup()}
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
@@ -459,6 +491,40 @@
         if (fbar) fbar.setAttribute("width", String(Math.min(164, Math.max(2, frac))));
         const qel = $("#viz-pock-q", root);
         if (qel) qel.textContent = extra.q ? "q | F = " + extra.q : "building F";
+      } else if (phase === "lucas") {
+        const tot = Number(msg.limit) || 1;
+        const i = Number(msg.i) || 0;
+        const fill = $("#viz-lucas-fill", root);
+        if (fill) fill.setAttribute("width", String((184 * i) / tot));
+        const qel = $("#viz-lucas-q", root);
+        if (qel) {
+          qel.textContent =
+            (extra.q ? "q | G = " + extra.q : "U_{n+1}") +
+            (extra.D ? "   D = " + extra.D : "");
+        }
+      } else if (phase === "combined") {
+        const fbar = $("#viz-comb-f", root);
+        const gbar = $("#viz-comb-g", root);
+        try {
+          const F = extra.F ? BigInt(extra.F) : 0n;
+          const G = extra.G ? BigInt(extra.G) : 0n;
+          const T = extra.target ? BigInt(extra.target) : BigInt(msg.limit || "1");
+          if (fbar && T > 0n) fbar.setAttribute("width", String(Math.min(164, Number((F * 164n) / (T + 1n)))));
+          if (gbar && T > 0n) gbar.setAttribute("width", String(Math.min(164, Number((G * 164n) / (T + 1n)))));
+        } catch (_) {
+          /* ignore */
+        }
+      } else if (phase === "ecpp") {
+        const tot = Number(msg.limit) || 13;
+        const i = Number(msg.i) || 0;
+        const th = (i / Math.max(1, tot)) * Math.PI * 2;
+        const pt = $("#viz-ecpp-pt", root);
+        if (pt) {
+          pt.setAttribute("cx", String(100 + 72 * Math.cos(th)));
+          pt.setAttribute("cy", String(48 + 20 * Math.sin(th)));
+        }
+        const dEl = $("#viz-ecpp-d", root);
+        if (dEl) dEl.textContent = extra.D ? "D = " + extra.D : "searching discriminants";
       } else if (phase === "split") {
         const bits = $("#viz-split-bits", root);
         if (bits) bits.textContent = extra.bits ? extra.bits + "-bit cofactor" : extra.label || "cofactor";
@@ -502,7 +568,10 @@
       if (phase === "fermat") return "Fermat a^{n−1} mod n";
       if (phase === "p1") return "Pollard p−1 stage 1";
       if (phase === "pocklington") return "Pocklington check on primes of F";
-      if (phase === "split") return extra.label || "factoring a cofactor of n−1";
+      if (phase === "lucas") return "Lucas n+1 on primes of G";
+      if (phase === "combined") return "Combined Theorem 1 (not FG>√n)";
+      if (phase === "ecpp") return extra.D ? "ECPP discriminant D=" + extra.D : "class-number-1 ECPP";
+      if (phase === "split") return extra.label || "factoring a cofactor of n±1";
       if (phase === "precheck") return "small-prime / parity filter";
       if (phase === "wheel") return "30-wheel trial division";
       return phase;
@@ -672,7 +741,7 @@
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
               <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">There is no maximum digit length. The tab already runs trial, Brent, p−1, and Montgomery ECM on <em>n</em>−1. If that still cannot build a Pocklington <em>F</em> and pure trial is impractical (~⌊√n⌋ steps), the lab stops rather than spinning forever. The Python library can run longer SIQS / more ECM curves.</p>`
+              <p class="lab-hint">There is no maximum digit length. The tab already runs combined BLS (n−1 / Lucas n+1 / Combined Theorem 1), class-number-1 ECPP, trial, Brent, p−1, and Montgomery ECM. If that still cannot settle <em>n</em> and pure trial is impractical (~⌊√n⌋ steps), the lab stops rather than spinning forever. The Python library continues with small-h ECPP, SIQS, and AKS.</p>`
             );
           } else {
             renderCert({
