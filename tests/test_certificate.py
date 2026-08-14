@@ -56,7 +56,7 @@ class TestCertificate:
             primality_certificate(True)  # type: ignore[arg-type]
 
     def test_huge_composite_factor(self):
-        # n ≥ 2^64 outside cubic: real composite record, not the PR2 stub.
+        # Huge composite must carry a proper factor, not kind=unsupported.
         n = 10**30 + 1
         c = primality_certificate(n)
         assert c["prime"] is False
@@ -143,4 +143,62 @@ class TestPrattNoHang:
         c = primality_certificate(n, kind="pratt")
         assert c["kind"] == "pratt"
         assert c.get("error") == "n-1_unfactored"
+        assert c.get("prime") is not True
         assert verify_certificate(c) is False
+
+    def test_pratt_composite_is_not_an_error(self):
+        for n in (9, 15, 91):
+            c = primality_certificate(n, kind="pratt")
+            assert c.get("prime") is False
+            assert verify_certificate(c)
+            if "factor" in c:
+                assert 1 < c["factor"] < n and n % c["factor"] == 0
+
+
+def _forged_nm1(n: int, fmap: dict[int, int]) -> dict:
+    """BLS n−1 shape with every Condition-I base equal to n itself."""
+    factors = [primality_certificate(q) for q in sorted(fmap)]
+    return {
+        "n": n,
+        "prime": True,
+        "kind": "bls",
+        "side": "nm1",
+        "F": dict(fmap),
+        "inequality": "F>sqrt",
+        "witnesses": [{"q": q, "a": n} for q in fmap],
+        "factors": factors,
+    }
+
+
+class TestVerifierSoundness:
+    def test_forged_a_equals_n_rejected(self):
+        # F|(n−1), F>√n, real prime children; a=n must not short-circuit Condition I.
+        forged = {
+            9: {2: 3},
+            25: {2: 3, 3: 1},
+            91: {2: 1, 3: 2, 5: 1},
+        }
+        for n, fmap in forged.items():
+            cert = _forged_nm1(n, fmap)
+            assert verify_certificate(cert) is False
+
+    def test_composite_child_rejected_bls(self):
+        c = primality_certificate(COMBINED_BLS_PRIME, kind="bls")
+        assert verify_certificate(c)
+        bad = copy.deepcopy(c)
+        bad["factors"] = [
+            {"n": int(child["n"]), "prime": False, "reason": "composite"}
+            for child in c["factors"]
+        ]
+        assert verify_certificate(bad) is False
+
+    def test_composite_child_rejected_ecpp(self):
+        c = primality_certificate(P40_H1_FRIENDLY, kind="ecpp")
+        assert verify_certificate(c)
+        bad = copy.deepcopy(c)
+        bad["q_cert"] = {
+            "n": int(c["q_cert"]["n"]),
+            "prime": False,
+            "reason": "composite",
+        }
+        assert verify_certificate(bad) is False

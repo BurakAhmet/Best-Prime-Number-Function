@@ -1,8 +1,8 @@
 """Primality certificates: Pratt, BLS, and Atkin–GKM (ECPP).
 
 ``primality_certificate(n, kind=None)`` follows the same ladder as
-``is_prime`` and emits the theorem that settled. It never means
-“``is_prime`` was True ⇒ Pratt ``n−1``”. ``is_prime`` stays boolean-only.
+``is_prime`` and emits the theorem that settled. ``is_prime`` stays
+boolean-only.
 
 Verifier is arithmetic only — no discriminant search, no factoring.
 """
@@ -13,6 +13,8 @@ import math
 from typing import Any
 
 from .is_prime import _ECPP_MAX_H, _SMALL_LIMIT, _parse_n, _is_prime_small
+
+_PRIME_KINDS = frozenset({"axiom", "pratt", "bls", "ecpp"})
 
 
 def _factor_p_minus_1(p: int) -> list[int]:
@@ -33,7 +35,7 @@ def _witness(p: int, qs: list[int]) -> int | None:
 
 
 def _pratt_unfactored(p: int) -> dict[str, Any]:
-    return {"n": p, "prime": True, "kind": "pratt", "error": "n-1_unfactored"}
+    return {"n": p, "kind": "pratt", "error": "n-1_unfactored"}
 
 
 def _pratt_allowed(p: int) -> bool:
@@ -45,7 +47,9 @@ def _pratt_allowed(p: int) -> bool:
     return cubic_complete_ready(p)
 
 
-def _pratt(p: int, memo: dict[int, dict[str, Any]]) -> dict[str, Any]:
+def _pratt(
+    p: int, memo: dict[int, dict[str, Any]], *, parallel: bool
+) -> dict[str, Any] | None:
     if p in memo:
         return memo[p]
     if p == 2:
@@ -57,9 +61,14 @@ def _pratt(p: int, memo: dict[int, dict[str, Any]]) -> dict[str, Any]:
     qs = _factor_p_minus_1(p)
     g = _witness(p, qs)
     if g is None:
-        raise RuntimeError(f"failed to build Pratt witness for {p}")
-    factors = [_pratt(q, memo) for q in qs]
-    if any(c.get("error") or c.get("kind") == "unsupported" for c in factors):
+        return None
+    factors = [_child_cert(q, parallel=parallel, memo=memo) for q in qs]
+    if any(
+        c.get("prime") is not True
+        or c.get("kind") not in _PRIME_KINDS
+        or "error" in c
+        for c in factors
+    ):
         return _pratt_unfactored(p)
     cert = {"n": p, "prime": True, "kind": "pratt", "witness": g, "factors": factors}
     memo[p] = cert
@@ -194,7 +203,14 @@ def _certificate(
         return {"n": n, "prime": False, "reason": "non-prime-by-definition"}
 
     if kind == "pratt":
-        return _pratt(n, memo)
+        if n < _SMALL_LIMIT and not _is_prime_small(n):
+            return _composite_record(n, parallel=parallel)
+        if not _pratt_allowed(n):
+            return _pratt_unfactored(n)
+        cert = _pratt(n, memo, parallel=parallel)
+        if cert is None:
+            return _composite_record(n, parallel=parallel)
+        return cert
 
     if kind == "bls":
         from .primality_nm1 import _bls_proof
@@ -219,7 +235,8 @@ def _certificate(
     # kind=None: same dispatch as is_prime / _is_prime_one.
     if n < _SMALL_LIMIT:
         if _is_prime_small(n):
-            return _pratt(n, memo)
+            cert = _pratt(n, memo, parallel=parallel)
+            return cert if cert is not None else _composite_record(n, parallel=parallel)
         return _composite_record(n, parallel=parallel)
 
     from .factor_lehman import cubic_complete_ready
@@ -231,20 +248,23 @@ def _certificate(
             return _build_bls_cert(n, data, parallel=parallel, memo=memo)
         if decided is False:
             return _composite_record(n, parallel=parallel)
-        from .is_prime import is_prime
+        from .factor_lehman import lehman_factor
 
-        if is_prime(n, parallel=parallel):
-            return _pratt(n, memo)
-        return _composite_record(n, parallel=parallel)
+        f = lehman_factor(n, parallel=parallel)
+        if f is not None and 1 < f < n:
+            return {"n": n, "prime": False, "factor": f}
+        cert = _pratt(n, memo, parallel=parallel)
+        return cert if cert is not None else _pratt_unfactored(n)
 
     if n < (1 << 64):
         from .is_prime import is_prime
 
         if is_prime(n, parallel=parallel):
-            return _pratt(n, memo)
+            cert = _pratt(n, memo, parallel=parallel)
+            return cert if cert is not None else _composite_record(n, parallel=parallel)
         return _composite_record(n, parallel=parallel)
 
-    # Huge n: BLS → split → ECPP. Never Pratt-hang, never AKS.
+    # Huge n: BLS → split → ECPP (no complete n−1 factoring, no AKS).
     decided, data = _bls_proof(n, parallel=parallel)
     if decided is True and _bls_settled(data):
         return _build_bls_cert(n, data, parallel=parallel, memo=memo)
@@ -286,6 +306,17 @@ def primality_certificate(
     return _certificate(n_int, kind=kind, parallel=parallel, memo={})
 
 
+def _prime_proof_ok(child: dict[str, Any]) -> bool:
+    """True iff ``child`` is a prime proof, not a compositeness record."""
+    if child.get("prime") is not True:
+        return False
+    if child.get("kind") not in _PRIME_KINDS:
+        return False
+    if "error" in child:
+        return False
+    return verify_certificate(child)
+
+
 def _verify_condition_I(n: int, fmap: dict[int, int], witnesses: Any) -> bool:
     if not isinstance(witnesses, list):
         return False
@@ -298,8 +329,8 @@ def _verify_condition_I(n: int, fmap: dict[int, int], witnesses: Any) -> bool:
         a = int(w.get("a", 0))
         if q not in need or a < 2:
             return False
-        if n % a == 0:
-            return n == a
+        if not (1 < a < n) or math.gcd(a, n) != 1:
+            return False
         if (n - 1) % q != 0:
             return False
         if pow(a, n - 1, n) != 1:
@@ -414,7 +445,7 @@ def _verify_bls(cert: dict[str, Any], n: int) -> bool:
         if q in got or q not in need:
             return False
         got.add(q)
-        if not verify_certificate(child):
+        if not _prime_proof_ok(child):
             return False
     return got == need
 
@@ -452,6 +483,9 @@ def _verify_ecpp(cert: dict[str, Any], n: int) -> bool:
         return False
     if (y * y - (pow(x, 3, n) + a * x + b)) % n != 0:
         return False
+    disc = (4 * pow(a, 3, n) + 27 * ((b * b) % n)) % n
+    if math.gcd(disc, n) != 1:
+        return False
     pnt = (x % n, y % n)
     cp, g = _mul(c, pnt, a, n)
     if g > 1 or cp is None:
@@ -459,7 +493,7 @@ def _verify_ecpp(cert: dict[str, Any], n: int) -> bool:
     mp, g = _mul(m, pnt, a, n)
     if g > 1 or mp is not None:
         return False
-    return verify_certificate(q_cert)
+    return _prime_proof_ok(q_cert)
 
 
 def verify_certificate(cert: dict[str, Any]) -> bool:
@@ -509,4 +543,4 @@ def verify_certificate(cert: dict[str, Any]) -> bool:
         return False
     if any(pow(g, (n - 1) // q, n) == 1 for q in qs):
         return False
-    return all(verify_certificate(c) for c in factors)
+    return all(_prime_proof_ok(c) for c in factors)
