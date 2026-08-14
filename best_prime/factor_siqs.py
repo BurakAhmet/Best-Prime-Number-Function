@@ -369,6 +369,8 @@ def _siqs_factor_body(
     g = _dependency_split(n, 1, r, rels)
     if g is not None:
         return g
+    if deadline is not None and time.perf_counter() >= deadline:
+        return None
     for which in range(npoly):
         if deadline is not None and time.perf_counter() >= deadline:
             return None

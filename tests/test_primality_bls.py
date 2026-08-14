@@ -108,7 +108,8 @@ class TestBlsPrimality:
         info = lab(NP1_SMOOTH_PRIME)
         assert info["is_prime"] is True
         assert info["path"] == "bigint_bls"
-        assert info["note"]
+        assert info["parallel"] is False
+        assert info["note"] == "BLS n+1 or combined n±1 proof (n−1 did not settle)."
 
     def test_serial_parallel_agree(self):
         for n in (

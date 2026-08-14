@@ -369,7 +369,7 @@ def _factor_nm1_np1(
             break
         F = _F_value(fac_f)
         G = _F_value(fac_g)
-        # Prefer the short side; ties go to n−1 so existing Pocklington cases stay fast.
+        # short side first; tie → n−1
         allow = splits < max_splits
         if stack_f and (not stack_g or F <= G):
             c = stack_f.pop()
