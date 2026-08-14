@@ -118,13 +118,13 @@ is_prime(n)
        ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
        │                      →  OpenMP C full trial (u128 limbs; no AKS)
        ├─ same size, no .so  →  stdlib 9699690-wheel full trial
-       └─ larger still       →  combined BLS (CLI default: 147-bit n−1) → ECPP (h=1 then small-h) → AKS
+       └─ larger still       →  ECPP first if ≥256-bit (Montgomery ECM); else BLS → ECPP → AKS
 
   ✗  stochastic Miller–Rabin · prime sieving libraries
   ✓  deterministic for every natural number
 ```
 
-Diagram and path notes: [engines](https://burakahmet.github.io/Best-Prime-Number-Function/guide/engines/). Mid-size 64-bit is exact trial to $\lfloor\sqrt{n}\rfloor$. Hard 64-bit and cubic-budget multi-limb try **combined BLS** first; cubic search is the fallback when $n\pm 1$ is hostile and in budget. Still-larger $n$ (the **147-bit CLI default**, `u128_nm1`): BLS, then ECPP (class-number-1 then small-$h$), then **AKS**. `DEFAULT_N` is unchanged.
+Diagram and path notes: [engines](https://burakahmet.github.io/Best-Prime-Number-Function/guide/engines/). Mid-size 64-bit is exact trial to $\lfloor\sqrt{n}\rfloor$. Hard 64-bit and cubic-budget multi-limb try **combined BLS** first; cubic search is the fallback when $n\pm 1$ is hostile and in budget. Still-larger $n$ with $256+$ bits tries **ECPP** first (deterministic Montgomery ECM). The **147-bit CLI default** stays `u128_nm1`. `DEFAULT_N` is unchanged.
 
 `primality_certificate` / `factorint` sit on top of this predicate (Pratt; trial + Fermat + deterministic Brent + ECM + SIQS). They do not change the boolean contract.
 

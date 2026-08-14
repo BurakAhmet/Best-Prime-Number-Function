@@ -22,7 +22,7 @@ Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic**
 | **Library** | `is_prime`, `next_prime` / `prev_prime`, `nth_prime`, `prime_count`, `primes` / `primerange`, `prime_factors` / `factorint`, `totient` / `primorial` / `divisors`, `is_prime_power` / `is_perfect_power` |
 | **Fast path** | $n \lt 2^{64}$: OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
 | **Mid-large path** | $n \ge 2^{64}$ in cubic budget: **combined BLS** then cubic C; else OpenMP **u128** full trial / stdlib wheel |
-| **Huge path** | Combined BLS, then deterministic Atkin–Morain **ECPP** (class-number-1 then small-$h$), then **AKS**. CLI default is the **147-bit** n−1 yardstick (`u128_nm1`), not the largest prime $<2^{64}$. |
+| **Huge path** | $n\ge 256$ bits: deterministic **ECPP** first (Montgomery ECM peels curve orders; class-number-1 then small-$h$), else combined BLS, then ECPP, then **AKS**. CLI default is the **147-bit** n−1 yardstick (`u128_nm1`). |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
 **Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function)

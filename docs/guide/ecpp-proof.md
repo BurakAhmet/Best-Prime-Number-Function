@@ -3,7 +3,7 @@
 A deterministic primality proof for $n$ that is **too large for complete cubic search or u128 trial**, when combined BLS cannot factor enough of $n\pm 1$. The prover builds an elliptic curve over $\mathbb{Z}/n\mathbb{Z}$ whose order is known from complex multiplication, then reduces primality of $n$ to primality of a strictly smaller prime $q$.
 
 !!! tip "Still-larger $n$ only"
-    Mid-size 64-bit $n$ stay on wheel trial. Hard 64-bit and cubic-budget multi-limb try [combined BLS](nm1-proof.md) first, then cubic search. ECPP runs only after BLS, cubic, and practical u128 trial have all declined. AKS remains the last resort so every natural number still has a complete algorithm.
+    Mid-size 64-bit $n$ stay on wheel trial. Hard 64-bit and cubic-budget multi-limb try [combined BLS](nm1-proof.md) first, then cubic search. For $n\ge 256$ bits, `is_prime` tries ECPP **before** a deep BLS peel. Curve orders are split with deterministic Montgomery/Suyama ECM (fixed $\sigma=6,7,\ldots$). AKS remains the last resort so every natural number still has a complete algorithm.
 
 ## Why this beats AKS at this scale
 
@@ -79,14 +79,14 @@ Re-entrancy: never call `is_prime(n)` from inside `ecpp_primality(n)`; never ECP
 ## Dispatch
 
 ```text
-still-larger n (past BLS, cubic, u128 trial)
-  → 30030-wheel to min(1e8, √n), Fermat 2..13
-  → deeper split of n (ECM + SIQS; hard abort, no raise)
-  → ecpp_primality(n, max_h=16)
-       class-number-1 (13 D)
-       then small-h CM (h(D) ≤ 16)
-       True / False → settle
-       None → _aks_is_prime
+still-larger n (past cubic / u128 trial)
+  n.bit_length() ≥ 256
+    → ecpp_primality(n, max_h=16) first
+         class-number-1 (13 D); peel m with Montgomery ECM
+         then small-h CM (h(D) ≤ 16)
+         True / False → settle
+  else combined BLS, then the same ECPP
+  None → _aks_is_prime
 ```
 
 `lab(n)["path"]` is `bigint_ecpp` when ECPP settles. The 147-bit CLI default `DEFAULT_N` stays on `u128_nm1` (n−1 cooperates). It is **not** moved to a 100-digit prime.

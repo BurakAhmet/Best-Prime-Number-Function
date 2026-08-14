@@ -50,7 +50,7 @@ flowchart TD
   H0 -->|no| H{isqrt n ≤ 2.5·10^10 and ≤128-bit?}
   H -->|yes| P5[OpenMP u128 full trial / stdlib wheel]
   P5 --> G
-  H -->|no| I[combined BLS (CLI default: 147-bit n−1), then ECPP h=1 then small-h, then AKS]
+  H -->|no| I[≥256-bit: ECPP first then BLS; else BLS then ECPP; then AKS]
   I --> L{prime?}
   L -->|yes| Z2
   L -->|no| Z1
@@ -73,9 +73,9 @@ flowchart TD
 
 ### Large path — $n \ge 2^{64}$ outside cubic budget
 
-1. Combined BLS first (same theorems; the 147-bit CLI default usually settles here as `u128_nm1`).
+1. Combined BLS first when $n$ is under 256 bits (the 147-bit CLI default usually settles here as `u128_nm1`).
 2. If $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits (covers e.g. primes near $10^{20}$): OpenMP **`is_prime_u128_core`**, else stdlib 9699690-wheel.
-3. Still larger: 30030-wheel trial up to $\min(10^8,\lfloor\sqrt{n}\rfloor)$, Fermat 2…13, bounded ECM/SIQS split of $n$ itself, then **deterministic Atkin–Morain ECPP** ([guide](ecpp-proof.md)) — class-number-1, then small-$h$ CM ($h(D)\le 16$). **General 100-digit completeness is the small-$h$ layer.** AKS is the last resort (Kronecker poly mul). Path `bigint_ecpp` or `bigint_trial_or_aks`.
+3. Still larger ($n\ge 256$ bits): **ECPP first** ([guide](ecpp-proof.md)) — deterministic Montgomery/Suyama ECM peels $m=n+1\pm t$; class-number-1, then small-$h$ CM ($h(D)\le 16$). Then combined BLS if ECPP declines. **General 100-digit completeness is the small-$h$ layer.** AKS is the last resort. Path `bigint_ecpp` or `bigint_trial_or_aks`.
 
 Inspect the live path with [`lab(n)`](api.md).
 
