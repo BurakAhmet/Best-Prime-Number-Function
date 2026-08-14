@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Small-h CM ECPP** ($h(D)\le 16$) from transcribed Hilbert class polynomials
+  $H_D$ (Cohen Tables 7.1 / 7.6, Fungrim 20b6d2). Numbered Cantor–Zassenhaus
+  for a root of $H_D$ mod $n$. The general 100-digit gate is this layer.
 - **BLS and Atkin–GKM certificates** (`primality_certificate` / `verify_certificate`):
   same ladder as `is_prime`, arithmetic-only verifier. `is_prime` remains
   boolean-only.

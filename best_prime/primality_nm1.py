@@ -129,7 +129,12 @@ def _primes_for_bound(fac: dict[int, int], target: int) -> list[int]:
 
 
 def _prove_strictly_smaller(
-    c: int, parent: int, *, parallel: bool, allow_ecpp: bool = False
+    c: int,
+    parent: int,
+    *,
+    parallel: bool,
+    allow_ecpp: bool = False,
+    max_h: int = 1,
 ) -> Result:
     """True / False / None. ``c`` must be < ``parent``. Never AKS."""
     assert 1 < c < parent
@@ -150,7 +155,7 @@ def _prove_strictly_smaller(
     if allow_ecpp:
         from .primality_ecpp import ecpp_primality
 
-        decided = ecpp_primality(c, parallel=parallel)
+        decided = ecpp_primality(c, parallel=parallel, max_h=max_h)
         if decided is not None:
             return decided
     return None

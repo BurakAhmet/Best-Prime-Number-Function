@@ -41,7 +41,7 @@ _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000
 # Full deterministic trial (no AKS) when isqrt(n) is at most this (covers ~10^20).
 _MAX_FULL_TRIAL_ISQRT = 25_000_000_000  # 2.5e10 → n up to ~6.25e20
-_ECPP_MAX_H = 1
+_ECPP_MAX_H = 16
 _last_is_prime_big_path: str | None = None
 # Before AKS: 30030-wheel trial up to this (or isqrt, whichever is smaller).
 _AKS_TRIAL_BOUND = 100_000_000
