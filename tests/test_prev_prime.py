@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
@@ -9,6 +13,8 @@ from best_prime.next_prime import next_prime
 from best_prime.prev_prime import prev_prime
 from best_prime.prime_sieve import primes
 from tests.numbers import P10_9_7, P10_9_9, SMALL_PRIMES
+
+ROOT = Path(__file__).resolve().parents[1]
 
 _HYP = dict(
     deadline=None,
@@ -60,6 +66,18 @@ class TestPrevPrime:
     def test_serial_equals_parallel(self):
         for n in (100, 10_007, P10_9_7):
             assert prev_prime(n, parallel=True) == prev_prime(n, parallel=False)
+
+    def test_module_cli_prints_result(self):
+        r = subprocess.run(
+            [sys.executable, "-m", "best_prime.prev_prime", "14"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert "RESULT:  13" in r.stdout
 
 
 @settings(max_examples=80, **_HYP)

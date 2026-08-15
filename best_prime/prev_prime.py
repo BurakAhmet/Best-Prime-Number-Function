@@ -9,13 +9,16 @@ from __future__ import annotations
 
 import math
 
-from .is_prime import _parse_n, is_prime
+from .is_prime import _parse_n
 from .next_prime import (
     _RES_INVALID,
     _W30030,
+    _fermat_composite_fast,
+    _get_deep_primes,
     _get_prefilter,
     _get_res_30030,
     _get_steps_30030,
+    _prove_prime_candidate,
     _span_guess,
 )
 from .prime_sieve import _SIEVE_PI_MAX, _parse_k, _primes_in_range, _primes_upto_cached
@@ -62,6 +65,8 @@ def _prev_prime_wheel(n: int, k: int, parallel: bool) -> int:
         raise ValueError(f"no {k}-th prime strictly less than {n}")
 
     cand, wi = aligned
+    deep = _get_deep_primes()
+    pre = tuple(p for p in deep if p >= 17) if deep else pre
     while cand >= 17:
         lim = math.isqrt(cand)
         composite = False
@@ -73,7 +78,10 @@ def _prev_prime_wheel(n: int, k: int, parallel: bool) -> int:
             if cand % p == 0:
                 composite = True
                 break
-        if not composite and (proven or is_prime(cand, parallel=parallel)):
+        if not composite and not proven:
+            if _fermat_composite_fast(cand):
+                composite = True
+        if not composite and (proven or _prove_prime_candidate(cand, parallel)):
             got = _hit(cand)
             if got is not None:
                 return got
@@ -161,3 +169,14 @@ def prev_prime(n: int | str, k: int = 1, *, parallel: bool = True) -> int:
     if got is not None:
         return got
     return _prev_prime_wheel(n_int, k_int, parallel)
+
+
+def main(argv: list[str] | None = None) -> None:
+    """``python -m best_prime.prev_prime n [k]`` — same as the ``prev-prime`` script."""
+    from .prime_cli import prev_prime_main
+
+    prev_prime_main(argv)
+
+
+if __name__ == "__main__":
+    main()
