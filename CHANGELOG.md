@@ -29,6 +29,7 @@ All notable changes to this project are documented in this file.
   `max_ms` abort on ECM/SIQS (no raise).
 
 ### Changed
+- **`_trial_30(..., limit=)` no longer ignores the limit after the first factor.** Stripping 193 from $10^{131}+1113$ used to raise the cap to $\sqrt{q}$ (~65 digits) and hang. The ceiling stays.
 - **`python -m best_prime` no longer hangs after proving a huge composite.** Fermat already rejects $10^{122}+1203$ in milliseconds; the CLI then used to start an 8-million-$k$ cubic hunt. `_one_factor` now trials / short Brent / bounded ECM and prints `FACTOR` when it finds one (that $n$ splits as $5482299091\cdot q$).
 - **`prev_prime` window-sieves backward** (same deep odd window as `next_prime`) so a large prime gap is not a 1e6-trial per candidate. FastECPP downruns no longer repeat the 13 class-number-1 discriminants after the caller already missed. Smaller *n* can still take longer when the previous prime has a harder CM tree — that is the proof, not the digit count.
 - **`python -m best_prime.prev_prime n` is a real CLI** (it used to import the module and exit with no output). Same `TEST`/`RESULT`/`TIME` as `prev-prime`. The walk also Fermat-rejects composites before `is_prime`, so a 123-digit predecessor finishes in seconds instead of hanging on every wheel candidate.

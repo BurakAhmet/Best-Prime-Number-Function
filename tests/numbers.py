@@ -104,3 +104,19 @@ P131_DIGIT = 10**130 + 1113
 P132_DIGIT = 10**131 + 63
 # Smallest 150-digit prime (10^149+183). Pages lab 150-digit gate.
 P150_DIGIT = 10**149 + 183
+
+# User-reported CLI / lab specimens (exact decimals they typed).
+# 10^130+1113 is prime; the 132-digit look-alike 10^131+1113 is 193 · q.
+USER_P131 = 10**130 + 1113
+USER_P131_NEXT = 10**130 + 1189
+USER_C132_LOOKALIKE = 10**131 + 1113
+USER_C132_FACTOR = 193
+USER_P132 = 10**131 + 63
+USER_P150 = 10**149 + 183
+# 123-digit Fermat composite; prev_prime and is-prime CLI both used this.
+USER_C123 = 10**122 + 1203
+USER_C123_FACTOR = 5_482_299_091
+USER_C123_PREV = 10**122 + 1119
+# 122-digit neighbor of the same shape (larger prime gap / harder CM tree).
+USER_N122 = 10**121 + 1203
+USER_N122_PREV = 10**121 + 531

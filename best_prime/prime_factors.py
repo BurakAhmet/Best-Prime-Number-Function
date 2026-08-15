@@ -29,97 +29,49 @@ def _strip(n: int, p: int, out: list[int]) -> int:
             return n
 
 
+def _refresh_trial_cap(n: int, hard: int | None) -> int:
+    cap = math.isqrt(n)
+    if hard is not None and cap > hard:
+        return hard
+    return cap
+
+
 def _trial_30(n: int, out: list[int], limit: int | None = None) -> int:
-    """Divide n by 7,11,13,… up to limit (default isqrt(n), refreshed)."""
+    """Divide n by 7,11,13,… up to limit (default isqrt(n), refreshed).
+
+    ``limit`` is a hard ceiling. After a factor is stripped, the cap
+    shrinks to ``isqrt(remainder)`` but must not jump back up to a
+    60-digit root (that hung ``_one_factor(10^131+1113)`` after 193).
+    """
     if n < 49:
         return n
-    cap = limit if limit is not None else math.isqrt(n)
+    cap = _refresh_trial_cap(n, limit)
     p = 7
     wi = 0
+
+    def hit() -> bool:
+        nonlocal n, cap, p
+        if n % p == 0:
+            n = _strip(n, p, out)
+            if n == 1:
+                return True
+            cap = _refresh_trial_cap(n, limit)
+            if p > cap:
+                return True
+        return False
+
     # 8-way unroll matches one 30-wheel turn (7..31).
     while p + 28 <= cap:
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
-        p += _W30[wi]
-        wi += 1
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
-        p += _W30[wi]
-        wi += 1
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
-        p += _W30[wi]
-        wi += 1
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
-        p += _W30[wi]
-        wi += 1
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
-        p += _W30[wi]
-        wi += 1
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
-        p += _W30[wi]
-        wi += 1
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
-        p += _W30[wi]
-        wi += 1
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
-        p += _W30[wi]
-        wi += 1
-        if wi == 8:
-            wi = 0
+        for _ in range(8):
+            if hit():
+                return 1 if n == 1 else n
+            p += _W30[wi]
+            wi += 1
+            if wi == 8:
+                wi = 0
     while p <= cap:
-        if n % p == 0:
-            n = _strip(n, p, out)
-            if n == 1:
-                return 1
-            cap = math.isqrt(n)
-            if p > cap:
-                return n
+        if hit():
+            return 1 if n == 1 else n
         p += _W30[wi]
         wi += 1
         if wi == 8:
