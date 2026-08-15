@@ -1,10 +1,10 @@
 /* Deterministic lab UI. Heavy work runs in checker-worker.js
- * (≥256-bit: class-number-1 ECPP only; else combined BLS; then trial). */
+ * (≥256-bit: class-number-1 then in-tab FastECPP H_D; else combined BLS; then trial). */
 (function () {
   const WARN_ISQRT = 8_000_000n;
   const TWO64 = 1n << 64n;
   const WHEEL30 = [1, 7, 11, 13, 17, 19, 23, 29];
-  const DOCTRINE = "deterministic · BLS (<256 bits) / class-number-1 ECPP (256+) · no stochastic Miller–Rabin";
+  const DOCTRINE = "deterministic · BLS (<256 bits) / class-number-1 then FastECPP H_D (256+) · no stochastic Miller–Rabin";
 
   function $(sel, root) {
     return (root || document).querySelector(sel);
@@ -338,7 +338,7 @@
             <circle class="viz-point" id="viz-ecpp-pt" cx="28" cy="48" r="4.5"/>
             <text class="viz-mono" id="viz-ecpp-d" x="8" y="76">D = —</text>
           </svg>
-          <figcaption>class-number-1 discriminants in fixed order (no RNG)</figcaption>
+          <figcaption>class-number-1, then in-tab FastECPP H_D (no RNG)</figcaption>
         </figure>
         <figure class="lab-viz lab-orrery" data-phase="wheel" hidden>
           ${orrerySvg()}
@@ -377,15 +377,15 @@
         </div>
         <p class="lab-hint">Deterministic lab in this tab (not the OpenMP C core).
           One engine per band, matching the Python library:
-          <strong>class-number-1 ECPP only</strong> when <em>n</em> has 256 or more bits
+          <strong>class-number-1 ECPP, then in-tab FastECPP H_D</strong> when <em>n</em> has 256 or more bits
           (Montgomery ECM; no BLS fallback), else <strong>combined BLS only</strong>
           (n−1 Pocklington, Lucas n+1, Combined Theorem 1). Then exact 30-wheel trial if practical.
           Factoring uses trial / Brent / p−1 / <strong>ECM</strong>.
           <strong>No digit-length limit.</strong> Smooth <em>n</em>±1 is typically sub-second;
           the 131-digit CM-friendly prime 10^130+1113 proves in this tab via class-number-1
-          ECPP. A general 131-digit next prime needs Python FastECPP (tens of seconds).
+          ECPP. The next prime after it (10^130+1189) uses in-tab FastECPP (D=−3076).
           Stop anytime. Composites print a factor when one is found.
-          Wider misses are <strong>inconclusive</strong> here (Python: FastECPP, then unsettled).</p>
+          Wider misses are <strong>inconclusive</strong> here (Python: computed-H_D FastECPP, then unsettled).</p>
         ${stageMarkup()}
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
@@ -615,7 +615,7 @@
       if (phase === "pocklington") return "Pocklington check on primes of F";
       if (phase === "lucas") return "Lucas n+1 on primes of G";
       if (phase === "combined") return "Combined Theorem 1 (not FG>√n)";
-      if (phase === "ecpp") return extra.D ? "ECPP discriminant D=" + extra.D : "class-number-1 ECPP";
+      if (phase === "ecpp") return extra.D ? "ECPP discriminant D=" + extra.D : "class-number-1 / FastECPP";
       if (phase === "split") return extra.label || "factoring a cofactor of n±1";
       if (phase === "precheck") return "small-prime / parity filter";
       if (phase === "wheel") return "30-wheel trial division";
@@ -920,7 +920,7 @@
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
               <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">There is no maximum digit length. The tab uses one engine per band: class-number-1 ECPP only on ≥256-bit <em>n</em> (Jacobian mul, stacked Montgomery ECM), combined BLS only below that. No BLS after an ECPP miss. CM-friendly primes such as 10^130+1113 are in scope. A miss is inconclusive here; Python continues with FastECPP, then UnsettledPrimalityError (AKS is not a product-path fallback).</p>`
+              <p class="lab-hint">There is no maximum digit length. The tab uses one engine per band: class-number-1 then in-tab FastECPP H_D on ≥256-bit <em>n</em> (Jacobian mul, stacked Montgomery ECM), combined BLS only below that. No BLS after an ECPP miss. CM-friendly primes such as 10^130+1113 and the next prime 10^130+1189 are in scope. A miss is inconclusive here; Python continues with computed-H_D FastECPP, then UnsettledPrimalityError (AKS is not a product-path fallback).</p>`
             );
           } else {
             renderCert({

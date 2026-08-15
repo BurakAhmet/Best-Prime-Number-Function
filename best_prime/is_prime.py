@@ -138,6 +138,24 @@ def _numpy():
     return _np
 
 
+_accel_state: bool | None = None
+
+
+def _accel_available() -> bool:
+    """True when NumPy and Numba both import. Stdlib-only CI has neither."""
+    global _accel_state
+    if _accel_state is not None:
+        return _accel_state
+    try:
+        import numba  # noqa: F401
+        import numpy  # noqa: F401
+    except ImportError:
+        _accel_state = False
+        return False
+    _accel_state = True
+    return True
+
+
 def _configure_threads():
     global _threads_configured, _thread_count
     if _threads_configured:
@@ -145,13 +163,18 @@ def _configure_threads():
     nt = os.environ.get("NUMBA_NUM_THREADS") or os.environ.get("OMP_NUM_THREADS")
     if nt:
         _thread_count = max(1, int(nt))
-        from numba import set_num_threads
-
-        set_num_threads(_thread_count)
     else:
-        from numba import get_num_threads
+        _thread_count = max(1, int(os.cpu_count() or 1))
+    # CI "Stdlib fallback (no compiler)" sets OMP_NUM_THREADS without Numba.
+    if _accel_available():
+        if nt:
+            from numba import set_num_threads
 
-        _thread_count = int(get_num_threads())
+            set_num_threads(_thread_count)
+        else:
+            from numba import get_num_threads
+
+            _thread_count = int(get_num_threads())
     _threads_configured = True
 
 
@@ -589,6 +612,8 @@ def _is_prime_u64(n: int, parallel: bool) -> bool:
     lib = _load_c_core()
     if lib:
         return bool(lib.is_prime_u64_core(n, 1 if parallel else 0))
+    if not _accel_available():
+        return _is_prime_python_wheel(n)
     limit_i = math.isqrt(n)
     if parallel and limit_i >= _PARALLEL_LIMIT:
         tables, k = _ensure_parallel(n)
@@ -939,7 +964,7 @@ def _is_prime_one(n_int: int, parallel: bool) -> bool:
         # Prefer OpenMP .so whenever present (fast in-process + solid e2e).
         if _load_c_core():
             return _is_prime_u64(n_int, parallel)
-        if n_int <= _PURE_WHEEL_MAX_N:
+        if n_int <= _PURE_WHEEL_MAX_N or not _accel_available():
             return _is_prime_python_wheel(n_int)
         return _is_prime_u64(n_int, parallel)
     return _is_prime_big(n_int, parallel=parallel)
@@ -1018,7 +1043,7 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         elif _load_c_core():
             path = "u64_wheel_c"
             prime = _is_prime_u64(n_int, parallel)
-        elif n_int <= _PURE_WHEEL_MAX_N:
+        elif n_int <= _PURE_WHEEL_MAX_N or not _accel_available():
             path = "python_wheel"
             prime = _is_prime_python_wheel(n_int)
         else:

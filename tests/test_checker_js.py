@@ -37,6 +37,10 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "HUGE_BITS" in src
     assert "proveQ" in src
     assert "ECPP first" in src or "class-number-1 ECPP first" in src
+    assert "hilbertRootModN" in src
+    assert "fastecppWalk" in src
+    assert "HILBERT_CLASS_POLY" in src
+    assert "-3076" in src
     assert "lucasUv" in src
     assert "COFACTOR_TRIAL_ISQRT" in src
     assert re.search(r"POINT_X_MAX\s*=\s*4096", src)
@@ -165,6 +169,30 @@ def test_checker_worker_p131_ecpp() -> None:
         capture_output=True,
         text=True,
         timeout=300,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_checker_worker_p131_next_prime() -> None:
+    """Next prime after 10^130+1113 is 10^130+1189 (FastECPP D=−3076)."""
+    script = (
+        "const api=require('./docs/wiki/assets/checker-worker.js');"
+        "const n=10n**130n+1113n;"
+        "const r=api.nextPrime(n,1);"
+        "if(!r || !r.ok || r.value!==(10n**130n+1189n).toString()){"
+        "  console.error(JSON.stringify(r)); process.exit(1);"
+        "}"
+        "console.log('p131 next OK', r.value, r.path, r.ms);"
+    )
+    r = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=600,
         check=False,
     )
     assert r.returncode == 0, r.stdout + r.stderr

@@ -69,6 +69,15 @@ class TestCertificate:
 
 
 class TestBlsCertificate:
+    def test_u64_cofactor_does_not_require_numba(self):
+        """Stdlib-fallback CI sets OMP_NUM_THREADS and has no Numba."""
+        from best_prime.is_prime import _accel_available, _configure_threads, is_prime
+
+        _configure_threads()
+        assert is_prime(1_000_003)
+        # Accel may or may not be present; the call must not raise either way.
+        assert _accel_available() in (True, False)
+
     def test_p40_round_trip(self):
         c = primality_certificate(P40_H1_FRIENDLY)
         assert c["prime"] is True

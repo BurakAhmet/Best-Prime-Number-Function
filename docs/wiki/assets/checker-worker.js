@@ -1,7 +1,8 @@
 /* Deterministic primality lab worker (Pages).
  * Mirrors the library ladder in-browser:
  *   small precheck → one engine per band (match Python is_prime):
- *   ≥256 bits: Fermat filter + class-number-1 ECPP only (no BLS fallback).
+ *   ≥256 bits: Fermat filter + class-number-1 ECPP, then a FastECPP walk
+ *   (transcribed / in-tab H_D, numbered Cantor–Zassenhaus). No BLS fallback.
  *   <256 bits (hard / multi-limb): combined BLS only, then trial if practical.
  *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
  *   Huge leftovers use a short ECM budget so 131-digit n cannot hang in BLS.
@@ -37,6 +38,11 @@
   const TRIAL_BOUND_NEAR_HUGE = 200_000;
   /** Match Python: FastECPP / class-number-1 only at this width. */
   const HUGE_BITS = 256;
+  /** FastECPP-lite after an h=1 miss (matches Python d_max / h_cap at 256–400 bits). */
+  const FASTECPP_D_MAX = 4000;
+  const FASTECPP_H_CAP = 64;
+  const FASTECPP_TRIAL_BOUND = 1_000_000;
+  const CZ_S_MAX = 256;
 
   const P1_B1 = 250_000;
   /** Exact trial allowed when proving an n−1 cofactor (not the original n). */
@@ -1029,6 +1035,39 @@
     "-67": -(5280n ** 3n),
     "-163": -(640320n ** 3n),
   };
+  const HILBERT_CLASS_POLY = {
+    "-3": [1n, 0n],
+    "-4": [1n, -1728n],
+    "-7": [1n, 3375n],
+    "-8": [1n, -8000n],
+    "-11": [1n, 32768n],
+    "-12": [1n, -54000n],
+    "-15": [1n, 191025n, -121287375n],
+    "-16": [1n, -287496n],
+    "-19": [1n, 884736n],
+    "-20": [1n, -1264000n, -681472000n],
+    "-23": [1n, 3491750n, -5151296875n, 12771880859375n],
+    "-24": [1n, -4834944n, 14670139392n],
+    "-27": [1n, 12288000n],
+    "-28": [1n, -16581375n],
+    "-31": [1n, 39491307n, -58682638134n, 1566028350940383n],
+    "-35": [1n, 117964800n, -134217728000n],
+    "-39": [1n, 331531596n, -429878960946n, 109873509788637459n, 20919104368024767633n],
+    "-40": [1n, -425692800n, 9103145472000n],
+    "-43": [1n, 884736000n],
+    "-47": [1n, 2257834125n, -9987963828125n, 5115161850595703125n, -14982472850828613281250n, 16042929600623870849609375n],
+    "-51": [1n, 5541101568n, 6262062317568n],
+    "-52": [1n, -6896880000n, -567663552000000n],
+    "-55": [1n, 13136684625n, -20948398473375n, 172576736359017890625n, -18577989025032784359375n],
+    "-56": [1n, -16220384512n, 2059647197077504n, 2257767342088912896n, 10064086044321563803648n],
+    "-59": [1n, 30197678080n, -140811576541184n, 374643194001883136n],
+    "-67": [1n, 147197952000n],
+    "-68": [1n, -178211040000n, -75843692160000000n, -318507038720000000000n, -2089297506304000000000000n],
+    "-163": [1n, 262537412640768000n],
+    "-187": [1n, 4545336381788160000n, -3845689020776448000000n],
+    "-788": [1n, -199466226646698834046105902369908912000n, -2817112805747528135246781655755544100356119824466112000000n, -16459899503426939487003287834072754736526715381534565242834944000000000n, -96172326838571287763433680004758003111624153924362744900059993044606976000000000000n, 236053366573124232152193968302296810963056395284069664648671071930509295616000000000000000n, -570472583480607197468924676689793367859903930750781632080094389710301202743296000000000000000000n, 20252577562236564847826522458802777439930465731674033903357000804816943774171136000000000000000000000n, -312237612306415010497185687878461053110289616777318677703741182281898501385224192000000000000000000000000n, 1528419715340993132385702301522949338167448085991397238801962868649507397763596288000000000000000000000000000n, -2679436381723436341909539657964296620891717611602452870121366738252061822507024384000000000000000000000000000000n],
+    "-3076": [1n, -4684141124597118118860790158018066523432054732481392310742990529641222559488n, -320586298122488488164002465129399956752560833534223080548851271270432215970403156064844149693109776780889409658880n, 269851538561158996050081514589631279155590330229259336548653157074059551289450548488353058087413389060144237253132070282463281152n, -594583470654120770289432694527316852520275032728652333961883481222571405458226459067359012686090208185107097672070447341487207495541712916316160n, 47923584905169044098764942290113504148400167684543673210541306366313329238527415180294915130510142695588395797928692233867983550506082150929658634271981568n, -2483063357348379258714306596064348010153509167108841576257205656573372722909228278356303224877812396100839961942831632796993018887230981165209135391292339722324541440n, 180779660559660078824951474655415153660771501561888257481409120234825657249444568206450266436344414198955091856352460872603351971348150456038253490124181476566747542280208384n, -5480667570553005552890416927148964289253958559651274742770484439165715596834693154260986118918183114570256684821439579591351811964278259350511769285316537807586501616873060054335488n, 53754408181859467519077455292301840180845613327602819201854309819401623385941585064265440085545159097995155376277088059373251921169490588360310998730019280253065947422954246938433842839552n, -215119515967561659159062961538950785732817308125360209077730049758832352961873047727806623560554790320640007441163741617552188021831357991158952682240503832537089123335256237643782151512610832384n, 82269878636349006664697741265848156719892688676478690704009477668969731939821800079510850334676499781281509709457586876469559873345556361834186225637129433885688567875822580474258012551025099400019968n, -8391054981739092027565854600482803404579875226010907194107150146250216391409473852433878293659396700542496345081931163759055139901728102945500059645443052458177946023586665490579358362439225587448259018752n, -545937716269337137504003014301984176655314386263350277856158193439999221349769565523006382771024454462233915548334088861577541785740752405183694613978309576676580758544849431511838489677618643217375792598089728n, -4844431206447440417330891376951603719687160782960364314864035628675066234858716501005818732527387317255040084416938418278198195959823401659014571133079359251303755706340917419048414635445919925790759069838345240576n, 61834493931737635234404328775200892415435810212283913123401230808657498006716799707416502548615431044016963052871319934321629350694868218118014099257727707049463667725849583127252414151340267432297201465513404658614272n, -204715678085146053142178546568252528631977451356332650601159315295094589315639284566377754372107260991136916027840616005531804263830532654823886416175616039732595553502833021019745781328858959688641698407660765971698679808n, 369339097047343170656892525822966900045914592515295498129919457527231259834907572998985669133674105752572451014218389508701363195538422188693203080830401819793636916294490704440335450630251403198247743950136139405126386319360n, -510695651887895432815402251725382784409363650377883349798739041175531544384831825756566506352325435967374977206823913643577799623284898830765260000584266204712039496165114440090555575386916372277130397801521983894697312455229440n, 126719304024348316578576383034940967761314506172477253720806631964626097323534555759526476550685610102596345845748951609435598849254736673411000705080608520585167266375013465616855361029625972380704656838109494031596782313378152448n, -218261896455857136698431671283337660401762063753850362810775455069264916400173668815761706039319960082164169874469260590259341320008201096595596287808869501597067591560558049446196715004874278695496605686478031295809243638476469960704n],
+  };
   const POINT_X_MAX = 4096;
   const TWIST_NONRESIDUE_MAX = 10000;
   const peelCache = new Map();
@@ -1273,8 +1312,9 @@
     return null;
   }
 
-  function peelM(m, n, onTick, shouldStop) {
-    const key = String(m) + ":" + String(n);
+  function peelM(m, n, onTick, shouldStop, trialBound) {
+    const bound = trialBound == null ? adaptiveTrialBound(m) : trialBound;
+    const key = String(m) + ":" + String(n) + ":" + String(bound);
     const hit = peelCache.get(key);
     if (hit) {
       return {
@@ -1283,7 +1323,7 @@
         unproven: hit.unproven.slice(),
       };
     }
-    const ts = trialSplit(m, adaptiveTrialBound(m));
+    const ts = trialSplit(m, bound);
     const fac = ts.fac;
     const unproven = [];
     if (ts.rem <= 1n) {
@@ -1298,7 +1338,7 @@
       if (shouldStop && shouldStop()) break;
       let c = stack.pop();
       if (c <= 1n) continue;
-      const sub = trialSplit(c, adaptiveTrialBound(c));
+      const sub = trialSplit(c, Math.max(bound, adaptiveTrialBound(c)));
       for (const [p, e] of sub.fac) fac.set(p, (fac.get(p) || 0) + e);
       if (sub.rem <= 1n) continue;
       c = sub.rem;
@@ -1425,8 +1465,8 @@
       if (t === false) return { prime: false };
       return { prime: null };
     }
-    // Downrun q: class-number-1 ECPP first. A mid-size BLS peel uses the
-    // hard55 700-curve ECM and is what hung 10^130+1113 in the tab.
+    // Downrun q: class-number-1 then in-tab FastECPP H_D. A mid-size BLS
+    // peel uses the hard55 700-curve ECM and hung 10^130+1113 in the tab.
     if (depth < 10) {
       const e = ecppPrimality(q, depth + 1, onTick, shouldStop);
       if (e.aborted) return { aborted: true };
@@ -1441,7 +1481,7 @@
     return { prime: null };
   }
 
-  function tryCurveOrders(n, a, b, orders, depth, onTick, shouldStop) {
+  function tryCurveOrders(n, a, b, orders, depth, onTick, shouldStop, trialBound) {
     const disc = (4n * powBig(a, 3n, n) + 27n * ((b * b) % n)) % n;
     const gd = gcd(disc, n);
     if (gd > 1n && gd < n) return { prime: false, factor: gd };
@@ -1452,7 +1492,7 @@
       if (m <= 2n) continue;
       const g0 = gcd(m, n);
       if (g0 > 1n && g0 < n) return { prime: false, factor: g0 };
-      const peeled = peelM(m, n, onTick, shouldStop);
+      const peeled = peelM(m, n, onTick, shouldStop, trialBound);
       if (shouldStop && shouldStop()) return { prime: null, aborted: true };
       const pairs = admissiblePairs(m, n, peeled.fac, peeled.rem, peeled.unproven);
       for (let j = 0; j < pairs.length; j++) {
@@ -1481,7 +1521,7 @@
     return { prime: null };
   }
 
-  function collectTwistPairs(n, t, coeff, isA, onTick, shouldStop) {
+  function collectTwistPairs(n, t, coeff, isA, onTick, shouldStop, trialBound) {
     const orders = [n + 1n - t, n + 1n + t];
     const cands = [];
     for (let i = 0; i < coeff.length; i++) {
@@ -1490,7 +1530,7 @@
       for (let j = 0; j < orders.length; j++) {
         const m = orders[j];
         if (m <= 2n) continue;
-        const peeled = peelM(m, n, onTick, shouldStop);
+        const peeled = peelM(m, n, onTick, shouldStop, trialBound);
         if (shouldStop && shouldStop()) return { aborted: true };
         const pairs = admissiblePairs(m, n, peeled.fac, peeled.rem, peeled.unproven);
         for (let k = 0; k < pairs.length; k++) {
@@ -1557,8 +1597,8 @@
     return { prime: null };
   }
 
-  function tryDFromJ(n, D, t, depth, onTick, shouldStop) {
-    const j = ((J_INVARIANT[String(D)] % n) + n) % n;
+  function tryDFromJValue(n, j, t, depth, onTick, shouldStop, trialBound) {
+    j = ((j % n) + n) % n;
     const g = gcd(j - 1728n, n);
     if (g > 1n && g < n) return { prime: false, factor: g };
     if (g === n) return { prime: null };
@@ -1590,7 +1630,335 @@
         [n + 1n - t, n + 1n + t],
         depth,
         onTick,
-        shouldStop
+        shouldStop,
+        trialBound
+      );
+      if (dec.aborted || dec.prime !== null) return dec;
+    }
+    return { prime: null };
+  }
+
+  function tryDFromJ(n, D, t, depth, onTick, shouldStop) {
+    return tryDFromJValue(n, J_INVARIANT[String(D)], t, depth, onTick, shouldStop);
+  }
+
+  function gcdSmall(a, b) {
+    a = Math.abs(a | 0);
+    b = Math.abs(b | 0);
+    while (b) {
+      const t = a % b;
+      a = b;
+      b = t;
+    }
+    return a;
+  }
+
+  function squareFreeInt(k) {
+    let m = Math.abs(k | 0);
+    if (m === 0 || m % 4 === 0) return false;
+    if (m % 2 === 0) m = (m / 2) | 0;
+    for (let p = 3; p * p <= m; p += 2) {
+      if (m % p === 0) {
+        m = (m / p) | 0;
+        if (m % p === 0) return false;
+      }
+    }
+    return true;
+  }
+
+  function isFundamentalD(D) {
+    D = D | 0;
+    if (D >= 0) return false;
+    const r = ((D % 4) + 4) % 4;
+    if (r !== 0 && r !== 1) return false;
+    if (r === 1) return squareFreeInt(D);
+    const m = (D / 4) | 0;
+    const mr = ((m % 4) + 4) % 4;
+    if (mr !== 2 && mr !== 3) return false;
+    return squareFreeInt(m);
+  }
+
+  function classNumber(D) {
+    D = D | 0;
+    if (D >= 0) return 0;
+    const r = ((D % 4) + 4) % 4;
+    if (r !== 0 && r !== 1) return 0;
+    let count = 0;
+    const aMax = Math.floor(Math.sqrt((-D) / 3));
+    for (let a = 1; a <= aMax; a++) {
+      for (let b = -a; b <= a; b++) {
+        const rhs = b * b - D;
+        const fourA = 4 * a;
+        if (rhs % fourA !== 0) continue;
+        const c = (rhs / fourA) | 0;
+        if (a > c) continue;
+        if ((a === c || a === Math.abs(b)) && b < 0) continue;
+        if (gcdSmall(gcdSmall(a, Math.abs(b)), c) !== 1) continue;
+        count++;
+      }
+    }
+    return count;
+  }
+
+  function pStrip(p) {
+    while (p.length && p[p.length - 1] === 0n) p.pop();
+    return p;
+  }
+
+  function pDeg(p) {
+    return p.length ? p.length - 1 : -1;
+  }
+
+  function pNormH(coeffs, n) {
+    const out = [];
+    for (let i = coeffs.length - 1; i >= 0; i--) {
+      let c = coeffs[i] % n;
+      if (c < 0n) c += n;
+      if (c) {
+        const g = gcd(c, n);
+        if (g > 1n && g < n) return { factor: g };
+      }
+      out.push(c);
+    }
+    pStrip(out);
+    return { p: out };
+  }
+
+  function pMakeMonic(p, n) {
+    if (!p.length) return p;
+    const inv = modInv(p[p.length - 1], n);
+    if (inv === null) {
+      const g = gcd(p[p.length - 1], n);
+      return { factor: g > 1n && g < n ? g : n };
+    }
+    if (inv === 1n) return p;
+    return p.map(function (c) {
+      return (c * inv) % n;
+    });
+  }
+
+  function pSub(a, b, n) {
+    const out = a.length >= b.length ? a.slice() : a.concat(new Array(b.length - a.length).fill(0n));
+    for (let i = 0; i < b.length; i++) out[i] = (out[i] - b[i]) % n;
+    for (let i = 0; i < out.length; i++) if (out[i] < 0n) out[i] += n;
+    return pStrip(out);
+  }
+
+  function pMul(a, b, n) {
+    if (!a.length || !b.length) return [];
+    const out = new Array(a.length + b.length - 1).fill(0n);
+    for (let i = 0; i < a.length; i++) {
+      if (!a[i]) continue;
+      for (let j = 0; j < b.length; j++) {
+        if (b[j]) out[i + j] = (out[i + j] + a[i] * b[j]) % n;
+      }
+    }
+    return pStrip(out);
+  }
+
+  function pDivMod(f, g, n) {
+    if (!g.length) return { factor: n };
+    const inv = modInv(g[g.length - 1], n);
+    if (inv === null) {
+      const gf = gcd(g[g.length - 1], n);
+      return { factor: gf > 1n && gf < n ? gf : n };
+    }
+    const q = new Array(Math.max(0, f.length - g.length + 1)).fill(0n);
+    const r = f.slice();
+    while (r.length && r.length >= g.length) {
+      const coef = (r[r.length - 1] * inv) % n;
+      const shift = r.length - g.length;
+      q[shift] = coef;
+      if (coef) {
+        for (let i = 0; i < g.length; i++) {
+          if (g[i]) {
+            r[shift + i] = (r[shift + i] - coef * g[i]) % n;
+            if (r[shift + i] < 0n) r[shift + i] += n;
+          }
+        }
+      }
+      r.pop();
+      pStrip(r);
+    }
+    pStrip(q);
+    return { q: q, r: r };
+  }
+
+  function pGcd(f, g, n) {
+    while (g.length) {
+      const dm = pDivMod(f, g, n);
+      if (dm.factor) return dm;
+      f = g;
+      g = dm.r;
+    }
+    const mon = pMakeMonic(f, n);
+    if (mon && mon.factor) return mon;
+    return { p: mon };
+  }
+
+  function pDeriv(p, n) {
+    if (p.length < 2) return [];
+    const out = [];
+    for (let i = 1; i < p.length; i++) out.push((BigInt(i) * p[i]) % n);
+    return pStrip(out);
+  }
+
+  function pMod(f, g, n) {
+    const dm = pDivMod(f, g, n);
+    if (dm.factor) return dm;
+    return { p: dm.r };
+  }
+
+  function pPowMod(base, exp, modp, n) {
+    let result = [1n];
+    let b = pMod(base, modp, n);
+    if (b.factor) return b;
+    base = b.p;
+    while (exp > 0n) {
+      if (exp & 1n) {
+        const m = pMul(result, base, n);
+        const r = pMod(m, modp, n);
+        if (r.factor) return r;
+        result = r.p;
+      }
+      exp >>= 1n;
+      if (exp > 0n) {
+        const m = pMul(base, base, n);
+        const r = pMod(m, modp, n);
+        if (r.factor) return r;
+        base = r.p;
+      }
+    }
+    return { p: result };
+  }
+
+  function linearRoot(p, n) {
+    if (pDeg(p) !== 1) return null;
+    const mon = pMakeMonic(p, n);
+    if (mon && mon.factor) return mon;
+    let r = (-mon[0]) % n;
+    if (r < 0n) r += n;
+    return { root: r };
+  }
+
+  function hilbertRootModN(coeffs, n) {
+    if (n <= 2n || (n & 1n) === 0n) return null;
+    const norm = pNormH(coeffs, n);
+    if (norm.factor) return { factor: norm.factor };
+    let h = norm.p;
+    if (pDeg(h) < 1) return null;
+    const mon0 = pMakeMonic(h, n);
+    if (mon0 && mon0.factor) return mon0;
+    h = mon0;
+    const u = pGcd(h, pDeriv(h, n), n);
+    if (u.factor) return u;
+    if (pDeg(u.p) >= 1) {
+      const qr = pDivMod(h, u.p, n);
+      if (qr.factor) return qr;
+      if (qr.r.length) return null;
+      const mon = pMakeMonic(qr.q, n);
+      if (mon && mon.factor) return mon;
+      h = mon;
+      if (pDeg(h) < 1) return null;
+    }
+    const xn = pPowMod([0n, 1n], n, h, n);
+    if (xn.factor) return xn;
+    const ddf = pGcd(pSub(xn.p, [0n, 1n], n), h, n);
+    if (ddf.factor) return ddf;
+    if (pDeg(ddf.p) < 1) return null;
+    h = ddf.p;
+    while (pDeg(h) > 1) {
+      let split = null;
+      for (let s = 1; s <= CZ_S_MAX; s++) {
+        const a = pPowMod([BigInt(s), 1n], (n - 1n) / 2n, h, n);
+        if (a.factor) return a;
+        const g = pGcd(pSub(a.p, [1n], n), h, n);
+        if (g.factor) return g;
+        const dg = pDeg(g.p);
+        if (dg < 1 || dg >= pDeg(h)) continue;
+        const qr = pDivMod(h, g.p, n);
+        if (qr.factor) return qr;
+        if (qr.r.length) continue;
+        let q = pMakeMonic(qr.q, n);
+        if (q && q.factor) return q;
+        let gg = pMakeMonic(g.p, n);
+        if (gg && gg.factor) return gg;
+        split = pDeg(gg) <= pDeg(q) && pDeg(gg) >= 1 ? gg : q;
+        if (pDeg(split) < 1) split = pDeg(gg) >= 1 ? gg : q;
+        break;
+      }
+      if (split === null) return null;
+      h = split;
+    }
+    const lr = linearRoot(h, n);
+    if (lr == null) return null;
+    if (lr.factor) return lr;
+    return lr.root;
+  }
+
+  function fastecppUsable(n, t) {
+    const minQ = gkMinQ(n);
+    const orders = [n + 1n - t, n + 1n + t];
+    for (let i = 0; i < orders.length; i++) {
+      const m = orders[i];
+      if (m <= 2n) continue;
+      const g0 = gcd(m, n);
+      if (g0 > 1n && g0 < n) return true;
+      const ts = trialSplit(m, FASTECPP_TRIAL_BOUND);
+      const rem = ts.rem;
+      if (rem > 1n && rem < n && rem >= minQ && m / rem >= 2n && !fermatSaysComposite(rem)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function fastecppWalk(n, depth, onTick, shouldStop) {
+    const h1 = {};
+    for (let i = 0; i < CLASS_NUMBER_1_D.length; i++) h1[String(CLASS_NUMBER_1_D[i])] = true;
+    for (let absd = 3; absd <= FASTECPP_D_MAX; absd++) {
+      if (shouldStop && shouldStop()) return { prime: null, aborted: true };
+      const D = -absd;
+      if (h1[String(D)]) continue;
+      const coeffs = HILBERT_CLASS_POLY[String(D)];
+      if (!coeffs || coeffs.length - 1 > FASTECPP_H_CAP) continue;
+      if (!isFundamentalD(D)) continue;
+      const h = classNumber(D);
+      if (h < 2 || h > FASTECPP_H_CAP) continue;
+      emit(onTick, "ecpp", BigInt(absd), BigInt(FASTECPP_D_MAX), {
+        D: String(D),
+        label: "FastECPP H_D D=" + D,
+      });
+      let jac;
+      try {
+        jac = jacobi(BigInt(D), n);
+      } catch (_) {
+        continue;
+      }
+      if (jac === 0) {
+        const g = gcd(BigInt(-D), n);
+        if (g > 1n && g < n) return { prime: false, factor: g };
+        continue;
+      }
+      if (jac !== 1) continue;
+      const cr = cornacchia(BigInt(D), n);
+      if (cr.kind === "factor") return { prime: false, factor: cr.g };
+      if (cr.kind !== "ok") continue;
+      if (!fastecppUsable(n, cr.t)) continue;
+      const root = hilbertRootModN(coeffs, n);
+      if (root && root.factor) {
+        const g = root.factor;
+        return g > 1n && g < n ? { prime: false, factor: g } : { prime: null };
+      }
+      if (root == null || typeof root !== "bigint") continue;
+      const dec = tryDFromJValue(
+        n,
+        root,
+        cr.t,
+        depth,
+        onTick,
+        shouldStop,
+        FASTECPP_TRIAL_BOUND
       );
       if (dec.aborted || dec.prime !== null) return dec;
     }
@@ -1624,7 +1992,7 @@
         if (dec.aborted) return dec;
         if (dec.prime !== null) return dec;
       }
-      return { prime: null };
+      return fastecppWalk(n, depth, onTick, shouldStop);
     } finally {
       proving.delete(key);
     }
@@ -1676,7 +2044,7 @@
             );
           }
         }
-        emit(onTick, "ecpp", 0n, 13n, { label: "class-number-1 ECPP first" });
+        emit(onTick, "ecpp", 0n, 13n, { label: "class-number-1 ECPP first, then FastECPP H_D" });
         const ecHuge = ecppPrimality(n, 0, onTick, shouldStop);
         if (shouldStop && shouldStop()) return { aborted: true };
         if (ecHuge.prime === true) {
@@ -1684,7 +2052,7 @@
             true,
             "ecpp",
             null,
-            "deterministic Atkin–Morain ECPP (class-number-1; browser)",
+            "deterministic Atkin–Morain ECPP (class-number-1, then in-tab FastECPP H_D)",
             limit,
             t0
           );
@@ -1708,7 +2076,7 @@
           isqrt: limit.toString(),
           ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
           note:
-            "≥256-bit: class-number-1 ECPP did not settle. The tab has no FastECPP H_D walk. Python is_prime continues with FastECPP, then UnsettledPrimalityError.",
+            "≥256-bit: class-number-1 then in-tab FastECPP H_D did not settle. Python is_prime continues with computed-H_D FastECPP, then UnsettledPrimalityError.",
         };
       }
       emit(onTick, "fermat", 0n, 6n, { label: "combined BLS n±1" });
@@ -1753,7 +2121,7 @@
         isqrt: limit.toString(),
         ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
         note:
-          "No size ban: the single in-tab engine for this size (BLS below 256 bits, class-number-1 ECPP at 256+) did not settle, and automatic pure trial would need ~⌊√n⌋ modular divisions. Python is_prime uses FastECPP at 256+ bits, then UnsettledPrimalityError.",
+          "No size ban: the single in-tab engine for this size (BLS below 256 bits, class-number-1 then FastECPP H_D at 256+) did not settle, and automatic pure trial would need ~⌊√n⌋ modular divisions. Python is_prime uses computed-H_D FastECPP at 256+ bits, then UnsettledPrimalityError.",
       };
     }
 
@@ -1997,6 +2365,10 @@
     gkMinQ: gkMinQ,
     lucasUv: lucasUv,
     cornacchia: cornacchia,
+    classNumber: classNumber,
+    isFundamentalD: isFundamentalD,
+    hilbertRootModN: hilbertRootModN,
+    HILBERT_CLASS_POLY: HILBERT_CLASS_POLY,
     checkPrime: checkPrime,
     nextPrime: nextPrime,
     prevPrime: prevPrime,
@@ -2163,6 +2535,17 @@
     assert(cr40.t === 20000000000000000100n, "P40 t");
     assert(cr40.v === 23n, "P40 v");
     assert(4n * p40 === cr40.t * cr40.t + 4n * cr40.v * cr40.v, "P40 4n = t²+4v²");
+
+    assert(classNumber(-19) === 1, "h(-19)=1");
+    assert(classNumber(-3076) === 20, "h(-3076)=20");
+    assert(isFundamentalD(-3076), "D=-3076 fundamental");
+    assert(HILBERT_CLASS_POLY["-3076"] && HILBERT_CLASS_POLY["-3076"].length === 21, "H_-3076");
+    assert(HILBERT_CLASS_POLY["-788"] && HILBERT_CLASS_POLY["-788"].length === 11, "H_-788");
+    assert(HILBERT_CLASS_POLY["-187"] && HILBERT_CLASS_POLY["-187"].length === 3, "H_-187");
+    const r15 = hilbertRootModN(HILBERT_CLASS_POLY["-15"], 59n);
+    assert(typeof r15 === "bigint", "H_-15 root mod 59");
+    const e59 = ecppPrimality(59n);
+    assert(e59.prime === true, "59 via small-h ECPP after h=1 miss: " + JSON.stringify(e59));
 
     const overSafe = 59n * (MAX_SAFE / 59n + 11n);
     assert(overSafe > MAX_SAFE && overSafe < TWO64, "u64 fixture range");
