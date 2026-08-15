@@ -8,14 +8,16 @@ authors:
     email: ahmetburakbicer@gmail.com
     alias: BurakAhmet
 repository-code: https://github.com/BurakAhmet/Best-Prime-Number-Function
-url: https://burakahmet.github.io/Best-Prime-Number-Function/guide/
+url: https://burakahmet.github.io/Best-Prime-Number-Function/
 abstract: >
   Fully deterministic primality testing, π(n), factoring, and arithmetic
-  for Python (OpenMP C / Numba / AKS). No stochastic Miller–Rabin.
+  for Python (OpenMP wheel, BLS below 256 bits, FastECPP at 256+ bits).
+  No stochastic Miller–Rabin. AKS is not a product-path fallback.
 keywords:
   - primality
   - deterministic
-  - AKS
+  - ECPP
+  - FastECPP
   - OpenMP
   - number theory
 license: MIT

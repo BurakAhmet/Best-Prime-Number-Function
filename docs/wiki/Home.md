@@ -1,13 +1,13 @@
 # Best-Prime-Number-Function Wiki
 
-**Fully deterministic** primality testing for natural numbers — tiered engines (stdlib / OpenMP C / Numba) optimizing end-to-end CLI `TIME`, with full trial through practical multi-limb sizes; still-larger $n$ uses **combined BLS**, then **ECPP**, then **AKS**.
+**Fully deterministic** primality testing for natural numbers — one engine per size band (stdlib / OpenMP C / Numba / **BLS** below 256 bits / **FastECPP** at 256+ bits). AKS is not a product-path fallback.
 
 > [!WARNING]
 > **This entire project (code, tests, docs, and wiki) was created and designed by an AI agent**. Treat it as AI-generated work: review code and results before production or research-critical use. Human oversight is recommended.
 
 ## Interactive lab
 
-Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core): **ECPP first** when $n$ has $256+$ bits (class-number-1; Montgomery ECM; Jacobian point mul), else **combined BLS** (n−1 Pocklington, Lucas n+1, Combined Theorem 1 — $n < \max(F^{2}G/2,\,FG^{2}/2)$, not $FG>\sqrt{n}$), then class-number-1 **ECPP**, then exact 30-wheel trial. The input shows its **digit count** as you type. Below the checker, **next / previous prime** walks candidates with the same engines (optional $k$-th neighbor; no try-count or time cap — Stop to abort). Factoring uses trial / Brent / $p-1$ / **Montgomery ECM**. Composites print a **factor**. The stage panel mirrors the live engine. No digit-length limit: smooth $n\pm 1$ is typically sub-second; the 131-digit CM-friendly prime $10^{130}+1113$ proves in-tab via $D=-19$ (often tens of seconds; the Python library does the same downrun in a few seconds). Hostile mid-size $n-1$ (e.g. $10^{54}+31$) can take a minute or two of ECM. If a proof is still impractical, the lab reports **inconclusive** rather than spinning forever (small-$h$ ECPP / AKS stay in the Python library). Results are downloadable certificates.
+Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core). **One engine per band**, matching the Python library: **class-number-1 ECPP only** when $n$ has $256+$ bits (Montgomery ECM; Jacobian mul; no BLS after a miss), else **combined BLS only** (n−1 Pocklington, Lucas n+1, Combined Theorem 1 — $n < \max(F^{2}G/2,\,FG^{2}/2)$). Then exact 30-wheel trial if practical. The input shows its **digit count** as you type. Below the checker, **next / previous prime** walks candidates with the same engines (optional $k$-th neighbor; Stop to abort). Factoring uses trial / Brent / $p-1$ / **Montgomery ECM**. Composites print a **factor**. The 131-digit CM-friendly prime $10^{130}+1113$ proves in-tab via $D=-19$. A *general* 131-digit next prime needs Python FastECPP (tens of seconds). Wider misses are **inconclusive** here; Python continues with FastECPP, then `UnsettledPrimalityError` (AKS is not a product-path fallback). Results are downloadable certificates.
 
 <!-- acta-specimen -->
 
@@ -22,7 +22,7 @@ Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic**
 | **Library** | `is_prime`, `next_prime` / `prev_prime`, `nth_prime`, `prime_count`, `primes` / `primerange`, `prime_factors` / `factorint`, `totient` / `primorial` / `divisors`, `is_prime_power` / `is_perfect_power` |
 | **Fast path** | $n \lt 2^{64}$: OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
 | **Mid-large path** | $n \ge 2^{64}$ in cubic budget: **combined BLS** then cubic C; else OpenMP **u128** full trial / stdlib wheel |
-| **Huge path** | $n\ge 256$ bits: deterministic **ECPP** first (Montgomery ECM peels curve orders; class-number-1 then small-$h$), else combined BLS, then ECPP, then **AKS**. CLI default is the **147-bit** n−1 yardstick (`u128_nm1`). |
+| **Huge path** | bits $<256$: **BLS only** (147-bit CLI default `u128_nm1`). bits $\ge 256$: **FastECPP only** (class-number-1 inside that walk). A miss raises `UnsettledPrimalityError`. AKS is not a product-path fallback. |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
 **Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function)
@@ -39,9 +39,9 @@ Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best
 | **[Library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)** | Standalone MkDocs site (install, API, CLI, engines) at `/guide/` |
 | **[Library reference](Library)** | Every public function, with examples (wiki copy) |
 | **[Project restrictions](Project-restrictions)** | Non-negotiable rules for humans **and agents** |
-| **[Algorithm overview](Algorithm-overview)** | Wheel trial (u64/u128); still-larger: combined BLS → ECPP → AKS |
+| **[Algorithm overview](Algorithm-overview)** | Wheel trial (u64/u128); BLS below 256 bits; FastECPP at 256+ bits |
 | **[n−1 / BLS](https://burakahmet.github.io/Best-Prime-Number-Function/guide/nm1-proof/)** | Combined Theorem 1 when $n\pm 1$ factors (beats cubic) |
-| **[ECPP](https://burakahmet.github.io/Best-Prime-Number-Function/guide/ecpp-proof/)** | Deterministic Atkin–Morain; general 100-digit = small-$h$ |
+| **[ECPP](https://burakahmet.github.io/Best-Prime-Number-Function/guide/ecpp-proof/)** | Deterministic Atkin–Morain; general 100-digit = FastECPP (computed $H_D$) |
 | **[Cubic search](https://burakahmet.github.io/Best-Prime-Number-Function/guide/cubic-search/)** | Two-band $O(n^{1/3})$ fallback / `factorint` splitter |
 | **[Algorithm history](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)** | Performance eras, opts, tradeoffs, failures to avoid |
 | **[CI and automation](CI-and-automation)** | Tests, determinism, e2e performance, issue/PR agents |

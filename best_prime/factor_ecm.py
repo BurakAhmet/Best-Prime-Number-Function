@@ -197,7 +197,14 @@ def _schedule(bits: int) -> tuple[int, int, int]:
         return 5_000, 5_000, 24
     if bits <= 280:
         return 8_000, 8_000, 8
-    return 6_000, 6_000, 6
+    if bits <= 512:
+        return 6_000, 6_000, 6
+    # bits > 512 only — DEFAULT_N leftovers are 147-bit and never land here.
+    if bits <= 1100:
+        return 25_000, 200_000, 40
+    if bits <= 1700:
+        return 50_000, 250_000, 60
+    return 8_000, 8_000, 8
 
 
 _PRIME_CACHE: tuple[int, ...] = ()

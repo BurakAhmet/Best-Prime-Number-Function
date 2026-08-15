@@ -717,6 +717,90 @@ Guides: [`docs/guide/nm1-proof.md`](guide/nm1-proof.md) · [`docs/guide/ecpp-pro
 
 ---
 
+## Era — unreleased: FastECPP M1 (computed $H_D$)
+
+**Problem.** Transcribed $H_D$ stops at $|D|\le 68$. A general 100-digit prime ($P_{100}=10^{99}+289$) is outside class-number-1 and outside that table.
+
+**Change.** `best_prime/classpoly.py` computes Hilbert class polynomials from reduced primitive forms and the Ramanujan $j(\tau)=E_4^3/\Delta$ $q$-expansion (stdlib `decimal`). Coefficients are bit-identical to Cohen / Fungrim for every transcribed $D$. `best_prime/primality_fastecpp.py` walks fundamental $D$ (bit-scaled $D_{\max}$ / $h$ cap), trial-peels $m=n+1\pm t$ *before* building $H_D$, and reuses Cornacchia / CZ / Goldwasser–Kilian. `is_prime` calls it for $256\le$ bits $\le 40\,000$ after the small-$h$ table (15 s cap above ~1000 digits). $P_{100}$ proves in ~10 s ($D=-523$, $h=5$). `DEFAULT_N` stays 147-bit `u128_nm1`. No Pages port.
+
+---
+
+## Era — unreleased: FastECPP M2 / M3 (300–1000 digits)
+
+**Problem.** M1 capped the engine at 511 bits, so a 300-digit cofactor (and $P_{300}$ itself) raised `UnsettledPrimalityError`. ECM on every Cornacchia hit made the $D$-walk unusable at this width.
+
+**Change.** Uncap FastECPP through 40 000 bits. Scale $D_{\max}$ / $h$ / trial with bit length. Huge ECM row is $bits>512$ only (F6: `DEFAULT_N` leftovers stay on the old schedule). The $D$-walk filter is trial + Fermat only — ECM waits until a leftover actually looks like a Goldwasser–Kilian $q$. $P_{300}=10^{299}+669$ (A003617) proves in ~15 min ($D=-260$, then a ~20-step downrun). $P_{500}$ and $P_{1000}$ are the same engine. $is_prime$ on $n\gtrsim 1050$ digits tries FastECPP for 15 s then unsettled (10k-digit must not hang). 10 s for a *general* 10k-digit prime is still not claimed.
+
+| | |
+|--|--|
+| **Advantages** | First general 300-digit proof in this tree; hang-guard preserved; F6/F7 hold |
+| **Disadvantages** | Pure-Python downrun is minutes, not seconds; 10k-digit still unsettled |
+| **Failures / lessons** | Do not ECM every Cornacchia hit; do not cap recursion at 511 bits |
+
+---
+
+## Era — unreleased: product tree + Weber $f$ (toward 10k digits)
+
+**Change.** `product_tree.batch_smooth_kernel` peels a primorial out of a batch of $m=n+1\pm t$ with a remainder tree. FastECPP collects a bit-scaled Cornacchia batch, then tries Hilbert/GK only on leftovers that look like Goldwasser–Kilian $q$. Weber $f,f_1,f_2$ are implemented (Dedekind $\eta$); $j=(f^{24}-16)^3/f^{24}$ matches Eisenstein $j$. A Weber *class* polynomial is not a product of $f(\tau_Q)$ over reduced forms — $f$ is not $\mathrm{SL}_2(\mathbb{Z})$-invariant; that needs an $N$-system (Enge–Morain). $P_{100}$ still ~10 s. A 10k-digit `pow` is already several seconds, so 10 s for a *general* 10k-digit prime is not a CPython claim.
+
+| | |
+|--|--|
+| **Advantages** | Batch trial of many $m$; Weber $j$ cross-check; F6/F7 hold |
+| **Disadvantages** | Cornacchia/Tonelli on 10k-digit $n$ still dominates; no Weber $H_D$ yet |
+| **Failures / lessons** | $\prod(X-f(\tau_Q))$ is not $W_D$; $j$ from $f_2$ uses $+16$, not $-16$ |
+
+---
+
+## Era — unreleased: in-tree 33k-bit Montgomery pow
+
+**Problem.** A 10k-digit Tonelli/Fermat `pow` is ~55 s in CPython. Cornacchia cannot feed FastECPP at that cost.
+
+**Change.** `huge_arith.c` implements 6-bit window exponentiation on little-endian `uint64` limbs (max 1024 limbs). Below ~200 limbs it uses CIOS Montgomery (unrolled schoolbook). At 200+ limbs it uses school / Karatsuba / Toom-3 multiply and Barrett reduction (Bodrato interpolation). `huge_arith.powmod` dispatches to it for odd $n$ with $\ge 512$ bits. Tonelli, ECPP Fermat, and the $\ge 512$-bit `is_prime` filter use it. Not an oracle. Measured on this machine: 1000-digit Fermat 72 ms → 15 ms (4.7×, CIOS); 10k-digit 55 s → 9.4 s (6×, Barrett), residues identical. `DEFAULT_N` (147-bit) never enters this path.
+
+| | |
+|--|--|
+| **Advantages** | 5–6× huge `pow` with no external mpz; F7 holds; 10k-digit Fermat now under 10 s |
+| **Disadvantages** | One Fermat is not a 10 s ECPP proof; Barrett loses to CIOS below ~200 limbs |
+| **Failures / lessons** | Window bits must be assembled MSB-first; first Karatsuba wrote one past a $2n$-limb product (`add_n` carry into $p[4k]$) and dropped $z_1$ borrow — do not ship a mul that disagrees with Python `*`. Separate schoolbook REDC + Karatsuba is slower than CIOS (two $n^2$ passes). Toom-3 signed-magnitude copies ate the asymptotic win until interpolation was two's-complement in-place. |
+
+---
+
+## Era — unreleased: stop wasting 10k-digit exponentiations
+
+**Problem.** A 10k-digit Fermat is ~9 s. `is_prime` then did **six** of them, Pollard $p-1$ ($B_1=2\cdot10^5$), 13 class-number-1 Tonellis, and waited for 32 Cornacchia hits before building $H_D$. That is minutes of arithmetic that cannot prove primality.
+
+**Change.** Above 3500 bits: one base-2 Fermat; no $p-1$/ECM split of $n$ itself; skip the $h=1$ prefix; Cornacchia batch size 1. Tonelli uses Atkin when $n\equiv 5\pmod 8$. `DEFAULT_N` (147-bit) never enters this band.
+
+| | |
+|--|--|
+| **Advantages** | Entry tax on a 10k-digit prime drops from ~80 s of redundant exp to one Fermat; first usable $D$ is tried immediately |
+| **Disadvantages** | One Tonelli is still ~9 s; a general 10k-digit proof is not yet 10 s |
+| **Failures / lessons** | Do not run the 100-digit prefix (6 Fermat + $h=1$ + batch 32) on 33k-bit $n$ |
+
+An 8-bit NTT (mod $998244353$) matches Python `*` through 521 limbs but is ~12× *slower* than Toom-3+Barrett at 10k digits ($L=16n$ butterflies vs 64-bit Toom). Not wired (`NTT_THRESH` above the limb cap). Toom-3 squaring is used when both operands are the same.
+
+---
+
+## Era — unreleased: one engine per band
+
+**Problem.** `_is_prime_big` stacked BLS, transcribed ECPP, 1e8-wheel, six Fermats, ECM split, FastECPP, then AKS. A 4000-digit Fermat-holder paid a BLS $n-1$ peel before the 15 s FastECPP cap; a 256–511-bit miss could still start AKS.
+
+**Change.** `bits<256`: BLS only (`DEFAULT_N` / `u128_nm1`). `bits≥256`: FastECPP only (class-number-1 lives in that walk). Miss → `UnsettledPrimalityError`. AKS remains a unit-tested function, not a product fallback.
+
+| | |
+|--|--|
+| **Advantages** | Huge $n$ no longer runs BLS+ECPP+AKS after the winning engine; F6 holds |
+| **Disadvantages** | A 200-bit prime with hostile $n\pm 1$ that used to fall into AKS is now unsettled |
+| **Failures / lessons** | Do not run BLS on 13k-bit $n$ as a “free” prefilter |
+
+| | |
+|--|--|
+| **Advantages** | First general 100-digit proof in this tree; no extra dependencies; F6/F7 hold |
+| **Disadvantages** | Python decimal $H_D$ and trial peel are not Enge FastECPP; 10k-digit still unsettled |
+| **Failures / lessons** | $j=1728\,E_4^3/\Delta$ is the wrong normalisation (Ramanujan is $E_4^3/\Delta$); ring class polynomials use *primitive* forms only |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:
@@ -768,8 +852,14 @@ Recorded so agents and humans do not “rediscover” them:
 | `best_prime/prime_factors.py` | Trial + Fermat + cubic search + deterministic Brent |
 | `best_prime/factor_lehman.py` | Two-band cubic split (rising-product + Lehman) |
 | `best_prime/primality_nm1.py` | Combined BLS n±1 (Pocklington, Lucas, Combined Theorem 1) |
-| `best_prime/primality_ecpp.py` | Deterministic Atkin–Morain ECPP (`gk_min_q`, h=1 then small-$h$) |
+| `best_prime/primality_ecpp.py` | Deterministic Atkin–Morain ECPP (`gk_min_q`, h=1 then small-$h`) |
 | `best_prime/_classpoly_h16.py` | Transcribed Hilbert class polynomials ($h(D)\le 16$) |
+| `best_prime/classpoly.py` | Computed $H_D$ (reduced forms + $j(\tau)$ $q$-expansion) |
+| `best_prime/primality_fastecpp.py` | FastECPP (computed $H_D$, product-tree batch peel) |
+| `best_prime/product_tree.py` | Remainder tree / primorial batch $\gcd$ |
+| `best_prime/_fundamentals.py` | Catalog of fundamental $D$ with $h\le 128$, $\|D\|\le 40000$ |
+| `is_prime_data/huge_arith.c` | In-tree CIOS / Karatsuba / Toom-3 + Barrett `pow` for $\ge 512$-bit odd moduli |
+| `best_prime/huge_arith.py` | ctypes wrapper / `pow` fallback |
 | `best_prime/factor_ecm.py` | Deterministic ECM |
 | `best_prime/factor_siqs.py` | Deterministic SIQS |
 | `best_prime/prime_power.py` | Perfect powers / prime powers |
@@ -786,4 +876,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.12.0** + unreleased huge-n BLS / ECPP ladder (147-bit `DEFAULT_N` unchanged). Extend forward; do not delete past eras.*
+*Last updated for package **1.12.0** + unreleased huge-n BLS / ECPP / FastECPP M1 (147-bit `DEFAULT_N` unchanged). Extend forward; do not delete past eras.*

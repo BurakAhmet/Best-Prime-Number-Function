@@ -1,8 +1,8 @@
 /* Deterministic primality lab worker (Pages).
  * Mirrors the library ladder in-browser:
- *   small precheck → (n ≥ 256 bits: class-number-1 ECPP first)
- *   → combined BLS (n−1 Pocklington / Lucas n+1 / Combined Theorem 1)
- *   → class-number-1 Atkin–Morain ECPP → 30-wheel trial when practical.
+ *   small precheck → one engine per band (match Python is_prime):
+ *   ≥256 bits: Fermat filter + class-number-1 ECPP only (no BLS fallback).
+ *   <256 bits (hard / multi-limb): combined BLS only, then trial if practical.
  *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
  *   Huge leftovers use a short ECM budget so 131-digit n cannot hang in BLS.
  *   ECPP point mul is Jacobian (one inversion); a wrong-order curve is the
@@ -35,7 +35,7 @@
   const TRIAL_BOUND_HUGE = 50_000;
   /** Match Python _adaptive_trial_bound for 256–280-bit curve orders. */
   const TRIAL_BOUND_NEAR_HUGE = 200_000;
-  /** Match Python: ECPP before a deep BLS peel. */
+  /** Match Python: FastECPP / class-number-1 only at this width. */
   const HUGE_BITS = 256;
 
   const P1_B1 = 250_000;
@@ -1701,7 +1701,15 @@
             t0
           );
         }
-        // ECPP missed: fall through to combined BLS (no try/time cap).
+        return {
+          prime: null,
+          path: "inconclusive",
+          factor: null,
+          isqrt: limit.toString(),
+          ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+          note:
+            "≥256-bit: class-number-1 ECPP did not settle. The tab has no FastECPP H_D walk. Python is_prime continues with FastECPP, then UnsettledPrimalityError.",
+        };
       }
       emit(onTick, "fermat", 0n, 6n, { label: "combined BLS n±1" });
       const decided = blsPrimality(n, 0, onTick, shouldStop);
@@ -1735,31 +1743,6 @@
           t0
         );
       }
-      emit(onTick, "ecpp", 0n, 13n, { label: "class-number-1 ECPP" });
-      const ec = ecppPrimality(n, 0, onTick, shouldStop);
-      if (shouldStop && shouldStop()) return { aborted: true };
-      if (ec.prime === true) {
-        return done(
-          true,
-          "ecpp",
-          null,
-          "deterministic Atkin–Morain ECPP (class-number-1; browser)",
-          limit,
-          t0
-        );
-      }
-      if (ec.prime === false) {
-        return done(
-          false,
-          "ecpp",
-          ec.factor,
-          ec.factor
-            ? "ECPP extracted a factor " + ec.factor.toString()
-            : "ECPP proved composite",
-          limit,
-          t0
-        );
-      }
     }
 
     if (limit > TRIAL_SOFT_ISQRT) {
@@ -1770,7 +1753,7 @@
         isqrt: limit.toString(),
         ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
         note:
-          "No size ban: combined BLS and class-number-1 ECPP did not settle, and automatic pure trial would need ~⌊√n⌋ modular divisions (impractical in a tab). The Python library continues with small-h ECPP / SIQS / AKS.",
+          "No size ban: the single in-tab engine for this size (BLS below 256 bits, class-number-1 ECPP at 256+) did not settle, and automatic pure trial would need ~⌊√n⌋ modular divisions. Python is_prime uses FastECPP at 256+ bits, then UnsettledPrimalityError.",
       };
     }
 
@@ -1840,7 +1823,7 @@
             note:
               "Candidate " +
               cand.toString() +
-              " held Fermat but class-number-1 ECPP / BLS did not settle. The walk cannot skip it (it may be prime). Stop and try Python next_prime, or Check that candidate.",
+              " held Fermat but the in-tab engine did not settle. The walk cannot skip it (it may be prime). Stop and try Python next_prime, or Check that candidate.",
           };
         }
       }
@@ -1917,7 +1900,7 @@
             note:
               "Candidate " +
               cand.toString() +
-              " held Fermat but class-number-1 ECPP / BLS did not settle. The walk cannot skip it (it may be prime). Stop and try Python prev_prime, or Check that candidate.",
+              " held Fermat but the in-tab engine did not settle. The walk cannot skip it (it may be prime). Stop and try Python prev_prime, or Check that candidate.",
           };
         }
       }

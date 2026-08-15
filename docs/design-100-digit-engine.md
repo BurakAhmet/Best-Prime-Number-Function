@@ -4,7 +4,7 @@
 |--|--|
 | **Author** | _TBD (Best-Prime-Number-Function maintainers)_ |
 | **Date** | 2026-08-14 |
-| **Status** | Shipped on `main` (rev. 7 — 147-bit `DEFAULT_N` kept; BLS + ECPP + AKS ladder) |
+| **Status** | Shipped on `main` (rev. 9 — FastECPP M2/M3: $P_{300}$ proves; 147-bit `DEFAULT_N` kept) |
 | **Package** | `best-prime-number-function` 1.12.0 + unreleased huge-n ladder |
 | **Repository** | `/home/ahmet/Best-Prime-Number-Function` · [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function) |
 | **Primary metric** | End-to-end CLI `TIME` (`benchmarks/compare_e2e.py`) |
@@ -128,7 +128,7 @@ These are product rules, not style. They appear in `docs/wiki/Project-restrictio
 - Changing `DEFAULT_N` to a 100-digit prime (decided 2026-08-14: keep the 147-bit CLI default; F6).
 - A new public acronym.
 - Strengthening this tree’s ECM/SIQS to p40–p50 (that would be its own PR with its own e2e gate).
-- Computing Hilbert class polynomials from `j(τ)` at runtime **or** in a generator script. The PR4 table is a **transcription** of published coefficients (see §2b).
+- Computing Hilbert class polynomials from `j(τ)` was a non-goal of the *PR4 table*. **Superseded by FastECPP M1:** `best_prime/classpoly.py` computes $H_D$ in-tree (stdlib `decimal`); that is the general 100-digit engine.
 - **n+1 cubic extra** (BLS 1975 Theorems 13–18). BLS Theorem 11 is an **n−1** result (`N−1 = FR`; Dolotov arXiv:2605.18555 Theorem 3.1 cites “Theorem 5 and Theorem 11” as n−1). PR1 does not ship a guessed n+1 extra. Revisit only with a verbatim quote (number, page, inequalities) from the 1975 paper.
 
 ---

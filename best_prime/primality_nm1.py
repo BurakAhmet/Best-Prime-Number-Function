@@ -68,7 +68,9 @@ def _max_splits(bits: int) -> int:
         return 48
     if bits <= 250:
         return 24
-    return 8
+    if bits <= 512:
+        return 8
+    return 16
 
 
 def _p1_b1(bits: int) -> int:
@@ -100,7 +102,13 @@ def _ecm_max_ms(bits: int) -> int:
         return 8000
     if bits <= 220:
         return 600
-    return 200
+    if bits <= 512:
+        return 200
+    if bits <= 1100:
+        return 3_000
+    if bits <= 1700:
+        return 5_000
+    return 500
 
 
 def _siqs_max_ms(bits: int) -> int:
@@ -210,12 +218,17 @@ def _prove_strictly_smaller(
         math.isqrt(c) <= _MAX_FULL_TRIAL_ISQRT and c.bit_length() <= 128
     ):
         return bool(is_prime(c, parallel=parallel))
-    if allow_ecpp and c.bit_length() >= 200:
+    # 128+ bit cofactors: class-number-1 ECPP first (this is the P131
+    # downrun). ≥256 bits: do *not* then run BLS / h≤16 — FastECPP
+    # recurses if h=1 misses.
+    if allow_ecpp and c.bit_length() >= 128:
         from .primality_ecpp import ecpp_primality
 
-        decided = ecpp_primality(c, parallel=parallel, max_h=max_h)
+        decided = ecpp_primality(c, parallel=parallel, max_h=1)
         if decided is not None:
             return decided
+        if c.bit_length() >= 256:
+            return None
     decided = bls_primality(c, parallel=parallel)
     if decided is not None:
         return decided
@@ -271,6 +284,12 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
         f = _fermat_split(c)
         if f is not None and 1 < f < c:
             return f
+
+    # 10k-digit p−1 (B1=2e5) is tens of seconds of 33k-bit pow and
+    # cannot prove primality. Trial already ran. FastECPP / Fermat own
+    # this band. DEFAULT_N is 147-bit and never reaches here.
+    if bits > 3_500:
+        return None
 
     if bits > 160:
         f = _pollard_p1(c, B1=_p1_b1(bits))

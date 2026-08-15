@@ -53,6 +53,16 @@ _J_INVARIANT = {
 }
 
 _FERMAT_BASES = (2, 3, 5, 7, 11, 13)
+# Extra Fermat bases on 10k-digit n are each a multi-second exp and do
+# not change the ECPP decision. One base-2 witness is enough to reject
+# almost every composite; leftovers that pass go to Cornacchia / GK.
+_HUGE_FERMAT_BITS = 3_500
+
+
+def fermat_bases_for_bits(bits: int) -> tuple[int, ...]:
+    if bits <= _HUGE_FERMAT_BITS:
+        return _FERMAT_BASES
+    return (2,)
 
 Result = Optional[bool]
 
@@ -130,8 +140,15 @@ def tonelli_mod_n(a: int, n: int):
             break
     if z is None:
         return None
+    from .huge_arith import powmod as _powmod
+
     if n % 4 == 3:
-        r = pow(a, (n + 1) // 4, n)
+        r = _powmod(a, (n + 1) // 4, n)
+    elif n % 8 == 5:
+        # Atkin: one exp, plus 2^{(n-1)/4} only when a^{(n+3)/8}² ≡ −a.
+        r = _powmod(a, (n + 3) // 8, n)
+        if (r * r) % n != a % n:
+            r = (r * _powmod(2, (n - 1) // 4, n)) % n
     else:
         q = n - 1
         s = 0
@@ -142,9 +159,9 @@ def tonelli_mod_n(a: int, n: int):
         if s > n.bit_length():
             return None
         m = s
-        c = pow(z, q, n)
-        r = pow(a, (q + 1) // 2, n)
-        t = pow(a, q, n)
+        c = _powmod(z, q, n)
+        r = _powmod(a, (q + 1) // 2, n)
+        t = _powmod(a, q, n)
         while t != 1:
             if m <= 1:
                 return None
@@ -158,7 +175,7 @@ def tonelli_mod_n(a: int, n: int):
             shift = m - i - 1
             if shift < 0:
                 return None
-            b = pow(c, 1 << shift, n)
+            b = _powmod(c, 1 << shift, n)
             r = (r * b) % n
             c = (b * b) % n
             t = (t * c) % n
@@ -266,10 +283,12 @@ def _fermat_composite(n: int) -> bool:
     """True iff a fixed-base Fermat witness proves ``n`` composite."""
     if n < 2:
         return True
-    for a in _FERMAT_BASES:
+    from .huge_arith import powmod as _powmod
+
+    for a in fermat_bases_for_bits(n.bit_length()):
         if a % n == 0:
             return n != a
-        if pow(a, n - 1, n) != 1:
+        if _powmod(a, n - 1, n) != 1:
             return True
     return False
 
@@ -277,14 +296,64 @@ def _fermat_composite(n: int) -> bool:
 _PEEL_CACHE: dict[tuple[int, int], tuple[dict[int, int], int, list[int]]] = {}
 
 
+_prove_q_stack: list = []
+
+
+def _short_brent_factor(n: int) -> int | None:
+    """Bounded Pollard–Brent. Finds 8-digit factors of a 400-bit leftover
+    in ~10ms. Must not use the unbounded ``_brent`` (r up to 2^22 hangs).
+    """
+    if n < 4 or n.bit_length() > 512:
+        return None
+    for c in (1, 2, 3):
+        y = 2
+        g = 1
+        q = 1
+        r = 1
+        x = y
+        m = 64
+        max_r = 1 << 12
+        while g == 1 and r <= max_r:
+            x = y
+            for _ in range(r):
+                y = (y * y + c) % n
+            k = 0
+            while k < r and g == 1:
+                lim = r - k
+                if lim > m:
+                    lim = m
+                for _ in range(lim):
+                    y = (y * y + c) % n
+                    diff = x - y
+                    if diff < 0:
+                        diff = -diff
+                    q = (q * diff) % n
+                g = math.gcd(q, n)
+                k += m
+            r <<= 1
+        if 1 < g < n:
+            return g
+    return None
+
+
 def _peel_m(
-    m: int, parent: int, *, parallel: bool
+    m: int,
+    parent: int,
+    *,
+    parallel: bool,
+    trial_bound: int | None = None,
+    deepen: bool = True,
+    allow_ecm: bool = True,
 ) -> tuple[dict[int, int], int, list[int]]:
     """Trial / splitter peel of ``m``.
 
     Returns ``(fac, leftover, unproven)`` where ``leftover = m / ∏ fac``
     (or 1) and ``unproven`` is each isolated splitter piece not absorbed
     into ``fac``. Fermat-composite leftovers are not q-candidates.
+
+    ``deepen=False`` is trial only (no ECM). Used so a sibling order that
+    already has a Goldwasser–Kilian pair is not blocked by ECM on the other
+    sign. Cache keys include ``deepen``.
     """
     from .factor_ecm import ecm_factor
     from .primality_nm1 import (
@@ -294,13 +363,18 @@ def _peel_m(
         _trial_split,
     )
 
-    key = (int(m), int(parent))
+    key = (int(m), int(parent), bool(deepen), bool(allow_ecm))
     hit = _PEEL_CACHE.get(key)
     if hit is not None:
         return hit[0].copy(), hit[1], list(hit[2])
 
     fac: dict[int, int] = {}
-    peeled, rem = _trial_split(m, _adaptive_trial_bound(m))
+    bound = _adaptive_trial_bound(m) if trial_bound is None else int(trial_bound)
+    # ECPP curve orders often have a 5–7 digit prime factor. 50k trial
+    # misses them and pays ECM; 1e6 is still cheap vs 200ms ECM.
+    if trial_bound is None:
+        bound = max(bound, 1_000_000)
+    peeled, rem = _trial_split(m, bound)
     fac.update(peeled)
     if rem <= 1:
         _PEEL_CACHE[key] = (dict(fac), 1, [])
@@ -308,12 +382,12 @@ def _peel_m(
     stack = [rem]
     unproven: list[int] = []
     splits = 0
-    max_splits = _max_splits(m.bit_length())
+    max_splits = 0 if not deepen else _max_splits(m.bit_length())
     while stack:
         c = stack.pop()
         if c <= 1:
             continue
-        sub, r2 = _trial_split(c, _adaptive_trial_bound(c))
+        sub, r2 = _trial_split(c, max(_adaptive_trial_bound(c), 1_000_000))
         for p, e in sub.items():
             fac[p] = fac.get(p, 0) + e
         if r2 <= 1:
@@ -327,7 +401,9 @@ def _peel_m(
                 unproven.append(c)
             continue
         splits += 1
-        f = ecm_factor(c, max_ms=_ecm_max_ms(c.bit_length()))
+        f = _short_brent_factor(c)
+        if f is None and allow_ecm:
+            f = ecm_factor(c, max_ms=_ecm_max_ms(c.bit_length()))
         if f is None or f <= 1 or f >= c:
             if not _fermat_composite(c):
                 unproven.append(c)
@@ -341,9 +417,50 @@ def _peel_m(
     if leftover <= 1:
         leftover = 1
     elif _fermat_composite(leftover):
-        leftover = leftover  # kept for bookkeeping; pairs skip composites
+        leftover = leftover
     _PEEL_CACHE[key] = (dict(fac), leftover, list(unproven))
     return fac, leftover, unproven
+
+
+def _pairs_for_orders(
+    n: int,
+    orders: tuple[int, ...],
+    *,
+    parallel: bool,
+    allow_ecm: bool = True,
+) -> list[tuple[int, int, bool, int]]:
+    """Trial-peel every order; deepen only leftovers that still lack a pair."""
+    out: list[tuple[int, int, bool, int]] = []
+    pending: list[tuple[int, int]] = []  # (leftover_bits, m)
+    for m in orders:
+        if m <= 2:
+            continue
+        g = math.gcd(m, n)
+        if 1 < g < n:
+            return [(-1, -1, True, m)]
+        fac, leftover, unproven = _peel_m(
+            m, n, parallel=parallel, deepen=False, allow_ecm=allow_ecm
+        )
+        pairs = _admissible_pairs(m, n, fac, leftover, unproven)
+        if pairs:
+            for q, c, proven in pairs:
+                out.append((q, c, proven, m))
+        else:
+            bits = leftover.bit_length() if leftover > 1 else 0
+            pending.append((bits, m))
+    if out:
+        return out
+    pending.sort()
+    for _bits, m in pending:
+        fac, leftover, unproven = _peel_m(
+            m, n, parallel=parallel, deepen=True, allow_ecm=allow_ecm
+        )
+        pairs = _admissible_pairs(m, n, fac, leftover, unproven)
+        if pairs:
+            for q, c, proven in pairs:
+                out.append((q, c, proven, m))
+            return out
+    return out
 
 
 def _admissible_pairs(
@@ -421,6 +538,10 @@ def _point_search(n: int, a: int, b: int, c: int, q: int) -> Result:
 def _prove_q(
     q: int, n: int, *, parallel: bool, proven: bool, max_h: int
 ) -> Result:
+    if _prove_q_stack:
+        return _prove_q_stack[-1](
+            q, n, parallel=parallel, proven=proven, max_h=max_h
+        )
     if proven:
         return True
     if q <= 1 or q >= n:
@@ -452,16 +573,11 @@ def _try_curve_orders(
         return False
     if g == n:
         return None
-    cands: list[tuple[int, int, bool, int]] = []
-    for m in orders:
-        if m <= 2:
-            continue
-        g = math.gcd(m, n)
-        if 1 < g < n:
-            return False
-        fac, leftover, unproven = _peel_m(m, n, parallel=parallel)
-        for q, c, proven in _admissible_pairs(m, n, fac, leftover, unproven):
-            cands.append((q, c, proven, m))
+    cands = _pairs_for_orders(
+        n, orders, parallel=parallel, allow_ecm=(max_h > 1)
+    )
+    if cands and cands[0][0] < 0:
+        return False
     cands.sort(key=lambda item: item[0])
     for q, c, proven, m in cands:
         hit = _point_search(n, a, b, c, q)
@@ -492,17 +608,18 @@ def _try_d_neg4(n: int, t: int, *, parallel: bool, max_h: int) -> Result:
     if beta is None:
         return None
     orders = (n + 1 - t, n + 1 + t)
+    raw = _pairs_for_orders(
+        n, orders, parallel=parallel, allow_ecm=(max_h > 1)
+    )
+    if raw and raw[0][0] < 0:
+        return False
     cands: list[tuple[int, int, bool, int, int]] = []
     for k in range(4):
         a = pow(beta, k, n)
         if a == 0:
             continue
-        for m in orders:
-            if m <= 2:
-                continue
-            fac, leftover, unproven = _peel_m(m, n, parallel=parallel)
-            for q, c, proven in _admissible_pairs(m, n, fac, leftover, unproven):
-                cands.append((q, c, proven, m, a))
+        for q, c, proven, m in raw:
+            cands.append((q, c, proven, m, a))
     cands.sort(key=lambda item: item[0])
     for q, c, proven, m, a in cands:
         hit = _point_search(n, a, 0, c, q)
@@ -523,17 +640,18 @@ def _try_d_neg3(n: int, t: int, *, parallel: bool, max_h: int) -> Result:
     if alpha is None:
         return None
     orders = (n + 1 - t, n + 1 + t)
+    raw = _pairs_for_orders(
+        n, orders, parallel=parallel, allow_ecm=(max_h > 1)
+    )
+    if raw and raw[0][0] < 0:
+        return False
     cands: list[tuple[int, int, bool, int, int]] = []
     for k in range(6):
         b = pow(alpha, k, n)
         if b == 0:
             continue
-        for m in orders:
-            if m <= 2:
-                continue
-            fac, leftover, unproven = _peel_m(m, n, parallel=parallel)
-            for q, c, proven in _admissible_pairs(m, n, fac, leftover, unproven):
-                cands.append((q, c, proven, m, b))
+        for q, c, proven, m in raw:
+            cands.append((q, c, proven, m, b))
     cands.sort(key=lambda item: item[0])
     for q, c, proven, m, b in cands:
         hit = _point_search(n, 0, b, c, q)
@@ -584,6 +702,20 @@ def _try_d_from_j(n: int, D: int, t: int, *, parallel: bool, max_h: int) -> Resu
     return _try_curve_from_j(n, j, t, parallel=parallel, max_h=max_h)
 
 
+def _finish_discriminant(
+    D: int, n: int, t: int, v: int, *, parallel: bool, max_h: int
+) -> Result:
+    if D == -4:
+        dec = _try_d_neg4(n, t, parallel=parallel, max_h=max_h)
+    elif D == -3:
+        dec = _try_d_neg3(n, t, parallel=parallel, max_h=max_h)
+    else:
+        dec = _try_d_from_j(n, D, t, parallel=parallel, max_h=max_h)
+    if dec is True:
+        _note(D=int(D), t=int(t), v=int(v), j=int(_J_INVARIANT[D]))
+    return dec
+
+
 def _try_discriminant(D: int, n: int, *, parallel: bool, max_h: int) -> Result:
     cr = cornacchia(D, n)
     if cr[0] == "factor":
@@ -595,15 +727,7 @@ def _try_discriminant(D: int, n: int, *, parallel: bool, max_h: int) -> Result:
     v = cr[2]
     if t <= 0:
         return None
-    if D == -4:
-        dec = _try_d_neg4(n, t, parallel=parallel, max_h=max_h)
-    elif D == -3:
-        dec = _try_d_neg3(n, t, parallel=parallel, max_h=max_h)
-    else:
-        dec = _try_d_from_j(n, D, t, parallel=parallel, max_h=max_h)
-    if dec is True:
-        _note(D=int(D), t=int(t), v=int(v), j=int(_J_INVARIANT[D]))
-    return dec
+    return _finish_discriminant(D, n, t, v, parallel=parallel, max_h=max_h)
 
 
 class _ModFactor(Exception):

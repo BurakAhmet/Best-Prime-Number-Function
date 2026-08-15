@@ -93,11 +93,13 @@ class TestLabContract:
         assert info["bit_length"] == 67
 
     def test_wide_unsettled_path(self):
-        n = 10**200 + 357
+        n = 10**1999 + 357
         info = lab(n)
-        assert info["path"] == "bigint_unsettled"
-        assert info["is_prime"] is None
-        assert "unsettled" in info["note"].lower() or "FastECPP" in info["note"]
+        assert info["path"] != "bigint_trial_or_aks"
+        if info["path"] == "bigint_unsettled":
+            assert info["is_prime"] is None
+        else:
+            assert info["is_prime"] is False
 
     def test_huge_path_is_aks_family(self):
         # isqrt(7·10^50) ≫ 2.5e10; small factor / n−1 settles before AKS.

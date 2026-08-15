@@ -39,7 +39,7 @@ assert is_prime(DEFAULT_N)  # n−1 Pocklington on the 147-bit CLI default
 
 ### `is_prime(n, *, parallel=True) -> bool | list[bool]`
 
-`True` iff $n$ is prime. Fully deterministic: exact trial through $\sqrt{n}$ for mid-size 64-bit $n$; **n−1 Pocklington** then complete cubic search for hard 64-bit $n$ ($\lfloor\sqrt{n}\rfloor\ge 10^{7}$) and for $n\ge 2^{64}$ in budget; AKS only when $n$ has fewer than `AKS_SKIP_BITS` (512) bits. Wider $n$ that ECPP/BLS cannot settle raise `UnsettledPrimalityError` (CLI `RESULT: unsettled`, exit 3) instead of starting AKS. FastECPP is the planned engine for that band.
+`True` iff $n$ is prime. Fully deterministic. One engine per band: exact trial through $\sqrt{n}$ for mid-size 64-bit $n$; **n−1 Pocklington** then complete cubic for hard 64-bit / cubic-budget $n$; **BLS only** below 256 bits (`DEFAULT_N`); **FastECPP only** for $256\le$ bits $\le 40\,000$. A miss raises `UnsettledPrimalityError` (CLI `RESULT: unsettled`, exit 3). AKS is not a product-path fallback. Above ~1000 digits FastECPP is capped at 15 s.
 
 ```python
 is_prime(17)                       # True
@@ -71,7 +71,7 @@ info["is_prime"], info["path"], info["isqrt"]
 # (True, 'u64_wheel_c', 31622)   # path depends on wheel_core.so
 ```
 
-Typical `path` values: `python_small`, `u64_wheel_c`, `u64_nm1`, `u64_lehman_c`, `u128_nm1`, `u128_lehman_c`, `u128_wheel_c`, `python_wheel`, `bigint_wheel`, `bigint_trial_or_aks`. See [Engines](engines.md).
+Typical `path` values: `python_small`, `u64_wheel_c`, `u64_nm1`, `u64_lehman_c`, `u128_nm1`, `u128_lehman_c`, `u128_wheel_c`, `python_wheel`, `bigint_wheel`, `bigint_bls`, `bigint_fastecpp`, `bigint_unsettled`. See [Engines](engines.md).
 
 ---
 

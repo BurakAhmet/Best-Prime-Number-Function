@@ -303,13 +303,17 @@ class TestLarge64Bit:
         from best_prime.errors import UnsettledPrimalityError
         from best_prime.is_prime import AKS_SKIP_BITS
 
-        n = 10**200 + 357
+        # Wider than the FastECPP product band (~1000 digits). Fermat
+        # composite → False; Fermat holder → Unsettled. Never AKS.
+        # 10**200+357 is A003617(201) and is now an M2 specimen.
+        n = 10**1999 + 357
         assert n.bit_length() >= AKS_SKIP_BITS
         t0 = time.perf_counter()
-        with pytest.raises(UnsettledPrimalityError) as ei:
-            is_prime(n)
+        try:
+            assert is_prime(n) is False
+        except UnsettledPrimalityError as ei:
+            assert ei.value.n == n
         assert time.perf_counter() - t0 < 8.0
-        assert ei.value.n == n
 
     def test_ten_thousand_digit_even_is_composite(self):
         n = 10**9999

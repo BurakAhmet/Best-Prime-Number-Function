@@ -9,12 +9,16 @@ import pytest
 from best_prime._classpoly_h16 import HILBERT_CLASS_POLY
 from best_prime.primality_ecpp import (
     CLASS_NUMBER_1_D,
+    _FERMAT_BASES,
     _J_INVARIANT,
     _admissible_pairs,
+    cornacchia,
     ecpp_primality,
+    fermat_bases_for_bits,
     gk_min_q,
     hilbert_root_mod_n,
     reduced_form_class_number,
+    tonelli_mod_n,
 )
 from tests.numbers import (
     CARMICHAEL,
@@ -97,6 +101,37 @@ class TestEcppDecisions:
         assert all(m // q >= 2 for q, _c, _pr in pairs)
 
 
+class TestTonelliAtkin:
+    def test_mod4_eq_3(self):
+        n = P10_9_7
+        assert n % 4 == 3
+        r = tonelli_mod_n(7, n)
+        assert r is not None and (r * r) % n == 7
+
+    def test_mod8_eq_5_one_exp_path(self):
+        n = 10**9 + 21
+        assert n % 8 == 5
+        for a in (2, 3, 10, 13, 99):
+            if pow(a, (n - 1) // 2, n) != 1:
+                continue
+            r = tonelli_mod_n(a, n)
+            assert r is not None and (r * r) % n == a % n
+
+    def test_cornacchia_p40(self):
+        cr = cornacchia(-4, P40_H1_FRIENDLY)
+        assert cr[0] == "ok"
+
+
+class TestFermatBaseScale:
+    def test_small_keeps_six(self):
+        assert fermat_bases_for_bits(512) == _FERMAT_BASES
+        assert fermat_bases_for_bits(3_500) == _FERMAT_BASES
+
+    def test_huge_is_base_two_only(self):
+        assert fermat_bases_for_bits(3_501) == (2,)
+        assert fermat_bases_for_bits(33_220) == (2,)
+
+
 class TestHilbertClassPoly:
     def test_h1_is_x_minus_j(self):
         for d in CLASS_NUMBER_1_D:
@@ -150,9 +185,9 @@ class TestHilbertClassPoly:
 @pytest.mark.slow
 @pytest.mark.xfail(
     reason=(
-        "transcribed H_D only covers |D|<=68 (Cohen 7.6 / Fungrim 20b6d2); "
-        "P100_DIGIT needs a larger published table before this is a CI gate. "
-        "ecpp_primality only — never is_prime (AKS hang on a miss)."
+        "transcribed H_D only covers |D|<=68 (Cohen 7.6 / Fungrim 20b6d2). "
+        "P100_DIGIT is proved by fastecpp_primality (computed H_D); "
+        "this test stays on ecpp_primality only."
     ),
     strict=False,
 )

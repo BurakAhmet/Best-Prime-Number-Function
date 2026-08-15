@@ -3,7 +3,7 @@
 > [!WARNING]
 > **This repository was created and designed by an AI agent**, including code, tests, docs, benchmarks, and automation. Treat it as **AI-generated work**: review, test, and validate before production or research-critical use.
 
-**Exact `is_prime(n)` for every natural number** — wheel / OpenMP trial, then **combined BLS**, then **ECPP**, then **AKS** only as last resort. No stochastic Miller–Rabin. No prime libraries as the engine.
+**Exact `is_prime(n)`** — one engine per size band: wheel / OpenMP trial, **combined BLS** below 256 bits (`DEFAULT_N`), **FastECPP** at 256+ bits. AKS is not a product-path fallback. No stochastic Miller–Rabin. No prime libraries as the engine.
 
 [Open the exhibit →](https://burakahmet.github.io/Best-Prime-Number-Function/) · [Library guide →](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) · [API](https://burakahmet.github.io/Best-Prime-Number-Function/guide/api/) · [FAQ](https://burakahmet.github.io/Best-Prime-Number-Function/guide/faq/)
 
@@ -48,7 +48,7 @@ Native core: Linux CI builds `wheel_core.so`. macOS wants `brew install libomp`.
 | `primality_certificate(n)` / `verify_certificate(c)` | Pratt certificate, or a factor if composite. |
 | `next_prime` / `prev_prime` / `next_primes` / `prev_primes` | Neighbours; generators stream. Interval sieve while $\sqrt{\text{bound}}\le$ `NEXT_PRIME_SIEVE_ISQRT_MAX` ($2\cdot10^6$). |
 | `nth_prime(k)` / `prime_count(n)` / `primes` / `primerange` | $p_k$, $\pi(n)$ (**hard ceiling** `PRIME_COUNT_MAX_N = 2⁶⁴−1`), lists. |
-| `prime_factors` / `factorint` / `lehman_factor` | Trial + Fermat + **two-band cubic search** + deterministic Brent + **ECM** + **SIQS**. Hard `is_prime` also uses **combined BLS** before cubic; still-larger $n$ then **ECPP**. |
+| `prime_factors` / `factorint` / `lehman_factor` | Trial + Fermat + **two-band cubic search** + deterministic Brent + **ECM** + **SIQS**. Hard `is_prime` uses **combined BLS** before cubic; $n$ with $\ge 256$ bits is **FastECPP** only. |
 | `totient` / `primorial` / `divisors` / `gcd` / `jacobi` / … | Exact arithmetic. Catalogue: [`docs/wiki/Library.md`](docs/wiki/Library.md). |
 | `lab(n)` | Diagnostics (`path`, timings). |
 
@@ -74,7 +74,7 @@ CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `prim
 
 | | Engine | Deterministic for every $n$? | Typical use |
 |--|--------|------------------------------|-------------|
-| **best_prime** | Wheel / OpenMP trial, combined BLS, cubic, ECPP, **AKS** | **Yes** | Proof-grade boolean |
+| **best_prime** | Wheel / OpenMP trial, BLS, cubic, **FastECPP** (AKS not on the product path) | **Yes** | Proof-grade boolean |
 | `sympy.isprime` | BPSW + extras | No above proven bounds | CAS default |
 | `gmpy2.is_prime` | Miller–Rabin | No | Fast probable-prime |
 | `primesieve` | Sieve | N/A (enumeration) | **Forbidden** here as the engine |

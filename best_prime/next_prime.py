@@ -26,6 +26,7 @@ from bisect import bisect_right
 
 t0 = time.perf_counter_ns()
 
+from .errors import UnsettledPrimalityError  # noqa: E402
 from .is_prime import (  # noqa: E402
     _DATA_DIR,
     _SMALL_LIMIT,
@@ -187,6 +188,26 @@ def _sieve_odd_window(lo: int, hi: int, primes: tuple[int, ...]) -> list[int]:
     return out
 
 
+def _fermat_composite_fast(c: int) -> bool:
+    """True iff a fixed-base Fermat witness proves ``c`` composite."""
+    if c <= 2:
+        return False
+    from .huge_arith import powmod
+
+    for a in (2, 3, 5):
+        if powmod(a, c - 1, c) != 1:
+            return True
+    return False
+
+
+def _prove_prime_candidate(c: int, parallel: bool) -> bool:
+    """``is_prime`` for a sieve/Fermat survivor. Surface unsettled clearly."""
+    try:
+        return is_prime(c, parallel=parallel)
+    except UnsettledPrimalityError as exc:
+        raise UnsettledPrimalityError(c) from exc
+
+
 def _next_prime_window(n: int, k: int, parallel: bool) -> int | None:
     """Deep window sieve + is_prime on survivors. None if abandoned."""
     if n < _WINDOW_SIEVE_MIN_N:
@@ -200,14 +221,9 @@ def _next_prime_window(n: int, k: int, parallel: bool) -> int | None:
         for c in _sieve_odd_window(lo, hi, primes):
             if c <= n:
                 continue
-            # Cheap multi-base Fermat reject (exact composite if any fails).
-            if c > 2 and (
-                pow(2, c - 1, c) != 1
-                or pow(3, c - 1, c) != 1
-                or pow(5, c - 1, c) != 1
-            ):
+            if _fermat_composite_fast(c):
                 continue
-            if is_prime(c, parallel=parallel):
+            if _prove_prime_candidate(c, parallel):
                 found += 1
                 if found == k:
                     return c
@@ -238,13 +254,9 @@ def _next_prime_wheel(n: int, k: int, parallel: bool) -> int:
                 composite = True
                 break
         if not composite and not proven:
-            if cand > 2 and (
-                pow(2, cand - 1, cand) != 1
-                or pow(3, cand - 1, cand) != 1
-                or pow(5, cand - 1, cand) != 1
-            ):
+            if _fermat_composite_fast(cand):
                 composite = True
-        if not composite and (proven or is_prime(cand, parallel=parallel)):
+        if not composite and (proven or _prove_prime_candidate(cand, parallel)):
             found += 1
             if found == k:
                 return cand

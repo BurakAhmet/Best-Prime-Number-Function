@@ -61,7 +61,7 @@ The published ~39-digit fixture $P_{40}$ (`$(10^{19}+50)^2+23^2$`, $D=-4$) is an
 
 A root of $H_D$ mod $n$ is found by numbered Cantor–Zassenhaus (`$X+1,\,X+2,\,\ldots$`). Then the same curve / point / recurse as h=1.
 
-**General 100-digit completeness is this layer.** A hostile 100-digit prime (no smooth $n\pm 1$, no hand-picked $D$) is allowed to claim a proof only after small-$h$ CM. FastECPP ($D_{\max}\sim L^2$, product trees, MPI) is out of this program.
+**General 100-digit and 300-digit completeness is the FastECPP layer.** The transcribed table stops at $|D|\le 68$ and cannot prove $P_{100}=10^{99}+289$. `best_prime/classpoly.py` computes $H_D$ from reduced primitive forms and the Ramanujan $j(\tau)$ $q$-expansion (stdlib `decimal`; bit-identical to Cohen / Fungrim on the transcribed set). Weber $f,f_1,f_2$ are available as an $\eta$-quotient $j$ check; a Weber *class* polynomial is not $\prod(X-f(\tau_Q))$ (needs an $N$-system). `fastecpp_primality` walks fundamental $D$, **product-tree** peels a batch of $m=n+1\pm t$ against a primorial, then builds $H_D$ only for usable leftovers. $P_{100}$ proves via $D=-523$ ($h=5$) in ~10 s; $P_{300}=10^{299}+669$ in ~15 min (`lab` path `bigint_fastecpp`). A general 10k-digit prime in 10 s is still the north-star (one 10k-digit Fermat is ~9 s in-tree). Above 3500 bits `is_prime` does **one** base-2 Fermat, skips $p-1$/ECM and the $h=1$ prefix, and tries the first Cornacchia hit immediately.
 
 ## Determinism
 
@@ -86,11 +86,12 @@ still-larger n (past cubic / u128 trial)
          then small-h CM (h(D) ≤ 16)
          True / False → settle
   else combined BLS, then the same ECPP
-  None → _aks_is_prime if bits < 512
-         else UnsettledPrimalityError (FastECPP planned; AKS would hang)
+  None → FastECPP (computed H_D, bit-scaled |D|) if 256 ≤ bits ≤ 40000
+  None → UnsettledPrimalityError (AKS is not a fallback)
+         else UnsettledPrimalityError (AKS would hang; 15 s FastECPP cap above ~1000 digits)
 ```
 
-`lab(n)["path"]` is `bigint_ecpp` when ECPP settles. The 147-bit CLI default `DEFAULT_N` stays on `u128_nm1` (n−1 cooperates). It is **not** moved to a 100-digit prime.
+`lab(n)["path"]` is `bigint_ecpp` when the transcribed table settles and `bigint_fastecpp` when computed $H_D$ does. The 147-bit CLI default `DEFAULT_N` stays on `u128_nm1` (n−1 cooperates). It is **not** moved to a 100-digit prime.
 
 ## Certificates (design)
 

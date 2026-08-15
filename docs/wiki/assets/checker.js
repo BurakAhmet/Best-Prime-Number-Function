@@ -1,10 +1,10 @@
 /* Deterministic lab UI. Heavy work runs in checker-worker.js
- * (≥256-bit: class-number-1 ECPP first; else combined BLS then ECPP; then trial). */
+ * (≥256-bit: class-number-1 ECPP only; else combined BLS; then trial). */
 (function () {
   const WARN_ISQRT = 8_000_000n;
   const TWO64 = 1n << 64n;
   const WHEEL30 = [1, 7, 11, 13, 17, 19, 23, 29];
-  const DOCTRINE = "deterministic · combined BLS / ECPP / trial · no stochastic Miller–Rabin";
+  const DOCTRINE = "deterministic · BLS (<256 bits) / class-number-1 ECPP (256+) · no stochastic Miller–Rabin";
 
   function $(sel, root) {
     return (root || document).querySelector(sel);
@@ -375,16 +375,17 @@
           <button type="button" class="primary" id="lab-go">Check</button>
           <button type="button" id="lab-stop" disabled>Stop</button>
         </div>
-        <p class="lab-hint">Deterministic lab in this tab (not the OpenMP C core):
-          <strong>ECPP first</strong> when <em>n</em> has 256 or more bits
-          (class-number-1; Montgomery ECM), else <strong>combined BLS</strong>
-          (n−1 Pocklington, Lucas n+1, Combined Theorem 1), then ECPP, then exact 30-wheel trial.
+        <p class="lab-hint">Deterministic lab in this tab (not the OpenMP C core).
+          One engine per band, matching the Python library:
+          <strong>class-number-1 ECPP only</strong> when <em>n</em> has 256 or more bits
+          (Montgomery ECM; no BLS fallback), else <strong>combined BLS only</strong>
+          (n−1 Pocklington, Lucas n+1, Combined Theorem 1). Then exact 30-wheel trial if practical.
           Factoring uses trial / Brent / p−1 / <strong>ECM</strong>.
           <strong>No digit-length limit.</strong> Smooth <em>n</em>±1 is typically sub-second;
           the 131-digit CM-friendly prime 10^130+1113 proves in this tab via class-number-1
-          ECPP (often tens of seconds). Hostile mid-size
-          <em>n</em>−1 can take a minute or two of ECM. Stop anytime.
-          Composites print a factor when one is found.</p>
+          ECPP. A general 131-digit next prime needs Python FastECPP (tens of seconds).
+          Stop anytime. Composites print a factor when one is found.
+          Wider misses are <strong>inconclusive</strong> here (Python: FastECPP, then unsettled).</p>
         ${stageMarkup()}
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
@@ -919,7 +920,7 @@
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
               <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">There is no maximum digit length. The tab runs ECPP first on ≥256-bit <em>n</em> (Jacobian point mul, stacked Montgomery ECM peel; no multi-minute BLS peel), else combined BLS then class-number-1 ECPP, plus trial / Brent / p−1 / Montgomery ECM. CM-friendly huge primes such as 10^130+1113 are in scope. If that still cannot settle <em>n</em> and pure trial is impractical (~⌊√n⌋ steps), the lab stops rather than spinning forever. The Python library continues with small-h ECPP, SIQS, and AKS.</p>`
+              <p class="lab-hint">There is no maximum digit length. The tab uses one engine per band: class-number-1 ECPP only on ≥256-bit <em>n</em> (Jacobian mul, stacked Montgomery ECM), combined BLS only below that. No BLS after an ECPP miss. CM-friendly primes such as 10^130+1113 are in scope. A miss is inconclusive here; Python continues with FastECPP, then UnsettledPrimalityError (AKS is not a product-path fallback).</p>`
             );
           } else {
             renderCert({

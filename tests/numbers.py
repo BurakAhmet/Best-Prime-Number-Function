@@ -89,8 +89,13 @@ P40_H1_FRIENDLY = P40_H1_A**2 + P40_H1_V**2  # 100000000000000001000000000000000
 P40_H1_C = 2865377017242656090
 P40_H1_Q = 34899421401875313457
 
-# Smallest 100-digit prime (OEIS A003617). Tests-only; not a default-CI gate.
+# Smallest n-digit primes (OEIS A003617). Tests-only; not CLI defaults.
 P100_DIGIT = 10**99 + 289
+P200_DIGIT = 10**199 + 153
+P201_DIGIT = 10**200 + 357
+P300_DIGIT = 10**299 + 669
+P500_DIGIT = 10**499 + 153
+P1000_DIGIT = 10**999 + 7
 
 # 131-digit CM-friendly prime 10^130+1113. Proved by in-tree ECPP (D=−19).
 # Not the CLI default (F6). Default-suite tests must not call is_prime on it.

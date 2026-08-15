@@ -62,3 +62,21 @@ if [[ "$OUT_EXT" != so ]]; then
   cp -f "$OUT" "$DATA/wheel_core.so"
 fi
 echo "Built $OUT ${WHEEL_CORE_CFLAGS:-}"
+
+# Separate huge-int Montgomery pow (FastECPP / 10k-digit). Optional.
+HUGE_SRC="$DATA/huge_arith.c"
+if [[ -f "$HUGE_SRC" ]]; then
+  HUGE_OUT="$DATA/huge_arith.$OUT_EXT"
+  if "$CC" -O3 -flto -fPIC -shared \
+    "${ARCH_FLAGS[@]}" \
+    -funroll-loops -fomit-frame-pointer \
+    "${EXTRA[@]}" \
+    -o "$HUGE_OUT" "$HUGE_SRC"; then
+    if [[ "$OUT_EXT" != so ]]; then
+      cp -f "$HUGE_OUT" "$DATA/huge_arith.so"
+    fi
+    echo "Built $HUGE_OUT"
+  else
+    echo "huge_arith: compile failed (Python pow fallback)" >&2
+  fi
+fi

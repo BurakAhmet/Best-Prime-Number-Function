@@ -1,7 +1,7 @@
 # Standalone library docs. Published to GitHub Pages at /guide/
 # (the exhibit lab stays at the site root via docs/wiki/build_site.py).
 site_name: best_prime
-site_description: Fully deterministic primality, π(n), factoring, and arithmetic — no stochastic Miller–Rabin
+site_description: Fully deterministic primality — OpenMP wheel, BLS below 256 bits, FastECPP at 256+ bits. No stochastic Miller–Rabin.
 site_url: https://burakahmet.github.io/Best-Prime-Number-Function/guide/
 site_author: BurakAhmet
 docs_dir: docs/guide

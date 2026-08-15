@@ -15,11 +15,11 @@ is_prime(n)
     │    ├─ n ≤ 4·10¹²    → embedded 30030-wheel (stdlib)
     │    └─ else          → Numba 9699690-wheel
     └─ n ≥ 2⁶⁴
-         ├─ cubic budget (4·k·n fits in 128 bits (no artificial cub cap))
+         ├─ cubic budget (4·k·n fits in 128 bits)
          │              → BLS n±1, else lehman_factor_u128
-         ├─ isqrt(n) ≤ 2.5·10¹⁰ (≤128-bit) → OpenMP u128 full trial / stdlib wheel
-         └─ larger still            → combined BLS (CLI default: 147-bit n−1) → ECPP (h=1 then small-h)
-                                      → AKS if bits < 512; else UnsettledPrimalityError (FastECPP planned)
+         ├─ bits < 256  → BLS (CLI default: 147-bit n−1); else u128 trial if complete
+         └─ bits ≥ 256  → FastECPP only (h=1 inside it). Miss → UnsettledPrimalityError
+                          (no BLS / transcribed-ECPP / AKS fallback)
 ```
 
 ```mermaid
@@ -48,13 +48,15 @@ flowchart TD
   P6 --> Z3{factor / composite?}
   Z3 -->|yes| Z1
   Z3 -->|no| Z2
-  H0 -->|no| H{isqrt n ≤ 2.5·10^10 and ≤128-bit?}
-  H -->|yes| P5[OpenMP u128 full trial / stdlib wheel]
-  P5 --> G
-  H -->|no| I[≥256-bit: ECPP first then BLS; else BLS then ECPP; then AKS]
-  I --> L{prime?}
-  L -->|yes| Z2
-  L -->|no| Z1
+  H0 -->|no| H{bits < 256?}
+  H -->|yes| P5[BLS; u128 trial if complete]
+  P5 --> L{settled?}
+  L -->|yes| Z3
+  L -->|no| U[UnsettledPrimalityError]
+  H -->|no| I[FastECPP only]
+  I --> L2{settled?}
+  L2 -->|yes| Z3
+  L2 -->|no| U
 ```
 
 ### Fast path — $n \lt 2^{64}$
@@ -74,9 +76,10 @@ flowchart TD
 
 ### Large path — $n \ge 2^{64}$ outside cubic budget
 
-1. Combined BLS first when $n$ is under 256 bits (the 147-bit CLI default usually settles here as `u128_nm1`).
-2. If $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ and $n$ fits in 128 bits (covers e.g. primes near $10^{20}$): OpenMP **`is_prime_u128_core`**, else stdlib 9699690-wheel.
-3. Still larger ($n\ge 256$ bits): **ECPP first** ([guide](ecpp-proof.md)) — deterministic Montgomery/Suyama ECM peels $m=n+1\pm t$; class-number-1, then small-$h$ CM ($h(D)\le 16$). Then combined BLS if ECPP declines. **General 100-digit completeness is the small-$h$ layer.** AKS is the last resort. Path `bigint_ecpp` or `bigint_trial_or_aks`.
+One engine per band. No BLS → ECPP → FastECPP → AKS chain.
+
+1. **bits $< 256$:** combined BLS only (the 147-bit CLI default is `u128_nm1`). If BLS misses and $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ on a 128-bit $n$: OpenMP **`is_prime_u128_core`**. Else `UnsettledPrimalityError`.
+2. **bits $\ge 256$:** **FastECPP only** ([guide](ecpp-proof.md)) — class-number-1 $D$ first, then computed $H_D$, path `bigint_fastecpp`. A Fermat miss is a composite proof. No BLS peel, no second transcribed-ECPP pass, no AKS. Cap 15 s above ~1000 digits, then unsettled.
 
 Inspect the live path with [`lab(n)`](api.md).
 
@@ -106,7 +109,8 @@ Let $L = \lfloor\sqrt{n}\rfloor$.
 | OpenMP precomputed-prime ($L\le 2^{20}$) | $\Theta(\pi(L))=\Theta(\sqrt{n}/\log n)$ |
 | OpenMP seg-primes ($t$ threads, large $L$) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* |
 | Combined BLS (special-form $n\pm 1$) | Factor $n\pm 1$ + $O(\log n)$ exponentiations / Lucas |
-| Deterministic ECPP (small-$h$) | Poly in $\log n$ with CM search; general 100-digit gate |
+| Deterministic ECPP (small-$h$) | Poly in $\log n$ with CM search; transcribed $H_D$ |
+| FastECPP (computed $H_D$) | General 100-digit gate ($10^{99}+289$); not 10k-digit yet |
 | Partial trial then AKS | Poly in $\log n$ *in theory*; last resort for huge primes |
 
 Composite early exit is roughly $\Theta(p)$ for least prime factor $p$.

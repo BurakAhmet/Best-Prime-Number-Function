@@ -5,11 +5,11 @@ End-to-end CLI ``TIME`` starts at import (``t0``) and stops after the answer,
 so import, table load, JIT, and the check all count. Heavy dependencies
 (NumPy/Numba) and large tables load lazily only on hard paths that need them.
 
-Tiered engines: tiny Python loop; 64-bit OpenMP C (precomputed-prime trial +
-wheel-30 segmented sieve with persisted marks) with stdlib/Numba wheel
-fallbacks; hard 64-bit / ``n ≥ 2^{64}`` try **n−1 Pocklington** first
-(when n−1 factors), else complete cubic search when the OpenMP C core can
-finish (CLI default), else u128 / stdlib full trial; AKS only for huge n.
+Tiered engines — one complete engine per size band, not a fallback chain:
+tiny Python loop; 64-bit OpenMP wheel (or stdlib/Numba if no ``.so``);
+hard 64-bit / cubic-budget multi-limb: BLS then cubic (cubic is the
+complete engine there); ``2^{64} ≤ n < 256`` bits: BLS (``DEFAULT_N``);
+``n ≥ 256`` bits: FastECPP only. No AKS on the product path.
 
 Restrictions: deterministic; no stochastic Miller–Rabin; no prime libraries.
 """
@@ -866,7 +866,12 @@ def _hard_path_prime(n: int, *, parallel: bool) -> bool:
 def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> bool:
     """Primality for n >= 2^64 outside the complete-cubic budget.
 
-    Callers already routed cubic-ready n to ``_hard_path_prime``.
+    One engine per band (no BLS→ECPP→FastECPP→AKS chain):
+
+    * ``bits < 256``: combined BLS (``DEFAULT_N``). Then u128 trial if
+      that band is complete. Else unsettled — do not start AKS.
+    * ``bits ≥ 256``: FastECPP only (includes class-number-1). A Fermat
+      miss is a composite proof, not a second engine.
     """
     global _last_is_prime_big_path
     _last_is_prime_big_path = None
@@ -880,65 +885,47 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
     sq = math.isqrt(n)
     if sq * sq == n:
         return False
-    from .primality_nm1 import _try_split_cofactor, bls_primality
-
-    # Huge n: ECPP before a deep BLS peel. Class-number-1 CM often hits
-    # while n±1 is still hostile (131-digit yardstick). DEFAULT_N is 147-bit
-    # and stays on BLS first. Above AKS_SKIP_BITS the current H_D table cannot
-    # settle a general prime; skip it so 10k-digit inputs fail fast.
-    if 256 <= n.bit_length() < AKS_SKIP_BITS:
-        from .primality_ecpp import ecpp_primality
-
-        decided = ecpp_primality(n, parallel=parallel, max_h=_ECPP_MAX_H)
-        if decided is not None:
-            _last_is_prime_big_path = "bigint_ecpp"
-            return decided
-
-    # BLS n−1 / n+1 / combined whenever it settles — even past the u128 cubic
-    # wall (4kn > 128 bits). Skipping it sent easy special-form primes into AKS.
-    if not skip_nm1:
-        decided = bls_primality(n, parallel=parallel)
-        if decided is not None:
-            return decided
-
-    # Practical full trial (covers 10^20-scale primes in seconds with OpenMP).
-    if sq <= _MAX_FULL_TRIAL_ISQRT and n.bit_length() <= 128:
-        return _is_prime_big_full_trial(n, parallel)
     bits = n.bit_length()
-    # Wider than AKS_SKIP_BITS: do not start a 1e8 wheel or Kronecker AKS.
-    if bits >= AKS_SKIP_BITS:
-        for a in (2, 3, 5, 7, 11, 13):
-            if a % n == 0:
-                return n == a
-            if pow(a, n - 1, n) != 1:
-                return False
-        if _try_split_cofactor(n, parallel=parallel) is not None:
-            return False
+
+    if bits < 256:
+        if not skip_nm1:
+            from .primality_nm1 import bls_primality
+
+            decided = bls_primality(n, parallel=parallel)
+            if decided is not None:
+                return decided
+        if sq <= _MAX_FULL_TRIAL_ISQRT and bits <= 128:
+            return _is_prime_big_full_trial(n, parallel)
         _last_is_prime_big_path = "bigint_unsettled"
         raise UnsettledPrimalityError(n)
-    # Larger: wheel trial, Fermat filter, then split / ECPP / AKS.
-    bound = min(_AKS_TRIAL_BOUND, sq)
-    if not _wheel_trial(n, _get_steps_30030(), 17, limit=bound):
-        return False
-    if bound >= sq:
-        return True
-    for a in (2, 3, 5, 7, 11, 13):
+
+    from .huge_arith import powmod as _powmod
+    from .primality_ecpp import fermat_bases_for_bits
+    from .primality_fastecpp import (
+        FASTECPP_MAX_BITS,
+        FASTECPP_MIN_BITS,
+        fastecpp_primality,
+        is_prime_fastecpp_max_ms,
+    )
+
+    for a in fermat_bases_for_bits(bits):
         if a % n == 0:
             return n == a
-        if pow(a, n - 1, n) != 1:
+        if _powmod(a, n - 1, n) != 1:
             return False
-    # A factor proves composite without AKS. Primes fall through to ECPP, then AKS.
-    # Splitters abort with None; they must not raise into this path.
-    if _try_split_cofactor(n, parallel=parallel) is not None:
-        return False
-    from .primality_ecpp import ecpp_primality
 
-    decided = ecpp_primality(n, parallel=parallel, max_h=_ECPP_MAX_H)
-    if decided is not None:
-        _last_is_prime_big_path = "bigint_ecpp"
-        return decided
-    _last_is_prime_big_path = "bigint_trial_or_aks"
-    return _aks_is_prime(n, parallel=parallel)
+    if FASTECPP_MIN_BITS <= bits <= FASTECPP_MAX_BITS:
+        decided = fastecpp_primality(
+            n,
+            parallel=parallel,
+            skip_small_h=True,
+            max_ms=is_prime_fastecpp_max_ms(bits),
+        )
+        if decided is not None:
+            _last_is_prime_big_path = "bigint_fastecpp"
+            return decided
+    _last_is_prime_big_path = "bigint_unsettled"
+    raise UnsettledPrimalityError(n)
 
 
 def _is_prime_one(n_int: int, parallel: bool) -> bool:
@@ -1043,37 +1030,40 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         from .factor_lehman import cubic_complete_ready, lehman_factor
         from .primality_nm1 import _bls_decide
 
-        decided, side = _bls_decide(n_int, parallel=parallel)
-        if decided is not None and side in ("np1", "combined"):
-            path = "bigint_bls"
-            prime = decided
-        elif decided is not None:
-            path = "u128_nm1"
-            prime = decided
-        elif cubic_complete_ready(n_int):
-            path = "u128_lehman_c"
-            prime = lehman_factor(n_int, parallel=parallel) is None
+        bits = n_int.bit_length()
+        if cubic_complete_ready(n_int) or bits < 256:
+            decided, side = _bls_decide(n_int, parallel=parallel)
+            if decided is not None and side in ("np1", "combined"):
+                path = "bigint_bls"
+                prime = decided
+            elif decided is not None:
+                path = "u128_nm1"
+                prime = decided
+            elif cubic_complete_ready(n_int):
+                path = "u128_lehman_c"
+                prime = lehman_factor(n_int, parallel=parallel) is None
+            elif sq <= _MAX_FULL_TRIAL_ISQRT and bits <= 128:
+                if lib and hasattr(lib, "is_prime_u128_core"):
+                    path = "u128_wheel_c"
+                else:
+                    path = "bigint_wheel"
+                prime = _is_prime_big_full_trial(n_int, parallel)
+            else:
+                path = "bigint_unsettled"
+                prime = None
         else:
-            # Mirror _is_prime_big after nm1 without re-running n−1.
             try:
                 prime = _is_prime_big(n_int, parallel=parallel, skip_nm1=True)
             except UnsettledPrimalityError:
                 path = "bigint_unsettled"
                 prime = None
             else:
-                if (
-                    sq <= _MAX_FULL_TRIAL_ISQRT
-                    and n_int.bit_length() <= 128
-                    and lib
-                    and hasattr(lib, "is_prime_u128_core")
-                ):
-                    path = "u128_wheel_c"
-                elif sq <= _MAX_FULL_TRIAL_ISQRT and n_int.bit_length() <= 128:
-                    path = "bigint_wheel"
-                elif _last_is_prime_big_path == "bigint_ecpp":
-                    path = "bigint_ecpp"
+                if _last_is_prime_big_path == "bigint_fastecpp":
+                    path = "bigint_fastecpp"
                 else:
-                    path = "bigint_trial_or_aks"
+                    path = "bigint_unsettled"
+                    if prime is True or prime is False:
+                        path = "bigint_fastecpp"
 
     elapsed_ms = (time.perf_counter() - t1) * 1000.0
     info = {
@@ -1115,9 +1105,12 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "bigint_trial_or_aks": "Huge-int path: 30030-wheel partial trial, then AKS (Kronecker; may be slow).",
         "bigint_bls": "BLS n+1 or combined n±1 proof (n−1 did not settle).",
         "bigint_ecpp": "Deterministic Atkin–Morain ECPP.",
+        "bigint_fastecpp": (
+            "Deterministic FastECPP — the only engine for n with ≥ 256 bits."
+        ),
         "bigint_unsettled": (
-            "Too wide for AKS; ECPP / BLS did not settle. "
-            "FastECPP is the planned engine. is_prime raises UnsettledPrimalityError."
+            "The single engine for this bit length did not settle. "
+            "is_prime raises UnsettledPrimalityError (AKS is not a fallback)."
         ),
     }
     info["note"] = notes[path]

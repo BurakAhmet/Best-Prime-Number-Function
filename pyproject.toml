@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "best-prime-number-function"
 version = "1.12.0"
-description = "Fully deterministic primality, π(n), factoring, and arithmetic (OpenMP C / Numba / AKS)"
+description = "Fully deterministic primality: OpenMP wheel, BLS below 256 bits, FastECPP at 256+ bits. No stochastic Miller–Rabin."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -18,6 +18,8 @@ keywords = [
   "openmp",
   "numba",
   "aks",
+  "ecpp",
+  "fastecpp",
   "trial-division",
 ]
 classifiers = [
@@ -103,7 +105,7 @@ include = ["is_prime_data*", "best_prime*"]
 # (generated on demand). The native .so/.dylib is built at install / cibuildwheel
 # and included in *platform* wheels only.
 [tool.setuptools.package-data]
-is_prime_data = ["*.u8", "*.u16", "*.py", "*.c", "wheel_core.so", "wheel_core.dylib", "wheel_core.dll"]
+is_prime_data = ["*.u8", "*.u16", "*.py", "*.c", "wheel_core.so", "wheel_core.dylib", "wheel_core.dll", "huge_arith.so", "huge_arith.dylib", "huge_arith.dll"]
 best_prime = ["py.typed"]
 
 [tool.ruff]

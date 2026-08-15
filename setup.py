@@ -122,6 +122,25 @@ def _compile_wheel_core(target_dir: Path) -> bool:
                     pass
             global _NATIVE_BUILT
             _NATIVE_BUILT = True
+            huge_src = DATA / "huge_arith.c"
+            if huge_src.is_file():
+                huge_out = target_dir / f"huge_arith.{ext}"
+                hcmd = [
+                    cc, "-O3", "-fPIC", "-shared", *arch,
+                    "-funroll-loops", "-fomit-frame-pointer",
+                    "-o", str(huge_out), str(huge_src),
+                ]
+                try:
+                    subprocess.run(hcmd, check=True, capture_output=True, text=True)
+                    hso = target_dir / "huge_arith.so"
+                    if huge_out != hso:
+                        try:
+                            shutil.copy2(huge_out, hso)
+                        except OSError:
+                            pass
+                    print(f"is_prime: built huge_arith -> {huge_out}")
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    print("is_prime: huge_arith compile skipped (pow fallback)")
             return True
         except FileNotFoundError as exc:
             last_err = exc
