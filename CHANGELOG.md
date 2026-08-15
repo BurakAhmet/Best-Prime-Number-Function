@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **CM tree on huge proofs.** A successful FastECPP / ECPP walk records
+  `D`, class number $h$, and cofactor sizes. `lab(n)["cm_tree"]` and the
+  CLI `CM_TREE:` line print the downrun so a slower smaller prime is
+  visible as a heavier tree, not a dispatch bug.
+- **Standalone certificate file.** `primality-certificate --json` /
+  `--write PATH` dumps the in-memory cert. `scripts/verify_cert.py` checks
+  it with only the stdlib (no `best_prime` import).
+
 ## [1.13.0] — 2026-08-15
 
 What this release **actually proves** (not a 10k-digit / 10 s claim):

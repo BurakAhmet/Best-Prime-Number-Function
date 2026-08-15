@@ -64,9 +64,11 @@ assert c["kind"] == "pratt" and verify_certificate(c)
 assert primality_certificate(91)["factor"] in (7, 13)
 ```
 
+Dump the dict with `dump_certificate` / `write_certificate` and check the file with `scripts/verify_cert.py` (stdlib only; no `best_prime` import).
+
 ### `lab(n, *, parallel=True) -> dict`
 
-Same check plus diagnostics: `is_prime`, `path`, `isqrt`, `elapsed_ms` (check only), `e2e_ms` (since process start), `note`.
+Same check plus diagnostics: `is_prime`, `path`, `isqrt`, `elapsed_ms` (check only), `e2e_ms` (since process start), `note`, `cm_tree`. After a FastECPP / ECPP proof, `cm_tree` is the winning discriminant downrun (`D`, class number `h`, cofactor digit counts). Otherwise `None`.
 
 ```python
 info = lab(10**9 + 7)
