@@ -126,9 +126,12 @@ def _prove_q_fast(
         return True
     if q <= 1 or q >= n:
         return None
+    from .primality_ecpp import _set_child_rec
     from .primality_nm1 import _prove_strictly_smaller
+    from .progress import emit
 
     _trace(f"prove_q digits={len(str(q))} bits={q.bit_length()}")
+    emit("prove_q", digits=len(str(q)), bits=q.bit_length())
     decided = _prove_strictly_smaller(
         q, n, parallel=parallel, allow_ecpp=True, max_h=16
     )
@@ -137,9 +140,15 @@ def _prove_q_fast(
         return decided
     if _recurse_ok(q):
         # _prove_strictly_smaller already tried class-number-1 on 128+ bit q.
-        return fastecpp_primality(
-            q, parallel=parallel, skip_small_h=True, skip_h1=q.bit_length() >= 128
+        dec, rec = fastecpp_search(
+            q,
+            parallel=parallel,
+            skip_small_h=True,
+            skip_h1=q.bit_length() >= 128,
         )
+        if dec is True and rec:
+            _set_child_rec(q, rec)
+        return dec
     return None
 
 
@@ -239,6 +248,9 @@ def _try_pending(
         if not ok:
             continue
         _trace(f"usable D={D} h={h} n_digits={len(str(n))}")
+        from .progress import emit
+
+        emit("fastecpp D", D=D, h=h, digits=len(str(n)))
         try:
             coeffs = hilbert_class_poly_cached_or_table(D)
         except (ValueError, ArithmeticError):
@@ -304,6 +316,108 @@ def _walk_computed(
     )
 
 
+def _combined_deadline(max_ms: int | None) -> float | None:
+    from .progress import deadline_hit, remaining_ms
+
+    local = None if max_ms is None else time.perf_counter() + max_ms / 1000.0
+    if deadline_hit():
+        return time.perf_counter()
+    left = remaining_ms()
+    if left is None:
+        return local
+    env_dead = time.perf_counter() + left / 1000.0
+    if local is None:
+        return env_dead
+    return min(local, env_dead)
+
+
+def fastecpp_search(
+    n: int,
+    *,
+    parallel: bool = True,
+    skip_small_h: bool = False,
+    skip_h1: bool = False,
+    d_max: int | None = None,
+    h_cap: int | None = None,
+    max_ms: int | None = None,
+) -> tuple[Result, dict | None]:
+    """True / False / None plus an Atkin–GKM witness when the proof succeeds.
+
+    Same walk as ``fastecpp_primality``. The rec is the ``_cert_stack``
+    payload (``D,t,v,j,a,b,m,c,q,x,y`` and nested ``q_rec``).
+    """
+    if n < 2:
+        return False, None
+    if n in (2, 3):
+        return True, None
+    if (n & 1) == 0:
+        return False, None
+    if math.isqrt(n) ** 2 == n:
+        return False, None
+    if n in _proving:
+        return None, None
+    if len(_proving) >= n.bit_length():
+        return None, None
+    from .primality_ecpp import _cert_stack, _ecpp_search
+    from .progress import emit
+
+    bits = n.bit_length()
+    use_d_max = FASTECPP_D_MAX if d_max is None else int(d_max)
+    use_h_cap = FASTECPP_H_CAP if h_cap is None else int(h_cap)
+    if d_max is None:
+        use_d_max = scaled_d_max(bits)
+    if h_cap is None:
+        use_h_cap = scaled_h_cap(bits)
+    trial_bound = scaled_trial_bound(bits)
+    deadline = _combined_deadline(max_ms)
+
+    _proving.add(n)
+    _prove_q_stack.append(_prove_q_fast)
+    _PEEL_CACHE.clear()
+    _cert_stack.append({})
+    try:
+        emit("fastecpp", digits=len(str(n)), bits=bits, d_max=use_d_max, h_cap=use_h_cap)
+        _trace(f"start digits={len(str(n))} bits={bits} d_max={use_d_max} h_cap={use_h_cap}")
+        # h=1 is cheap at 100–300 digits (P131). At 10k digits each of
+        # the 13 discriminants is a full Tonelli; skip and use the catalog.
+        if bits > 3_500:
+            _trace("skip h=1 / transcribed (huge n)")
+        elif skip_h1:
+            _trace("skip h=1 (caller)")
+        elif skip_small_h or _in_band(n):
+            for D in CLASS_NUMBER_1_D:
+                if deadline is not None and time.perf_counter() >= deadline:
+                    return None, None
+                dec = _try_discriminant(D, n, parallel=parallel, max_h=1)
+                if dec is not None:
+                    _trace(f"h=1 D={D} -> {dec}")
+                    rec = dict(_cert_stack[-1]) if dec is True else None
+                    return dec, rec
+            _trace("h=1 miss")
+        else:
+            decided, rec = _ecpp_search(n, parallel=parallel, max_h=16)
+            if decided is not None:
+                return decided, rec
+        if not _recurse_ok(n):
+            return None, None
+        if deadline is not None and time.perf_counter() >= deadline:
+            return None, None
+        dec = _walk_computed(
+            n,
+            parallel=parallel,
+            d_max=use_d_max,
+            h_cap=use_h_cap,
+            trial_bound=trial_bound,
+            deadline=deadline,
+        )
+        rec = dict(_cert_stack[-1]) if dec is True else None
+        return dec, rec
+    finally:
+        _cert_stack.pop()
+        _prove_q_stack.pop()
+        _proving.discard(n)
+
+
 def fastecpp_primality(
     n: int,
     *,
@@ -322,68 +436,13 @@ def fastecpp_primality(
     ``d_max`` / ``h_cap`` default to a bit-length table. ``max_ms`` is a
     wall-clock abort for the computed walk (``None`` = no cap).
     """
-    if n < 2:
-        return False
-    if n in (2, 3):
-        return True
-    if (n & 1) == 0:
-        return False
-    if math.isqrt(n) ** 2 == n:
-        return False
-    if n in _proving:
-        return None
-    if len(_proving) >= n.bit_length():
-        return None
-    from .primality_ecpp import _cert_stack, _ecpp_search
-
-    bits = n.bit_length()
-    use_d_max = FASTECPP_D_MAX if d_max is None else int(d_max)
-    use_h_cap = FASTECPP_H_CAP if h_cap is None else int(h_cap)
-    if d_max is None:
-        use_d_max = scaled_d_max(bits)
-    if h_cap is None:
-        use_h_cap = scaled_h_cap(bits)
-    trial_bound = scaled_trial_bound(bits)
-    deadline = None if max_ms is None else time.perf_counter() + max_ms / 1000.0
-
-    _proving.add(n)
-    _prove_q_stack.append(_prove_q_fast)
-    _PEEL_CACHE.clear()
-    _cert_stack.append({})
-    try:
-        # In the ≥256-bit band the transcribed table is not the general
-        # engine. Try h=1 (cheap; P131) then computed H_D. Smaller n
-        # still use the table.
-        _trace(f"start digits={len(str(n))} bits={bits} d_max={use_d_max} h_cap={use_h_cap}")
-        # h=1 is cheap at 100–300 digits (P131). At 10k digits each of
-        # the 13 discriminants is a full Tonelli; skip and use the catalog.
-        if bits > 3_500:
-            _trace("skip h=1 / transcribed (huge n)")
-        elif skip_h1:
-            # Caller already ran the 13 class-number-1 discriminants.
-            _trace("skip h=1 (caller)")
-        elif skip_small_h or _in_band(n):
-            for D in CLASS_NUMBER_1_D:
-                dec = _try_discriminant(D, n, parallel=parallel, max_h=1)
-                if dec is not None:
-                    _trace(f"h=1 D={D} -> {dec}")
-                    return dec
-            _trace("h=1 miss")
-        else:
-            decided, _rec = _ecpp_search(n, parallel=parallel, max_h=16)
-            if decided is not None:
-                return decided
-        if not _recurse_ok(n):
-            return None
-        return _walk_computed(
-            n,
-            parallel=parallel,
-            d_max=use_d_max,
-            h_cap=use_h_cap,
-            trial_bound=trial_bound,
-            deadline=deadline,
-        )
-    finally:
-        _cert_stack.pop()
-        _prove_q_stack.pop()
-        _proving.discard(n)
+    decided, _rec = fastecpp_search(
+        n,
+        parallel=parallel,
+        skip_small_h=skip_small_h,
+        skip_h1=skip_h1,
+        d_max=d_max,
+        h_cap=h_cap,
+        max_ms=max_ms,
+    )
+    return decided

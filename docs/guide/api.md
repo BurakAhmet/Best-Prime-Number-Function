@@ -21,7 +21,7 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 
 | Name | Meaning | Example |
 |------|---------|---------|
-| `__version__` | Installed package version | `"1.12.0"` |
+| `__version__` | Installed package version | `"1.13.0"` |
 | `DEFAULT_N` | CLI default / 147-bit hard-path yardstick | `100000000000000000000000000000000000000000031` |
 | `PRIME_COUNT_MAX_N` | **Hard ceiling** for `prime_count` | $2^{64}-1$ |
 | `NEXT_PRIME_SIEVE_ISQRT_MAX` | Interval-sieve cap for next/prev | $2\cdot10^6$ |
@@ -53,7 +53,10 @@ is_prime("100000000000000000039")  # True  (~10^20, u128 path)
 
 ### `primality_certificate(n) -> dict` / `verify_certificate(cert) -> bool`
 
-Pratt certificate for a prime (witness $g$ plus recursive certificates for the prime factors of $n-1$). Composites return a proper `factor`. No stochastic Miller–Rabin.
+Same ladder as `is_prime`: Pratt / BLS below 256 bits, **FastECPP**
+(`kind='ecpp'`) at 256+ bits, or a compositeness `factor`. The verifier
+is arithmetic only — no discriminant search, no factoring. Nested
+`q_cert` comes from the proof walk. No stochastic Miller–Rabin.
 
 ```python
 c = primality_certificate(17)
@@ -150,9 +153,12 @@ for p in primerange(10**9, 10**9 + 50):
 
 ## Factoring and powers
 
-### `prime_factors(n, *, parallel=True) -> list[int]`
+### `prime_factors(n, *, parallel=True, max_ms=None) -> list[int]`
 
-Prime factors with multiplicity, ascending. `[]` if $n<2$.
+Prime factors with multiplicity, ascending. `[]` if $n<2$. `max_ms` is a
+wall-clock cap; on expiry raise `UnsettledFactorError` (isolated primes on
+`.found`, composite remainder on `.leftover`). `None` is the historical
+complete search.
 
 ```python
 prime_factors(360)    # [2, 2, 2, 3, 3, 5]
@@ -160,9 +166,9 @@ prime_factors(17)     # [17]
 prime_factors(1)      # []
 ```
 
-### `factorint(n, *, parallel=True) -> dict[int, int]`
+### `factorint(n, *, parallel=True, max_ms=None) -> dict[int, int]`
 
-Prime $\to$ exponent. Empty if $n<2`.
+Prime $\to$ exponent. Empty if $n<2$. Same `max_ms` as `prime_factors`.
 
 ```python
 factorint(360)    # {2: 3, 3: 2, 5: 1}

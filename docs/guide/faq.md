@@ -45,6 +45,30 @@ For mid-size $n < 2^{64}$ ($\lfloor\sqrt{n}\rfloor < 10^{7}$), `is_prime` is sti
 
 ## Is AKS practical?
 
-Only as the last engine for huge $n$ with no small factor. Hard 64-bit
-primes stay on OpenMP trial. Huge primes can take a very long time; that
-is the cost of refusing probable-prime shortcuts.
+No. AKS is **not** a product-path fallback. At $\ge 512$ bits a miss is
+`UnsettledPrimalityError` (CLI `RESULT: unsettled`, exit 3). Hard 64-bit
+primes stay on OpenMP / BLS. Huge primes use FastECPP or stay unsettled.
+
+## What does 1.13.0 actually prove?
+
+Exact `is_prime` on the documented bands: BLS below 256 bits, FastECPP
+from 256 through 40 000 bits. Certificates match that ladder and
+`verify_certificate` is arithmetic only. Measured sizes (one machine,
+see [`benchmarks/timing_table.py`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/benchmarks/timing_table.py)):
+about 100 digits in seconds, 150 digits in tens of seconds, 200 digits
+around a minute. A *general* 10k-digit prime in 10 s is the north-star
+and is **not** claimed.
+
+## Is the GitHub Pages lab the library?
+
+No. The Pages lab is an in-browser **exhibit** (JS worker, no OpenMP
+core). It mirrors the same theorems but is not `best_prime`. A miss
+in-tab can be inconclusive while Python `is_prime` still settles. The
+library lives in this guide and on PyPI.
+
+## How do I cap a long proof or factorization?
+
+`is-prime --max-ms MS` (or `BEST_PRIME_MAX_MS`) stops the search as
+unsettled — never as a false composite. `prime_factors(n, max_ms=MS)`
+raises `UnsettledFactorError` with the isolated primes and leftover.
+The `prime-factors` CLI default-caps $n$ wider than 512 bits at 30 s.

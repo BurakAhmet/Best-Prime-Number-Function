@@ -79,6 +79,29 @@ class TestCliExitCodes:
         else:
             assert "not prime" in r.stdout.lower() or "RESULT:  composite" in r.stdout or "False" in r.stdout
 
+    def test_progress_on_stderr_when_forced(self):
+        env = os.environ.copy()
+        env["BEST_PRIME_PROGRESS"] = "1"
+        env.setdefault("OMP_NUM_THREADS", "2")
+        r = subprocess.run(
+            [sys.executable, "-m", "best_prime", str(10**122 + 1203)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=20.0,
+            env=env,
+            check=False,
+        )
+        assert r.returncode == 1, r.stdout + r.stderr
+        assert "[best-prime]" in r.stderr
+        assert "not prime" in r.stdout
+
+    def test_max_ms_unsettled_on_fastecpp_prime(self):
+        # P100 is in the FastECPP band. 1 ms cannot finish the CM walk.
+        r = _run("--max-ms", "1", str(10**99 + 289), timeout=30.0)
+        assert r.returncode == 3, r.stdout + r.stderr
+        assert "RESULT:  unsettled" in r.stdout
+
 
 class TestCliDefault:
     def test_package_default_is_147bit_hard_yardstick(self):

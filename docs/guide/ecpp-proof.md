@@ -93,13 +93,15 @@ still-larger n (past cubic / u128 trial)
 
 `lab(n)["path"]` is `bigint_ecpp` when the transcribed table settles and `bigint_fastecpp` when computed $H_D$ does. The 147-bit CLI default `DEFAULT_N` stays on `u128_nm1` (n−1 cooperates). It is **not** moved to a 100-digit prime.
 
-## Certificates (design)
+## Certificates
 
-`is_prime` / `ecpp_primality` return a boolean only. They never build a certificate tree.
+`is_prime` / `ecpp_primality` / `fastecpp_primality` return a boolean only.
 
-`primality_certificate` follows the **same ladder** and is meant to emit `kind` equal to which theorem settled (`bls` / `ecpp` / `pratt` / `axiom`). That emission is the certificate PR (not on every branch yet). Until then, $n\ge 2^{64}$ outside `cubic_complete_ready` returns `{"n": n, "kind": "unsupported"}` **without** calling `is_prime`, ECPP, or AKS — refuse the API rather than hang in Pratt `n-1`.
+`primality_certificate` follows the **same ladder** and emits `kind` equal to which theorem settled (`bls` / `ecpp` / `pratt` / `axiom`). At $\ge 256$ bits that is Fermat then FastECPP (`fastecpp_search`); the nested `q_cert` is the downrun witness, not a second search. Hostile Pratt $n-1$ still returns `error: n-1_unfactored` instead of hanging.
 
-Designed ECPP cert (`kind='ecpp'`): $D$, Cornacchia $(t,v)$, curve $(a,b)$, $m=n+1\pm t$, cofactor $c$, point $P$, recursive `q_cert`. Verifier is arithmetic, no search: $t^2+|D|v^2=4n$, $q\ge\mathrm{gk\_min\_q}(n)$, $P$ on $E$, $[c]P\ne O$ and $[m]P=O$, then recurse. Combined BLS certs store Combined Theorem 1’s cubic products, **not** $FG>\sqrt{n}$.
+ECPP cert (`kind='ecpp'`): $D$, Cornacchia $(t,v)$, curve $(a,b)$, $m=n+1\pm t$, cofactor $c$, point $P$, recursive `q_cert`. Verifier is arithmetic, no search: $t^2+|D|v^2=4n$, $q\ge\mathrm{gk\_min\_q}(n)$, $P$ on $E$, $[c]P\ne O$ and $[m]P=O$, then recurse. Combined BLS certs store Combined Theorem 1’s cubic products, **not** $FG>\sqrt{n}$.
+
+A general 10k-digit prime in 10 s is still the north-star and is **not** claimed. The [Pages lab](https://burakahmet.github.io/Best-Prime-Number-Function/) is an in-browser exhibit of the same theorems, not this library.
 
 ## Related
 

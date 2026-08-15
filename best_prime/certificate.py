@@ -87,6 +87,12 @@ def _composite_record(n: int, *, parallel: bool) -> dict[str, Any]:
         if factor is not None and 1 < factor < n:
             return {"n": n, "prime": False, "factor": factor}
         return {"n": n, "prime": False, "reason": "composite"}
+    # Do not block a composite verdict on a complete factorization.
+    from .is_prime import _one_factor
+
+    f = _one_factor(n, parallel=parallel)
+    if f is not None and 1 < f < n:
+        return {"n": n, "prime": False, "factor": f}
     from .primality_nm1 import _try_split_cofactor
 
     f = _try_split_cofactor(n, parallel=parallel)
@@ -160,10 +166,30 @@ def _build_bls_cert(
     return cert
 
 
+def _ecpp_rec_complete(data: dict[str, Any]) -> bool:
+    return all(k in data for k in ("D", "t", "v", "a", "b", "m", "c", "q", "x", "y"))
+
+
+def _rec_to_prime_cert(
+    n: int, data: dict[str, Any], *, parallel: bool, memo: dict[int, dict[str, Any]]
+) -> dict[str, Any]:
+    """Turn a search witness into a certificate without re-walking D."""
+    if data.get("side") in ("nm1", "np1", "combined") and _bls_settled(data):
+        return _build_bls_cert(n, data, parallel=parallel, memo=memo)
+    if _ecpp_rec_complete(data):
+        return _build_ecpp_cert(n, data, parallel=parallel, memo=memo)
+    return _child_cert(n, parallel=parallel, memo=memo)
+
+
 def _build_ecpp_cert(
     n: int, data: dict[str, Any], *, parallel: bool, memo: dict[int, dict[str, Any]]
 ) -> dict[str, Any]:
     q = int(data["q"])
+    q_src = data.get("q_rec")
+    if isinstance(q_src, dict):
+        q_cert = _rec_to_prime_cert(q, q_src, parallel=parallel, memo=memo)
+    else:
+        q_cert = _child_cert(q, parallel=parallel, memo=memo)
     cert: dict[str, Any] = {
         "n": n,
         "prime": True,
@@ -175,7 +201,7 @@ def _build_ecpp_cert(
         "m": int(data["m"]),
         "c": int(data["c"]),
         "point": {"x": int(data["x"]), "y": int(data["y"])},
-        "q_cert": _child_cert(q, parallel=parallel, memo=memo),
+        "q_cert": q_cert,
     }
     if "j" in data:
         cert["j"] = int(data["j"])
@@ -223,10 +249,20 @@ def _certificate(
         return _failure(n, "bls", "unsettled")
 
     if kind == "ecpp":
-        from .primality_ecpp import _ecpp_search
+        if n.bit_length() >= 256:
+            from .primality_fastecpp import fastecpp_search, is_prime_fastecpp_max_ms
 
-        decided, data = _ecpp_search(n, parallel=parallel, max_h=_ECPP_MAX_H)
-        if decided is True and data and "q" in data:
+            decided, data = fastecpp_search(
+                n,
+                parallel=parallel,
+                skip_small_h=True,
+                max_ms=is_prime_fastecpp_max_ms(n.bit_length()),
+            )
+        else:
+            from .primality_ecpp import _ecpp_search
+
+            decided, data = _ecpp_search(n, parallel=parallel, max_h=_ECPP_MAX_H)
+        if decided is True and data and _ecpp_rec_complete(data):
             return _build_ecpp_cert(n, data, parallel=parallel, memo=memo)
         if decided is False:
             return _composite_record(n, parallel=parallel)
@@ -264,7 +300,43 @@ def _certificate(
             return cert if cert is not None else _composite_record(n, parallel=parallel)
         return _composite_record(n, parallel=parallel)
 
-    # Huge n: BLS → split → ECPP (no complete n−1 factoring, no AKS).
+    # Huge n: same dispatch as is_prime. FastECPP at ≥256 bits; BLS then
+    # transcribed ECPP below that. No complete n−1 factoring, no AKS.
+    bits = n.bit_length()
+    if bits >= 256:
+        from .huge_arith import powmod as _powmod
+        from .primality_ecpp import fermat_bases_for_bits
+        from .primality_fastecpp import (
+            FASTECPP_MAX_BITS,
+            FASTECPP_MIN_BITS,
+            fastecpp_search,
+            is_prime_fastecpp_max_ms,
+        )
+        from .progress import deadline_hit, emit
+
+        emit("fermat", digits=len(str(n)), bits=bits)
+        for a in fermat_bases_for_bits(bits):
+            if a % n == 0:
+                return {"n": n, "prime": True, "kind": "axiom"} if n == a else _composite_record(
+                    n, parallel=parallel
+                )
+            if _powmod(a, n - 1, n) != 1:
+                return _composite_record(n, parallel=parallel)
+        if deadline_hit():
+            return {"n": n, "kind": "unsupported"}
+        if FASTECPP_MIN_BITS <= bits <= FASTECPP_MAX_BITS:
+            decided, data = fastecpp_search(
+                n,
+                parallel=parallel,
+                skip_small_h=True,
+                max_ms=is_prime_fastecpp_max_ms(bits),
+            )
+            if decided is True and data and _ecpp_rec_complete(data):
+                return _build_ecpp_cert(n, data, parallel=parallel, memo=memo)
+            if decided is False:
+                return _composite_record(n, parallel=parallel)
+        return {"n": n, "kind": "unsupported"}
+
     decided, data = _bls_proof(n, parallel=parallel)
     if decided is True and data is not None and _bls_settled(data):
         return _build_bls_cert(n, data, parallel=parallel, memo=memo)
@@ -280,7 +352,7 @@ def _certificate(
     from .primality_ecpp import _ecpp_search
 
     decided, data = _ecpp_search(n, parallel=parallel, max_h=_ECPP_MAX_H)
-    if decided is True and data and "q" in data:
+    if decided is True and data and _ecpp_rec_complete(data):
         return _build_ecpp_cert(n, data, parallel=parallel, memo=memo)
     if decided is False:
         return _composite_record(n, parallel=parallel)
@@ -294,7 +366,9 @@ def primality_certificate(
 
     ``kind=None`` walks the same ladder as ``is_prime`` and emits
     ``bls`` / ``ecpp`` / ``pratt`` / ``axiom`` (or a composite factor).
-    ``kind='pratt'`` on hostile huge ``n`` returns
+    At ``bits ≥ 256`` that is Fermat then FastECPP (nested ``q_cert``
+    from the proof, not a second search). ``kind='pratt'`` on hostile
+    huge ``n`` returns
     ``{"prime": True, "kind": "pratt", "error": "n-1_unfactored"}``
     instead of hanging in ``prime_factors(n-1)``.
     """

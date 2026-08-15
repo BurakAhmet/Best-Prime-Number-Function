@@ -30,3 +30,10 @@ jobs:
       - run: pip install -e ".[fast,test]"
       - run: bash scripts/compile_wheel_core.sh
       - run: pytest -q -m slow
+      # P200 ~1 min here. Fail only on a wrong verdict, never on slowness.
+      - name: Timing table (nightly)
+        run: python3 benchmarks/timing_table.py --band nightly --json timing_nightly.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: timing-table-nightly
+          path: timing_nightly.json

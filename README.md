@@ -45,7 +45,7 @@ Native core: Linux CI builds `wheel_core.so`. macOS wants `brew install libomp`.
 | Symbol | Role |
 |--------|------|
 | `is_prime(n, *, parallel=True)` | `True` iff prime. Also accepts a `list` / NumPy array. |
-| `primality_certificate(n)` / `verify_certificate(c)` | Pratt certificate, or a factor if composite. |
+| `primality_certificate(n)` / `verify_certificate(c)` | Same ladder as `is_prime` (Pratt / BLS / FastECPP), or a factor if composite. |
 | `next_prime` / `prev_prime` / `next_primes` / `prev_primes` | Neighbours; generators stream. Interval sieve while $\sqrt{\text{bound}}\le$ `NEXT_PRIME_SIEVE_ISQRT_MAX` ($2\cdot10^6$). |
 | `nth_prime(k)` / `prime_count(n)` / `primes` / `primerange` | $p_k$, $\pi(n)$ (**hard ceiling** `PRIME_COUNT_MAX_N = 2⁶⁴−1`), lists. |
 | `prime_factors` / `factorint` / `lehman_factor` | Trial + Fermat + **two-band cubic search** + deterministic Brent + **ECM** + **SIQS**. Hard `is_prime` uses **combined BLS** before cubic; $n$ with $\ge 256$ bits is **FastECPP** only. |

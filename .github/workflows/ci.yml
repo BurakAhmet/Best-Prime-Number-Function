@@ -163,6 +163,19 @@ jobs:
           python -m best_prime 1000000007 | tee "$RUNNER_TEMP/cli_out.txt"
           grep -q 'RESULT:  prime' "$RUNNER_TEMP/cli_out.txt"
 
+      - name: Timing table
+        if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux'
+        run: |
+          band=pr
+          if [ "${{ needs.plan.outputs.full }}" = "true" ]; then band=main; fi
+          python3 benchmarks/timing_table.py --band "$band" --json timing_table.json
+      - name: Upload timing table
+        if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: timing-table-${{ needs.plan.outputs.full }}
+          path: timing_table.json
+
       - name: Engine sample for attestation
         if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux' && needs.plan.outputs.full == 'true'
         run: |

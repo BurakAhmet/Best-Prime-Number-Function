@@ -220,24 +220,39 @@ def _prove_strictly_smaller(
         return bool(is_prime(c, parallel=parallel))
     # 128+ bit cofactors: class-number-1 ECPP first (this is the P131
     # downrun). ≥256 bits: do *not* then run BLS / h≤16 — FastECPP
-    # recurses if h=1 misses.
-    if allow_ecpp and c.bit_length() >= 128:
-        from .primality_ecpp import ecpp_primality
+    # recurses if h=1 misses. Store the witness so the parent certificate
+    # does not re-search q.
+    from .primality_ecpp import _set_child_rec
 
-        decided = ecpp_primality(c, parallel=parallel, max_h=1)
-        if decided is not None:
-            return decided
+    if allow_ecpp and c.bit_length() >= 128:
+        from .primality_ecpp import _ecpp_search
+
+        decided, rec = _ecpp_search(c, parallel=parallel, max_h=1)
+        if decided is True:
+            if rec:
+                _set_child_rec(c, rec)
+            return True
+        if decided is False:
+            return False
         if c.bit_length() >= 256:
             return None
-    decided = bls_primality(c, parallel=parallel)
-    if decided is not None:
-        return decided
+    decided, data = _bls_proof(c, parallel=parallel)
+    if decided is True:
+        if data and data.get("side") in ("nm1", "np1", "combined"):
+            _set_child_rec(c, dict(data))
+        return True
+    if decided is False:
+        return False
     if allow_ecpp:
-        from .primality_ecpp import ecpp_primality
+        from .primality_ecpp import _ecpp_search
 
-        decided = ecpp_primality(c, parallel=parallel, max_h=max_h)
-        if decided is not None:
-            return decided
+        decided, rec = _ecpp_search(c, parallel=parallel, max_h=max_h)
+        if decided is True:
+            if rec:
+                _set_child_rec(c, rec)
+            return True
+        if decided is False:
+            return False
     return None
 
 
