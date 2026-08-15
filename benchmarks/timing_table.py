@@ -19,15 +19,16 @@ import sys
 import time
 from typing import Any
 
-from tests.numbers import (
-    DEFAULT_CLI_N,
-    P40_H1_FRIENDLY,
-    P100_DIGIT,
-    P150_DIGIT,
-    P200_DIGIT,
-    USER_C123,
-    USER_C123_FACTOR,
-)
+# Inlined so ``python3 benchmarks/timing_table.py`` works without pytest's
+# pythonpath (CI runs this as a script; ``tests`` is not an installed package).
+DEFAULT_CLI_N = 100_000_000_000_000_000_000_000_000_000_000_000_000_000_031
+P40_H1_A = 10**19 + 50
+P40_H1_FRIENDLY = P40_H1_A**2 + 23**2
+P100_DIGIT = 10**99 + 289
+P150_DIGIT = 10**149 + 183
+P200_DIGIT = 10**199 + 153
+USER_C123 = 10**122 + 1203
+USER_C123_FACTOR = 5_482_299_091
 
 # (name, n, expected) — expected is True / False. Never a 10k-digit claim.
 PR_ROWS: list[tuple[str, int, bool]] = [
