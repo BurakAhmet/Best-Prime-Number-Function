@@ -35,6 +35,8 @@
   const TRIAL_BOUND_MID = 1_000_000;
   const TRIAL_BOUND_BIG = 5_000_000;
   const TRIAL_BOUND_HUGE = 50_000;
+  /** Always hunt factors at least this far so 3-digit primes (e.g. 193 | 10^131+1113) print. */
+  const FACTOR_TRIAL_BOUND = 1_000_000;
   /** Match Python _adaptive_trial_bound for 256–280-bit curve orders. */
   const TRIAL_BOUND_NEAR_HUGE = 200_000;
   /** Match Python: FastECPP / class-number-1 only at this width. */
@@ -350,6 +352,19 @@
     return false;
   }
 
+  function firstTrialFactor(n, bound) {
+    const ts = trialSplit(n, bound);
+    if (ts.fac.size) {
+      let minP = null;
+      for (const p of ts.fac.keys()) {
+        if (minP === null || p < minP) minP = p;
+      }
+      if (minP !== null && minP < n) return minP;
+    }
+    if (ts.rem > 1n && ts.rem < n) return ts.rem;
+    return null;
+  }
+
   /** Proper factor of a known composite, or null. */
   function extractFactor(n, onTick, shouldStop) {
     if (n < 4n) return null;
@@ -358,6 +373,8 @@
       const p = SMALL[k];
       if (n % p === 0n) return n === p ? null : p;
     }
+    const trialHit = firstTrialFactor(n, FACTOR_TRIAL_BOUND);
+    if (trialHit) return trialHit;
     for (let i = 0; i < BASES.length; i++) {
       const a = BASES[i];
       if (a % n === 0n) return a < n ? a : null;
@@ -370,7 +387,7 @@
       }
     }
     emit(onTick, "split", 0n, 1n, { label: "searching for a factor of n" });
-    return trySplitCofactor(n, onTick, shouldStop);
+    return trySplitCofactor(n, onTick, shouldStop, true);
   }
 
   function trialSplit(m, bound) {
@@ -496,8 +513,11 @@
     return r;
   }
 
-  function trySplitCofactor(c, onTick, shouldStop) {
-    const bound = adaptiveTrialBound(c);
+  function trySplitCofactor(c, onTick, shouldStop, knownComposite) {
+    const bits = bitLength(c);
+    const bound = knownComposite
+      ? Math.max(FACTOR_TRIAL_BOUND, adaptiveTrialBound(c))
+      : adaptiveTrialBound(c);
     const ts = trialSplit(c, bound);
     if (ts.fac.size) {
       // return a proper factor
@@ -509,13 +529,38 @@
     }
     if (ts.rem > 1n && ts.rem < c) return ts.rem;
 
-    const bits = bitLength(c);
     // Mid-size hostile n−1 (hard55) still gets a deep peel.
-    // ≥256-bit leftovers skip that: ECPP needs a cheap p8-class ECM, not minutes.
-    const fermatRounds = bits >= HUGE_BITS ? 256 : bits > 140 ? 8192 : bits > 100 ? 4096 : 2048;
-    const brentCurves = bits > 200 ? 0n : bits > 140 ? 16n : bits > 100 ? 32n : 64n;
+    // ECPP order-peel on ≥256-bit leftovers stays cheap. A known composite
+    // (Fermat miss) gets p−1 / Brent / deeper ECM so the lab can print a factor.
+    const hunt = !!knownComposite;
+    const fermatRounds = bits >= HUGE_BITS ? (hunt ? 4096 : 256) : bits > 140 ? 8192 : bits > 100 ? 4096 : 2048;
+    const brentCurves = hunt
+      ? bits > 200
+        ? 16n
+        : bits > 140
+          ? 32n
+          : 64n
+      : bits > 200
+        ? 0n
+        : bits > 140
+          ? 16n
+          : bits > 100
+            ? 32n
+            : 64n;
     const brentMaxR = bits > 140 ? (1n << 18n) : bits > 100 ? (1n << 20n) : BRENT_MAX_R;
-    const p1B1 = bits >= HUGE_BITS ? 0 : bits > 140 ? 1_000_000 : bits > 100 ? 500_000 : P1_B1;
+    const p1B1 = hunt
+      ? bits >= HUGE_BITS
+        ? 250_000
+        : bits > 140
+          ? 1_000_000
+          : P1_B1
+      : bits >= HUGE_BITS
+        ? 0
+        : bits > 140
+          ? 1_000_000
+          : bits > 100
+            ? 500_000
+            : P1_B1;
 
     emit(onTick, "split", 0n, 4n, { label: "Fermat near-square probe" });
     let f = fermatSplit(c, fermatRounds);
@@ -536,10 +581,18 @@
       if (f && f > 1n && f < c) return f;
     }
 
-    f = ecmFactor(c, onTick, shouldStop, 6, ecmMaxMs(bits));
+    const ecmMs = hunt && bits >= HUGE_BITS ? 60_000 : ecmMaxMs(bits);
+    const ecmPhasesHunt =
+      hunt && bits >= HUGE_BITS
+        ? [
+            { B1: 11_000, curves: 80 },
+            { B1: 50_000, curves: 120 },
+          ]
+        : null;
+    f = ecmFactor(c, onTick, shouldStop, 6, ecmMs, ecmPhasesHunt);
     if (f && f > 1n && f < c) return f;
-    if (bits < HUGE_BITS) {
-      f = ecmFactor(c, onTick, shouldStop, 806, ecmMaxMs(bits));
+    if (bits < HUGE_BITS || hunt) {
+      f = ecmFactor(c, onTick, shouldStop, 806, ecmMs, ecmPhasesHunt);
       if (f && f > 1n && f < c) return f;
     }
     return null;
@@ -2370,6 +2423,11 @@
     // (same as Python is_prime). No wall-clock budget — only user Stop.
     if (n >= TWO64 || limit >= NM1_ISQRT) {
       if (bits >= HUGE_BITS) {
+        emit(onTick, "precheck", 0n, 1n, { label: "trial factor to 10^6" });
+        const smallF = firstTrialFactor(n, FACTOR_TRIAL_BOUND);
+        if (smallF) {
+          return done(false, "trial-factor", smallF, "divisible by " + smallF.toString(), limit, t0);
+        }
         for (let i = 0; i < 6; i++) {
           const a = BASES[i];
           emit(onTick, "fermat", BigInt(i + 1), 6n, {
@@ -2381,7 +2439,8 @@
           }
           if (powBig(a, n - 1n, n) !== 1n) {
             let g = gcd(powBig(a, n - 1n, n) - 1n, n);
-            if (!(g > 1n && g < n)) g = null;
+            if (!(g > 1n && g < n)) g = extractFactor(n, onTick, shouldStop);
+            if (shouldStop && shouldStop()) return { aborted: true };
             return done(
               false,
               "fermat",
@@ -2406,12 +2465,15 @@
           );
         }
         if (ecHuge.prime === false) {
+          let fac = ecHuge.factor;
+          if (fac == null) fac = extractFactor(n, onTick, shouldStop);
+          if (shouldStop && shouldStop()) return { aborted: true };
           return done(
             false,
             "ecpp",
-            ecHuge.factor,
-            ecHuge.factor
-              ? "ECPP extracted a factor " + ecHuge.factor.toString()
+            fac,
+            fac
+              ? "ECPP extracted a factor " + fac.toString()
               : "ECPP proved composite",
             limit,
             t0
@@ -2851,6 +2913,11 @@
     const cHuge = 10n ** 130n + 1117n;
     const rh = checkPrime(cHuge);
     assert(rh.prime === false, "131-digit Fermat composite must not be inconclusive: " + JSON.stringify(rh));
+    const c132 = 10n ** 131n + 1113n;
+    const r132 = checkPrime(c132);
+    assert(r132.prime === false, "10^131+1113 must be composite: " + JSON.stringify(r132));
+    assert(r132.factor != null && c132 % BigInt(r132.factor) === 0n, "10^131+1113 must print a factor");
+    assert(BigInt(r132.factor) === 193n, "10^131+1113 factor 193, got " + r132.factor);
     let hugeCurves = 0;
     const hugePh = ecmPhases(bitLength(p131));
     for (let i = 0; i < hugePh.length; i++) hugeCurves += hugePh[i].curves;

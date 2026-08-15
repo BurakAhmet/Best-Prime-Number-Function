@@ -73,6 +73,8 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "WHEEL30" in ui
     assert "data-res=" in ui
     assert "extractFactor" in src
+    assert "FACTOR_TRIAL_BOUND" in src
+    assert "firstTrialFactor" in src
     assert "emit(onTick" in src or "function emit(" in src
     assert "nextPrime" in src
     assert "prevPrime" in src
