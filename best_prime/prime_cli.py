@@ -37,6 +37,36 @@ def _parse_k_token(raw: str) -> int:
     return _parse_k(int(digits))
 
 
+def _take_max_ms(argv: list[str]) -> tuple[list[str], int | None]:
+    out: list[str] = []
+    max_ms: int | None = None
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--max-ms":
+            if i + 1 >= len(argv):
+                print("usage: --max-ms MS", file=sys.stderr)
+                raise SystemExit(2)
+            try:
+                max_ms = int(argv[i + 1])
+            except ValueError:
+                print(f"invalid --max-ms: {argv[i + 1]!r}", file=sys.stderr)
+                raise SystemExit(2) from None
+            i += 2
+            continue
+        if a.startswith("--max-ms="):
+            try:
+                max_ms = int(a.split("=", 1)[1])
+            except ValueError:
+                print(f"invalid --max-ms: {a!r}", file=sys.stderr)
+                raise SystemExit(2) from None
+            i += 1
+            continue
+        out.append(a)
+        i += 1
+    return out, max_ms
+
+
 def _scan(argv: list[str], usage: str, max_pos: int) -> tuple[list[str], bool]:
     serial = False
     positional: list[str] = []
@@ -121,14 +151,35 @@ def primerange_main(argv: list[str] | None = None) -> None:
 
 
 def prime_factors_main(argv: list[str] | None = None) -> None:
-    usage = "usage: prime-factors [--serial] n"
-    pos, serial = _scan(argv if argv is not None else sys.argv[1:], usage, 1)
+    usage = "usage: prime-factors [--serial] [--max-ms MS] n"
+    raw = argv if argv is not None else sys.argv[1:]
+    raw, max_ms = _take_max_ms(raw)
+    pos, serial = _scan(raw, usage, 1)
     try:
         n = _parse_n(pos[0])
     except (TypeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
-    facs = prime_factors(n, parallel=not serial)
+    from .errors import UnsettledFactorError
+    from .progress import configure
+
+    configure()
+    # Huge complete factorizations are not a primality proof. Cap the CLI
+    # so a 100-digit balanced composite does not hang the terminal.
+    if max_ms is None and n.bit_length() > 512:
+        max_ms = 30_000
+    try:
+        facs = prime_factors(n, parallel=not serial, max_ms=max_ms)
+    except UnsettledFactorError as exc:
+        leftover = exc.leftover
+        found = " ".join(str(p) for p in exc.found)
+        _print(
+            str(n),
+            "unsettled",
+            found=found or "-",
+            leftover=leftover,
+        )
+        raise SystemExit(3) from exc
     _print(str(n), " ".join(str(p) for p in facs), count=len(facs))
 
 
@@ -188,7 +239,10 @@ def primality_certificate_main(argv: list[str] | None = None) -> None:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
     from .certificate import primality_certificate, verify_certificate
+    from .progress import configure, deadline_ms_from_env, set_deadline_ms
 
+    configure()
+    set_deadline_ms(deadline_ms_from_env())
     cert = primality_certificate(n, parallel=not serial)
     ok = verify_certificate(cert)
     kind = cert.get("kind") or cert.get("reason") or ("factor" if "factor" in cert else "?")

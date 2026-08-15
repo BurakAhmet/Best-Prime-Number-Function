@@ -11,8 +11,11 @@ balanced composites. Each prime factor is confirmed with is_prime.
 from __future__ import annotations
 
 import math
+import time
 from collections import Counter
+from dataclasses import dataclass, field
 
+from .errors import UnsettledFactorError
 from .is_prime import _parse_n, is_prime
 
 # 30-wheel steps starting at 7 (residues 1,7,11,13,17,19,23,29).
@@ -140,8 +143,21 @@ def _brent(n: int, c: int, x0: int = 2, max_r: int = 1 << 22) -> int:
     return g
 
 
-def _split(n: int) -> int:
+@dataclass
+class _FactorBudget:
+    n: int
+    found: list[int] = field(default_factory=list)
+    deadline: float | None = None
+
+    def check(self, leftover: int) -> None:
+        if self.deadline is not None and time.perf_counter() >= self.deadline:
+            raise UnsettledFactorError(self.n, leftover=leftover, found=list(self.found))
+
+
+def _split(n: int, budget: _FactorBudget | None = None) -> int:
     """A proper factor of composite n > 1."""
+    if budget is not None:
+        budget.check(n)
     f = _fermat_split(n)
     if f is not None:
         return f
@@ -149,6 +165,8 @@ def _split(n: int) -> int:
     # probe after that. Does not replace is_prime's trial-to-√n contract.
     from .factor_lehman import lehman_factor
 
+    if budget is not None:
+        budget.check(n)
     if n.bit_length() <= 64:
         f = lehman_factor(n)
     else:
@@ -157,24 +175,32 @@ def _split(n: int) -> int:
         return f
     # Fixed c sequence: 1,2,3,… (c=0 is x^2, often degenerate).
     for c in range(1, 64):
+        if budget is not None:
+            budget.check(n)
         g = _brent(n, c)
         if 1 < g < n:
             return g
     # Medium / large balanced composites: ECM then SIQS (deterministic schedules).
     bits = n.bit_length()
     if bits >= 28:
+        if budget is not None:
+            budget.check(n)
         from .factor_ecm import ecm_factor
 
         g = ecm_factor(n)
         if g is not None and 1 < g < n:
             return g
     if bits >= 28:
+        if budget is not None:
+            budget.check(n)
         from .factor_siqs import siqs_factor
 
         g = siqs_factor(n)
         if g is not None and 1 < g < n:
             return g
     # Last resort: full 30-wheel trial (always finds a factor of a composite).
+    if budget is not None:
+        budget.check(n)
     out: list[int] = []
     rem = _trial_30(n, out)
     if out:
@@ -184,23 +210,34 @@ def _split(n: int) -> int:
     raise RuntimeError(f"failed to split composite {n}")
 
 
-def _factor_rec(n: int, out: list[int], *, parallel: bool) -> None:
+def _factor_rec(n: int, out: list[int], *, parallel: bool, budget: _FactorBudget) -> None:
     if n == 1:
         return
+    budget.check(n)
     if n < 4 or is_prime(n, parallel=parallel):
         out.append(n)
         return
-    f = _split(n)
-    _factor_rec(f, out, parallel=parallel)
-    _factor_rec(n // f, out, parallel=parallel)
+    f = _split(n, budget)
+    _factor_rec(f, out, parallel=parallel, budget=budget)
+    _factor_rec(n // f, out, parallel=parallel, budget=budget)
 
 
-def prime_factors(n: int | str, *, parallel: bool = True) -> list[int]:
-    """Prime factors of n with multiplicity, ascending. ``[]`` for n < 2."""
+def prime_factors(
+    n: int | str, *, parallel: bool = True, max_ms: int | None = None
+) -> list[int]:
+    """Prime factors of n with multiplicity, ascending. ``[]`` for n < 2.
+
+    ``max_ms`` is a wall-clock cap. When it expires and a composite
+    remainder is still unsplit, raise ``UnsettledFactorError`` (the
+    isolated primes are on ``.found``). ``None`` is the historical
+    complete search — hostile 100-digit balanced composites can take
+    a long time. The CLI default-caps huge ``n``; this function does not.
+    """
     n_int = _parse_n(n)
     if n_int < 2:
         return []
     out: list[int] = []
+    original = n_int
     n_int = _strip(n_int, 2, out)
     n_int = _strip(n_int, 3, out)
     n_int = _strip(n_int, 5, out)
@@ -210,14 +247,22 @@ def prime_factors(n: int | str, *, parallel: bool = True) -> list[int]:
     n_int = _trial_30(n_int, out, limit=1021 if n_int.bit_length() > 40 else None)
     if n_int == 1:
         return out
-    rest: list[int] = []
-    _factor_rec(n_int, rest, parallel=parallel)
-    out.extend(rest)
+    deadline = None if max_ms is None else time.perf_counter() + max(0, int(max_ms)) / 1000.0
+    budget = _FactorBudget(n=original, found=out, deadline=deadline)
+    if deadline is not None and time.perf_counter() >= deadline:
+        if is_prime(n_int, parallel=parallel):
+            out.append(n_int)
+            out.sort()
+            return out
+        raise UnsettledFactorError(original, leftover=n_int, found=out)
+    _factor_rec(n_int, out, parallel=parallel, budget=budget)
     out.sort()
     return out
 
 
-def factorint(n: int | str, *, parallel: bool = True) -> dict[int, int]:
-    """Map prime → exponent. Empty for n < 2."""
-    facs = prime_factors(n, parallel=parallel)
+def factorint(
+    n: int | str, *, parallel: bool = True, max_ms: int | None = None
+) -> dict[int, int]:
+    """Map prime → exponent. Empty for n < 2. See ``prime_factors`` for ``max_ms``."""
+    facs = prime_factors(n, parallel=parallel, max_ms=max_ms)
     return dict(Counter(facs))

@@ -79,7 +79,7 @@ flowchart TD
 One engine per band. No BLS → ECPP → FastECPP → AKS chain.
 
 1. **bits $< 256$:** combined BLS only (the 147-bit CLI default is `u128_nm1`). If BLS misses and $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ on a 128-bit $n$: OpenMP **`is_prime_u128_core`**. Else `UnsettledPrimalityError`.
-2. **bits $\ge 256$:** **FastECPP only** ([guide](ecpp-proof.md)) — class-number-1 $D$ first, then computed $H_D$, path `bigint_fastecpp`. A Fermat miss is a composite proof. No BLS peel, no second transcribed-ECPP pass, no AKS. Cap 15 s above ~1000 digits, then unsettled.
+2. **bits $\ge 256$:** **FastECPP only** ([guide](ecpp-proof.md)) — class-number-1 $D$ first, then computed $H_D$, path `bigint_fastecpp`. A Fermat miss is a composite proof. No BLS peel, no second transcribed-ECPP pass, no AKS. Cap 15 s above ~1000 digits, then unsettled. `primality_certificate` emits the same FastECPP witness (`kind='ecpp'`) and `verify_certificate` checks it without searching.
 
 Inspect the live path with [`lab(n)`](api.md).
 
@@ -110,7 +110,7 @@ Let $L = \lfloor\sqrt{n}\rfloor$.
 | OpenMP seg-primes ($t$ threads, large $L$) | $\Theta(\sqrt{n}/t)$ wall-clock *ideally* |
 | Combined BLS (special-form $n\pm 1$) | Factor $n\pm 1$ + $O(\log n)$ exponentiations / Lucas |
 | Deterministic ECPP (small-$h$) | Poly in $\log n$ with CM search; transcribed $H_D$ |
-| FastECPP (computed $H_D$) | General 100-digit gate ($10^{99}+289$); not 10k-digit yet |
+| FastECPP (computed $H_D$) | General 100-digit gate ($10^{99}+289$); 150–200 digits measured; not 10k-digit / 10 s |
 | Partial trial then AKS | Poly in $\log n$ *in theory*; last resort for huge primes |
 
 Composite early exit is roughly $\Theta(p)$ for least prime factor $p$.

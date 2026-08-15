@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.12.0** + unreleased huge-n BLS / ECPP ladder |
+| **Current package version** | **1.13.0** (FastECPP certificates, CLI progress, bounded factors) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -876,4 +876,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.12.0** + unreleased huge-n BLS / ECPP / FastECPP M1 (147-bit `DEFAULT_N` unchanged). Extend forward; do not delete past eras.*
+*Last updated for package **1.13.0** (147-bit `DEFAULT_N` unchanged). Extend forward; do not delete past eras.*

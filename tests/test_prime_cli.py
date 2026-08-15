@@ -76,6 +76,14 @@ class TestPrimeCli:
         assert code == 0
         assert "RESULT:  2 2 2 3 3 5" in out
 
+    def test_prime_factors_max_ms_unsettled(self):
+        from tests.numbers import P40_H1_FRIENDLY
+
+        n = str(P40_H1_FRIENDLY * P40_H1_FRIENDLY)
+        with pytest.raises(SystemExit) as ei:
+            prime_factors_main(["--max-ms", "0", n])
+        assert ei.value.code == 3
+
     def test_is_prime_power_yes(self):
         code, out = _run(is_prime_power_main, "8")
         assert code == 0

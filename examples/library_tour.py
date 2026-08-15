@@ -51,6 +51,7 @@ from best_prime import (  # noqa: E402
     totient_range,
     verify_certificate,
     UnsettledPrimalityError,
+    UnsettledFactorError,
 )
 from best_prime.next_prime import NEXT_PRIME_SIEVE_ISQRT_MAX  # noqa: E402
 
@@ -72,6 +73,7 @@ def main() -> None:
     show("NEXT_PRIME_SIEVE_ISQRT_MAX", NEXT_PRIME_SIEVE_ISQRT_MAX)
     show("AKS_SKIP_BITS", AKS_SKIP_BITS)
     show("UnsettledPrimalityError", UnsettledPrimalityError.__name__)
+    show("UnsettledFactorError", UnsettledFactorError.__name__)
 
     print("\nprimality")
     show("is_prime(17)", is_prime(17))

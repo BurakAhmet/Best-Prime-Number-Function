@@ -7,9 +7,18 @@ import math
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
+from best_prime.errors import UnsettledFactorError
 from best_prime.is_prime import is_prime
 from best_prime.prime_factors import factorint, prime_factors
-from tests.numbers import MR_LIAR, MR_LIAR_FACTORS, P10_9_7, P10_9_9, SEMIPRIME_1E9, SMALL_PRIMES
+from tests.numbers import (
+    MR_LIAR,
+    MR_LIAR_FACTORS,
+    P10_9_7,
+    P10_9_9,
+    P40_H1_FRIENDLY,
+    SEMIPRIME_1E9,
+    SMALL_PRIMES,
+)
 
 _HYP = dict(
     deadline=None,
@@ -70,6 +79,22 @@ class TestPrimeFactors:
     def test_bool_rejected(self):
         with pytest.raises(TypeError):
             prime_factors(True)  # type: ignore[arg-type]
+
+    def test_max_ms_zero_raises_on_large_square(self):
+        n = P40_H1_FRIENDLY * P40_H1_FRIENDLY
+        with pytest.raises(UnsettledFactorError) as ei:
+            prime_factors(n, max_ms=0)
+        assert ei.value.leftover > 1
+        assert n % ei.value.leftover == 0
+        assert ei.value.n == n
+
+    def test_square_factors_without_cap(self):
+        n = P40_H1_FRIENDLY * P40_H1_FRIENDLY
+        assert prime_factors(n) == [P40_H1_FRIENDLY, P40_H1_FRIENDLY]
+
+    def test_max_ms_none_still_factors_small(self):
+        assert prime_factors(97, max_ms=0) == [97]
+        assert factorint(12, max_ms=50) == {2: 2, 3: 1}
 
     def test_ecm_classic(self):
         from best_prime.factor_ecm import ecm_factor

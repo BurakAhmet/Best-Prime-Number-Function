@@ -69,11 +69,36 @@ Result = Optional[bool]
 _proving: set[int] = set()
 # Nested ECPP must not clobber the outer witness payload.
 _cert_stack: list[dict] = []
+# Last downrun witness, tagged by q so a nested prove cannot leak.
+_last_child: tuple[int, dict] | None = None
 
 
-def _note(**kwargs: int) -> None:
+def _note(**kwargs: object) -> None:
     if _cert_stack:
         _cert_stack[-1].update(kwargs)
+
+
+def _set_child_rec(q: int, rec: dict | None) -> None:
+    global _last_child
+    _last_child = None if rec is None else (int(q), rec)
+
+
+def _take_child_rec(q: int) -> dict | None:
+    global _last_child
+    if _last_child is None or _last_child[0] != int(q):
+        return None
+    rec = _last_child[1]
+    _last_child = None
+    return rec
+
+
+def _note_curve(q: int, **kwargs: object) -> None:
+    payload = dict(kwargs)
+    payload.setdefault("q", int(q))
+    _note(**payload)
+    child = _take_child_rec(q)
+    if child is not None:
+        _note(q_rec=child)
 
 
 def gk_min_q(n: int) -> int:
@@ -586,7 +611,7 @@ def _try_curve_orders(
         if hit is True:
             dec = _prove_q(q, n, parallel=parallel, proven=proven, max_h=max_h)
             if dec is True:
-                _note(a=int(a), b=int(b), m=int(m), c=int(c), q=int(q))
+                _note_curve(q, a=int(a), b=int(b), m=int(m), c=int(c))
                 return True
     return None
 
@@ -628,7 +653,7 @@ def _try_d_neg4(n: int, t: int, *, parallel: bool, max_h: int) -> Result:
         if hit is True:
             dec = _prove_q(q, n, parallel=parallel, proven=proven, max_h=max_h)
             if dec is True:
-                _note(a=int(a), b=0, m=int(m), c=int(c), q=int(q))
+                _note_curve(q, a=int(a), b=0, m=int(m), c=int(c))
                 return True
     return None
 
@@ -660,7 +685,7 @@ def _try_d_neg3(n: int, t: int, *, parallel: bool, max_h: int) -> Result:
         if hit is True:
             dec = _prove_q(q, n, parallel=parallel, proven=proven, max_h=max_h)
             if dec is True:
-                _note(a=0, b=int(b), m=int(m), c=int(c), q=int(q))
+                _note_curve(q, a=0, b=int(b), m=int(m), c=int(c))
                 return True
     return None
 

@@ -1,6 +1,6 @@
 # best_prime
 
-**Fully deterministic** primality, $\pi(n)$, factoring, and arithmetic for every natural number. Exact trial through practical $\sqrt{n}$, then **combined BLS**, then **ECPP**, then **AKS** only as last resort.
+**Fully deterministic** primality, $\pi(n)$, factoring, and arithmetic for every natural number. One engine per band: wheel / OpenMP trial, **combined BLS** below 256 bits, **FastECPP** at 256+ bits. AKS is not a product-path fallback.
 
 Import the public API from **`best_prime`**. No stochastic Miller–Rabin. No prime libraries as the engine.
 
@@ -47,6 +47,8 @@ This library keeps a stricter contract: same $n$, any machine, serial or paralle
 - [Engines](engines.md) — which path runs for your $n$
 - [Performance](performance.md) — e2e numbers and how we measure
 
-The **interactive lab** (30-wheel orrery, daily specimen, downloadable trial certificate) stays at the [Pages root](https://burakahmet.github.io/Best-Prime-Number-Function/). This guide is the library documentation.
+The **interactive lab** (30-wheel orrery, daily specimen, downloadable trial certificate) stays at the [Pages root](https://burakahmet.github.io/Best-Prime-Number-Function/). It is an in-browser exhibit, not this library. This guide is the library documentation.
+
+**1.13.0** proves the documented bands (BLS / FastECPP) with matching certificates. A general 10k-digit prime in 10 s is the north-star and is not claimed. See the [FAQ](faq.md).
 
 **Source:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function) · package `best-prime-number-function` · import `best_prime`

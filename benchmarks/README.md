@@ -2,6 +2,8 @@
 
 CLI `TIME` from `python -m best_prime` is **end-to-end** (module `t0` → result). Use `compare_e2e.py` for that metric.
 
+`timing_table.py` is the published FastECPP-size table (PR: P100; main: P150; nightly: P200). It records times and fails only on a wrong verdict. 10k-digit / 10 s is not a row.
+
 `compare_speed.py` still times in-process `is_prime()` calls only (warm JIT), useful for hot-loop regressions.
 
 This directory measures **wall-clock time** for deterministic algorithms on the same inputs:

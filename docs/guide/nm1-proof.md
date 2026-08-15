@@ -81,7 +81,7 @@ still-larger n
 
 `lab(n)["path"]` is `u64_nm1` / `u128_nm1` when n−1 settles, `bigint_bls` when n+1 or combined settles, else `u64_lehman_c` / `u128_lehman_c` in cubic budget.
 
-Designed BLS certificates (`kind='bls'`) record which side fired and, for combined, the two cubic products $F^{2}G/2$ and $FG^{2}/2$ — never $FG>\sqrt{n}$. Until that API ships, $n\ge 2^{64}$ outside cubic returns `kind='unsupported'` rather than hanging in Pratt $n-1$.
+BLS certificates (`kind='bls'`) record which side fired and, for combined, the two cubic products $F^{2}G/2$ and $FG^{2}/2$ — never $FG>\sqrt{n}$. At $\ge 256$ bits `primality_certificate` uses FastECPP, not BLS. Hostile Pratt $n-1$ still returns `n-1_unfactored` rather than hanging.
 
 ## Related
 

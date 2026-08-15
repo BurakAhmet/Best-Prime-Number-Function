@@ -935,11 +935,17 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
         is_prime_fastecpp_max_ms,
     )
 
+    from .progress import deadline_hit, emit
+
+    emit("fermat", digits=len(str(n)), bits=bits)
     for a in fermat_bases_for_bits(bits):
         if a % n == 0:
             return n == a
         if _powmod(a, n - 1, n) != 1:
             return False
+    if deadline_hit():
+        _last_is_prime_big_path = "bigint_unsettled"
+        raise UnsettledPrimalityError(n)
 
     if FASTECPP_MIN_BITS <= bits <= FASTECPP_MAX_BITS:
         decided = fastecpp_primality(
@@ -1305,6 +1311,7 @@ def _main_simple(argv: list[str]) -> int:
             return _main_full(argv)
         else:
             positional.append(a)
+
     arg = positional[0] if positional else str(DEFAULT_N)
     parallel = not serial
     try:
@@ -1315,6 +1322,18 @@ def _main_simple(argv: list[str]) -> int:
     if n < 0:
         print("n must be a natural number (n >= 0)", file=sys.stderr)
         return 2
+
+    from .progress import (
+        configure,
+        deadline_ms_from_env,
+        emit,
+        is_configured,
+        set_deadline_ms,
+    )
+
+    if not is_configured():
+        configure()
+        set_deadline_ms(deadline_ms_from_env())
 
     factor: int | None = None
     from .factor_lehman import cubic_complete_ready, lehman_factor
@@ -1371,7 +1390,14 @@ def _main_simple(argv: list[str]) -> int:
         )
 
     if not prime:
+        if n.bit_length() >= 256:
+            emit("composite; hunting factor", digits=len(str(n)))
         factor = _one_factor(n, parallel=parallel)
+        if n.bit_length() >= 256:
+            if factor is not None:
+                emit("factor", p=factor)
+            else:
+                emit("factor not isolated")
     _print_result(str(n) if positional else arg, prime, threads, factor)
     return 0 if prime else 1
 
@@ -1385,8 +1411,21 @@ def _main_full(argv: list[str] | None = None) -> int:
     parser.add_argument("--lab", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--serial", action="store_true")
+    parser.add_argument("--progress", action="store_true", default=None)
+    parser.add_argument("--no-progress", action="store_true")
+    parser.add_argument("--max-ms", type=int, default=None)
     args = parser.parse_args(argv)
     parallel = not args.serial
+    from .progress import configure, deadline_ms_from_env, set_deadline_ms
+
+    if args.no_progress:
+        configure(enabled=False)
+    elif args.progress:
+        configure(enabled=True)
+    else:
+        configure()
+    cap = args.max_ms if args.max_ms is not None else deadline_ms_from_env()
+    set_deadline_ms(cap)
     if args.lab:
         info = lab(args.n, parallel=parallel)
         factor = None

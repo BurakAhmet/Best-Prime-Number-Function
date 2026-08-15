@@ -29,9 +29,9 @@ try:
     try:
         __version__ = version("best-prime-number-function")
     except PackageNotFoundError:  # pragma: no cover - editable / source tree
-        __version__ = "1.12.0"
+        __version__ = "1.13.0"
 except ImportError:  # pragma: no cover
-    __version__ = "1.12.0"
+    __version__ = "1.13.0"
 
 # (submodule, attribute)
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -52,6 +52,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "is_perfect_power": (".prime_power", "is_perfect_power"),
     "is_prime": (".is_prime", "is_prime"),
     "UnsettledPrimalityError": (".errors", "UnsettledPrimalityError"),
+    "UnsettledFactorError": (".errors", "UnsettledFactorError"),
     "AKS_SKIP_BITS": (".is_prime", "AKS_SKIP_BITS"),
     "is_prime_power": (".prime_power", "is_prime_power"),
     "NEXT_PRIME_SIEVE_ISQRT_MAX": (".next_prime", "NEXT_PRIME_SIEVE_ISQRT_MAX"),
@@ -99,6 +100,7 @@ __all__ = [
     "is_prime",
     "is_prime_power",
     "UnsettledPrimalityError",
+    "UnsettledFactorError",
     "AKS_SKIP_BITS",
     "is_semiprime",
     "NEXT_PRIME_SIEVE_ISQRT_MAX",
