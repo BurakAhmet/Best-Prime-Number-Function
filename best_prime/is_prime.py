@@ -896,7 +896,9 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
     * ``bits < 256``: combined BLS (``DEFAULT_N``). Then u128 trial if
       that band is complete. Else unsettled — do not start AKS.
     * ``bits ≥ 256``: FastECPP only (includes class-number-1). A Fermat
-      miss is a composite proof, not a second engine.
+      miss is a composite proof, not a second engine. Arithmetic cost
+      grows with bit length (one exp, then CM work on *n*). Two primes
+      of similar size can still differ when their ECPP trees differ.
     """
     global _last_is_prime_big_path
     _last_is_prime_big_path = None

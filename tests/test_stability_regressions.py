@@ -8,9 +8,9 @@ These tests exist because the product failed in ways that looked like
   (CLI factor hunt started a complete cubic search).
 * ``10^131+1113`` was reported composite with no factor (Fermat base 2
   failed without a gcd; 193 was never trial-divided).
-* A 122-digit ``prev_prime`` was slower than a 123-digit one. Digit count
-  does not dominate: gap and CM tree do. What *is* a bug is a hang or an
-  8-million-k cubic walk on a smaller composite.
+* ``is_prime`` on a Fermat composite must get slower with bit length
+  (one exponentiation), not hang. Two nearby *primes* may invert when
+  their CM trees differ — that is not a size bug.
 
 Default-suite tests have tight wall clocks. Multi-second prime proofs
 are ``@pytest.mark.slow``.
@@ -209,26 +209,36 @@ class TestNeighborsOnUserComposites:
         assert next_prime(USER_C123_PREV) > USER_C123_PREV
 
 
-class TestNaturalCostNotArtificial:
-    """Smaller *easy* work must not be pathologically slower than larger *easy* work.
+class TestIsPrimeCostFollowsGreatness:
+    """``is_prime`` only — not next/prev.
 
-    Do not compare two general primes: an unlucky 122-digit CM tree can
-    beat a lucky 123-digit one. Compare Fermat composites (one exp).
+    A Fermat miss is one modular exponentiation, so time grows with
+    bit length. A hang or an 8e6 cubic walk on a smaller composite is
+    a bug. Two *primes* of nearby size can still invert (different CM
+    trees); that is the certificate, not a size cliff.
     """
 
-    def test_fermat_composite_cost_has_no_size_cliff(self):
+    def test_fermat_composite_time_grows_with_digits(self):
         samples = []
-        for d in (20, 40, 60, 80, 100, 122):
+        # 10^131+1203 is prime — do not call is_prime on it in the default suite.
+        for d in (20, 40, 60, 80, 100, 122, 149):
             n = 10**d + 1203
             elapsed = _seconds(is_prime, n)
-            samples.append((d, elapsed))
-            assert elapsed < 2.0, f"10^{d}+1203 took {elapsed:.3f}s"
-        # Adjacent sizes: smaller must not be 30× slower (that is a hang/cliff).
-        for (d0, t0), (d1, t1) in zip(samples, samples[1:]):
+            samples.append((d, n.bit_length(), elapsed))
+            assert elapsed < 2.0, f"is_prime(10^{d}+1203) composite took {elapsed:.3f}s"
+        assert [d for d, _b, _t in samples] == [20, 40, 60, 80, 100, 122, 149]
+        # No hang-cliff: a smaller composite must not be 30× a larger one.
+        for (d0, b0, t0), (d1, b1, t1) in zip(samples, samples[1:]):
+            assert b0 < b1
             assert t0 < t1 * 30 + 0.25, (
-                f"10^{d0}+1203 ({t0:.4f}s) vs 10^{d1}+1203 ({t1:.4f}s): "
-                "smaller easy composite must not cliff"
+                f"is_prime(10^{d0}+1203) {t0:.4f}s vs 10^{d1}+1203 {t1:.4f}s"
             )
+
+    def test_composite_is_faster_than_proving_a_nearby_prime(self):
+        # Same 123-digit neighborhood: Fermat miss vs FastECPP proof.
+        t_comp = _seconds(is_prime, USER_C123)
+        assert t_comp < 0.05
+        assert is_prime(USER_C123) is False
 
     def test_one_factor_small_factor_beats_ten_digit_factor(self):
         t193 = _seconds(_one_factor, USER_C132_LOOKALIKE)
