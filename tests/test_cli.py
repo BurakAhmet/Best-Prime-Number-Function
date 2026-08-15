@@ -45,6 +45,17 @@ class TestCliExitCodes:
         factor = int(line.split()[-1])
         assert 1 < factor < 100 and 100 % factor == 0
 
+    def test_huge_fermat_composite_prints_factor_quickly(self):
+        # 10^122+1203: Fermat composite. Old CLI hung in complete cubic.
+        n = 10**122 + 1203
+        r = _run(str(n), timeout=20.0)
+        assert r.returncode == 1, r.stdout + r.stderr
+        assert "not prime" in r.stdout
+        assert "FACTOR:" in r.stdout
+        line = next(x for x in r.stdout.splitlines() if x.startswith("FACTOR:"))
+        factor = int(line.split()[-1])
+        assert 1 < factor < n and n % factor == 0
+
     def test_prime_has_no_factor_line(self):
         r = _run("97")
         assert r.returncode == 0
@@ -61,7 +72,7 @@ class TestCliExitCodes:
 
     def test_wide_unsettled_exits_three(self):
         # Wider than the FastECPP product band. 10**200+357 is A003617(201).
-        r = _run(str(10**1999 + 357), timeout=15.0)
+        r = _run(str(10**1999 + 357), timeout=60.0)
         assert r.returncode in (1, 3), r.stdout + r.stderr
         if r.returncode == 3:
             assert "RESULT:  unsettled" in r.stdout

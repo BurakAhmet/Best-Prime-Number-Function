@@ -144,7 +144,7 @@ def _fermat_split(n: int, rounds: int = 65_536) -> int | None:
     return None
 
 
-def _brent(n: int, c: int, x0: int = 2) -> int:
+def _brent(n: int, c: int, x0: int = 2, max_r: int = 1 << 22) -> int:
     """Deterministic Brent–Pollard cycle. Returns a divisor of n (maybe n).
 
     Product-of-differences + rarer GCDs (m=512) cuts modular GCDs on
@@ -158,7 +158,6 @@ def _brent(n: int, c: int, x0: int = 2) -> int:
     m = 512
     x = y
     # Cap growth so hostile composites do not run unbounded on next_prime.
-    max_r = 1 << 22
     while g == 1 and r <= max_r:
         x = y
         for _ in range(r):

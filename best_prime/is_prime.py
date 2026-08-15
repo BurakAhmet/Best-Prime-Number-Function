@@ -1204,7 +1204,13 @@ def __getattr__(name: str):
 
 
 def _one_factor(n: int, *, parallel: bool = True) -> int | None:
-    """One proper factor of composite n, or None for 0, 1, or prime."""
+    """One proper factor of composite n, or None for 0, 1, or prime.
+
+    Must not hang the CLI on a 100-digit Fermat composite. Complete
+    cubic search only when that band is ready; otherwise trial, a
+    short Brent, and bounded ECM. Never start ``prime_factors`` (SIQS /
+    trial-to-√n) from here.
+    """
     if n < 2:
         return None
     if n % 2 == 0:
@@ -1213,15 +1219,49 @@ def _one_factor(n: int, *, parallel: bool = True) -> int | None:
         return 3
     if n % 5 == 0:
         return 5
-    from .factor_lehman import lehman_factor
+    from .factor_lehman import cubic_complete_ready, lehman_factor
+    from .prime_factors import _brent, _fermat_split, _trial_30
 
-    f = lehman_factor(n, parallel=parallel)
-    if f is not None:
+    bits = n.bit_length()
+    # 1000-digit+ : a 1e6 wheel is a long walk. Trial only to 1021, then stop.
+    trial_lim = 1_021 if bits > 3_500 else 1_000_000
+    out: list[int] = []
+    rem = _trial_30(n, out, limit=trial_lim)
+    if out:
+        return out[0]
+    if rem != n and 1 < rem < n:
+        return rem
+    if bits > 3_500:
+        return None
+
+    if cubic_complete_ready(n):
+        f = lehman_factor(n, parallel=parallel)
+        if f is not None and 1 < f < n:
+            return f
+
+    f = _fermat_split(n, 4096 if bits >= 256 else 65_536)
+    if f is not None and 1 < f < n:
         return f
-    from .prime_factors import prime_factors
 
-    facs = prime_factors(n, parallel=parallel)
-    return facs[0] if facs else None
+    # 10^122+1203 splits on Brent c=1 in well under a second.
+    if bits >= 512:
+        ncurves, brent_r, ecm_ms = 4, 1 << 14, 2_000
+    elif bits >= 256:
+        ncurves, brent_r, ecm_ms = 8, 1 << 18, 5_000
+    else:
+        ncurves, brent_r, ecm_ms = 32, 1 << 22, 15_000
+    for c in range(1, ncurves + 1):
+        g = _brent(n, c, max_r=brent_r)
+        if 1 < g < n:
+            return g
+
+    if bits >= 28:
+        from .factor_ecm import ecm_factor
+
+        g = ecm_factor(n, max_ms=ecm_ms)
+        if g is not None and 1 < g < n:
+            return g
+    return None
 
 
 def _print_result(
