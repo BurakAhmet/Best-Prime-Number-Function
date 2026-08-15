@@ -204,8 +204,8 @@
       const ang = (res / 30) * Math.PI * 2 - Math.PI / 2;
       const x = cx + r * Math.cos(ang);
       const y = cy + r * Math.sin(ang);
-      const lx = cx + (r + 14) * Math.cos(ang);
-      const ly = cy + (r + 14) * Math.sin(ang);
+      const lx = cx + (r + 16) * Math.cos(ang);
+      const ly = cy + (r + 16) * Math.sin(ang);
       return (
         '<g class="spoke" data-res="' +
         res +
@@ -223,7 +223,7 @@
         x +
         '" cy="' +
         y +
-        '" r="3.4"/>' +
+        '" r="3.6"/>' +
         '<text x="' +
         lx +
         '" y="' +
@@ -235,114 +235,220 @@
     }).join("");
     return (
       '<svg viewBox="0 0 120 120" aria-hidden="true">' +
+      '<circle class="orrery-ring orrery-ring-outer" cx="60" cy="60" r="52"/>' +
       '<circle class="orrery-ring" cx="60" cy="60" r="40"/>' +
+      '<circle class="orrery-ring orrery-ring-inner" cx="60" cy="60" r="18"/>' +
       spokes +
+      '<g id="viz-wheel-needle" class="orrery-needle" transform="rotate(-90 60 60)">' +
+      '<line x1="60" y1="60" x2="60" y2="22"/>' +
+      '<circle cx="60" cy="22" r="2.6"/>' +
+      "</g>" +
+      '<circle class="orrery-hub-seal" cx="60" cy="60" r="11"/>' +
       '<text class="orrery-hub" x="60" y="64">30</text></svg>'
     );
+  }
+
+  function ecppConstellation() {
+    const ds = [-3, -4, -7, -8, -11, -12, -16, -19, -27, -28, -43, -67, -163];
+    return ds
+      .map(function (d, i) {
+        const th = (i / ds.length) * Math.PI * 2 - Math.PI / 2;
+        const x = (100 + 74 * Math.cos(th)).toFixed(1);
+        const y = (50 + 22 * Math.sin(th)).toFixed(1);
+        return (
+          '<g class="viz-star" data-d="' +
+          d +
+          '"><circle cx="' +
+          x +
+          '" cy="' +
+          y +
+          '" r="2.3"/><text x="' +
+          x +
+          '" y="' +
+          (Number(y) - 6).toFixed(1) +
+          '">' +
+          d +
+          "</text></g>"
+        );
+      })
+      .join("");
+  }
+
+  function fermatLanterns() {
+    const bases = [2, 3, 5, 7, 11, 13];
+    return bases
+      .map(function (a, i) {
+        const x = 18 + i * 30;
+        return (
+          '<g class="viz-lantern" data-a="' +
+          a +
+          '" transform="translate(' +
+          x +
+          ',36)">' +
+          '<rect class="viz-lantern-post" x="-1" y="8" width="2" height="10"/>' +
+          '<path class="viz-lantern-glass" d="M-6 8 L-6 0 Q-6 -8 0 -8 Q6 -8 6 0 L6 8 Z"/>' +
+          '<circle class="viz-lantern-glow" cx="0" cy="0" r="5"/>' +
+          '<text x="0" y="24">' +
+          a +
+          "</text></g>"
+        );
+      })
+      .join("");
   }
 
   function stageMarkup() {
     return `
       <div class="lab-stage" id="lab-stage" hidden>
+        <p class="lab-theatre-kicker">engine theatre · deterministic cast · no understudies named Miller or Rabin</p>
+        <p class="lab-theatre-act" id="lab-theatre-act"></p>
         <figure class="lab-viz" data-phase="precheck" hidden>
-          <svg viewBox="0 0 200 72" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">small-prime filter</text>
+          <svg viewBox="0 0 200 88" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">the doormen</text>
+            <line class="viz-floor" x1="8" y1="62" x2="192" y2="62"/>
             <g id="viz-precheck-dots"></g>
+            <g id="viz-precheck-glass" class="viz-glass">
+              <circle cx="0" cy="0" r="7"/>
+              <line x1="5" y1="5" x2="10" y2="11"/>
+            </g>
           </svg>
-          <figcaption>trying p | n for the precheck table</figcaption>
+          <figcaption>small primes knock first · p | n?</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="fermat" hidden>
-          <svg viewBox="0 0 200 72" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">Fermat filter  a<sup>n−1</sup> ≡ 1 (mod n)</text>
-            <rect class="viz-track" x="8" y="32" width="184" height="10" rx="2"/>
-            <rect class="viz-fill" id="viz-fermat-fill" x="8" y="32" width="0" height="10" rx="2"/>
-            <text class="viz-mono" id="viz-fermat-a" x="8" y="60">a = —</text>
+          <svg viewBox="0 0 200 92" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Fermat lanterns  a<sup>n−1</sup> ≡ 1</text>
+            ${fermatLanterns()}
+            <rect class="viz-track" x="8" y="72" width="184" height="6" rx="2"/>
+            <rect class="viz-fill" id="viz-fermat-fill" x="8" y="72" width="0" height="6" rx="2"/>
+            <text class="viz-mono" id="viz-fermat-a" x="8" y="88">a = —</text>
           </svg>
-          <figcaption>fixed bases only — not Miller–Rabin</figcaption>
+          <figcaption>six fixed witnesses. no dice. not Miller–Rabin.</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="split" hidden>
-          <svg viewBox="0 0 200 72" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">splitting an n−1 cofactor</text>
-            <rect class="viz-box" x="20" y="28" width="160" height="28" rx="2"/>
-            <line class="viz-cut" id="viz-split-cut" x1="100" y1="26" x2="100" y2="58"/>
-            <text class="viz-mono" id="viz-split-bits" x="100" y="46" text-anchor="middle">cofactor</text>
+          <svg viewBox="0 0 200 88" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">sawing a leftover</text>
+            <rect class="viz-log" x="24" y="36" width="152" height="22" rx="6"/>
+            <text class="viz-mono" id="viz-split-bits" x="100" y="51" text-anchor="middle">cofactor</text>
+            <g id="viz-split-saw" class="viz-saw">
+              <polygon points="0,28 8,40 0,52 -8,40"/>
+              <line class="viz-cut" id="viz-split-cut" x1="0" y1="30" x2="0" y2="64"/>
+            </g>
           </svg>
-          <figcaption>trial / Fermat / then harder splits</figcaption>
+          <figcaption>trial / Fermat / then the heavier tools</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="brent" hidden>
-          <svg viewBox="0 0 200 72" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">Brent–Pollard cycle</text>
-            <ellipse class="viz-orbit" cx="100" cy="44" rx="70" ry="18"/>
-            <circle class="viz-hare" id="viz-brent-hare" cx="170" cy="44" r="4"/>
-            <circle class="viz-tort" id="viz-brent-tort" cx="30" cy="44" r="4"/>
+          <svg viewBox="0 0 200 92" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Brent–Pollard racetrack</text>
+            <ellipse class="viz-orbit viz-orbit-dash" cx="100" cy="52" rx="72" ry="20"/>
+            <g id="viz-brent-hare" class="viz-hare" transform="translate(172,52)">
+              <ellipse cx="0" cy="2" rx="6" ry="3.4"/>
+              <ellipse class="viz-ear" cx="-3" cy="-5" rx="1.4" ry="4"/>
+              <ellipse class="viz-ear" cx="1" cy="-5" rx="1.4" ry="4"/>
+              <circle cx="4" cy="1" r="1.1"/>
+            </g>
+            <g id="viz-brent-tort" class="viz-tort" transform="translate(28,52)">
+              <ellipse cx="0" cy="2" rx="6.5" ry="3.6"/>
+              <path class="viz-shell" d="M-4 1 Q0 -6 4 1 Z"/>
+              <circle cx="5" cy="2" r="1.1"/>
+            </g>
           </svg>
-          <figcaption>two walkers on x ↦ x² + c (mod n)</figcaption>
+          <figcaption>hare laps tortoise on x ↦ x²+c · meeting ⇒ gcd</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="p1" hidden>
-          <svg viewBox="0 0 200 72" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">Pollard p−1  (smooth B1)</text>
-            <rect class="viz-track" x="8" y="34" width="184" height="10" rx="2"/>
-            <rect class="viz-fill" id="viz-p1-fill" x="8" y="34" width="184" height="10" rx="2"/>
-            <text class="viz-mono" id="viz-p1-b1" x="8" y="60">B1 = —</text>
+          <svg viewBox="0 0 200 88" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Pollard p−1  thermometer</text>
+            <rect class="viz-thermo-body" x="88" y="20" width="18" height="50" rx="9"/>
+            <circle class="viz-thermo-bulb" cx="97" cy="72" r="12"/>
+            <rect class="viz-fill" id="viz-p1-fill" x="92" y="24" width="10" height="48" rx="5"/>
+            <text class="viz-mono" id="viz-p1-b1" x="8" y="84">B1 = —</text>
           </svg>
-          <figcaption>a ← a^{p^k} mod n for p^k ≤ B1</figcaption>
+          <figcaption>if p−1 is B1-smooth, n confesses a factor</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="ecm" hidden>
-          <svg viewBox="0 0 200 88" aria-hidden="true">
+          <svg viewBox="0 0 200 96" aria-hidden="true">
             <text class="viz-title" x="4" y="14">Montgomery ECM  (Suyama σ)</text>
-            <path id="viz-ecm-path" class="viz-curve" d="M12 70 C 50 10, 90 10, 100 40 S 150 78, 188 28"/>
-            <circle class="viz-point" id="viz-ecm-pt" cx="12" cy="70" r="4.5"/>
-            <text class="viz-mono" id="viz-ecm-sigma" x="8" y="84">σ = —</text>
+            <path id="viz-ecm-path" class="viz-curve viz-curve-trail" d="M12 70 C 50 10, 90 10, 100 40 S 150 78, 188 28"/>
+            <g id="viz-ecm-scout">
+              <circle class="viz-point" id="viz-ecm-pt" cx="12" cy="70" r="4.5"/>
+              <text class="viz-pennant" id="viz-ecm-flag" x="18" y="66">σ</text>
+            </g>
+            <text class="viz-mono" id="viz-ecm-sigma" x="8" y="90">σ = —</text>
           </svg>
-          <figcaption>point [lcm(1..B1)]P on curve σ — gcd(Z, n) may split</figcaption>
+          <figcaption>a scout on E(σ). gcd(Z, n) may split the integer.</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="pocklington" hidden>
-          <svg viewBox="0 0 200 80" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">Pocklington  F &gt; √n</text>
-            <text class="viz-mono" x="8" y="32">F</text>
-            <rect class="viz-track" x="28" y="24" width="164" height="8" rx="2"/>
-            <rect class="viz-fill" id="viz-pock-f" x="28" y="24" width="0" height="8" rx="2"/>
-            <text class="viz-mono" x="8" y="52">√n</text>
-            <rect class="viz-track" x="28" y="44" width="164" height="8" rx="2"/>
-            <rect class="viz-fill viz-fill-alt" x="28" y="44" width="164" height="8" rx="2"/>
-            <text class="viz-mono" id="viz-pock-q" x="8" y="72">q | F</text>
+          <svg viewBox="0 0 200 92" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Pocklington  ivy over the √n fence</text>
+            <line class="viz-fence" x1="28" y1="58" x2="192" y2="58"/>
+            <text class="viz-mono" x="8" y="36">F</text>
+            <rect class="viz-track" x="28" y="28" width="164" height="8" rx="2"/>
+            <rect class="viz-fill" id="viz-pock-f" x="28" y="28" width="0" height="8" rx="2"/>
+            <text class="viz-mono" x="8" y="56">√n</text>
+            <rect class="viz-track" x="28" y="48" width="164" height="8" rx="2"/>
+            <rect class="viz-fill viz-fill-alt" x="28" y="48" width="164" height="8" rx="2"/>
+            <text class="viz-mono" id="viz-pock-q" x="8" y="80">q | F</text>
           </svg>
-          <figcaption>need a fully-factored F with F² &gt; n</figcaption>
+          <figcaption>grow a fully-factored F until F² &gt; n</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="lucas" hidden>
-          <svg viewBox="0 0 200 72" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">Lucas n+1  U<sub>n+1</sub> ≡ 0</text>
-            <rect class="viz-track" x="8" y="32" width="184" height="10" rx="2"/>
-            <rect class="viz-fill viz-fill-alt" id="viz-lucas-fill" x="8" y="32" width="0" height="10" rx="2"/>
-            <text class="viz-mono" id="viz-lucas-q" x="8" y="60">q | G</text>
+          <svg viewBox="0 0 200 88" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Lucas n+1  the bouncing U</text>
+            <path class="viz-wave" d="M8 50 Q 32 22 56 50 T 104 50 T 152 50 T 192 50"/>
+            <circle class="viz-point viz-bob" id="viz-lucas-bob" cx="8" cy="50" r="4"/>
+            <rect class="viz-track" x="8" y="68" width="184" height="6" rx="2"/>
+            <rect class="viz-fill viz-fill-alt" id="viz-lucas-fill" x="8" y="68" width="0" height="6" rx="2"/>
+            <text class="viz-mono" id="viz-lucas-q" x="8" y="84">q | G</text>
           </svg>
-          <figcaption>Selfridge discriminant · Condition (II) on primes of G</figcaption>
+          <figcaption>Selfridge D · U<sub>n+1</sub> must vanish · Condition (II)</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="combined" hidden>
-          <svg viewBox="0 0 200 80" aria-hidden="true">
+          <svg viewBox="0 0 200 96" aria-hidden="true">
             <text class="viz-title" x="4" y="14">Combined Theorem 1</text>
-            <text class="viz-mono" x="8" y="32">F</text>
-            <rect class="viz-track" x="28" y="24" width="164" height="8" rx="2"/>
-            <rect class="viz-fill" id="viz-comb-f" x="28" y="24" width="0" height="8" rx="2"/>
-            <text class="viz-mono" x="8" y="52">G</text>
-            <rect class="viz-track" x="28" y="44" width="164" height="8" rx="2"/>
-            <rect class="viz-fill viz-fill-alt" id="viz-comb-g" x="28" y="44" width="0" height="8" rx="2"/>
-            <text class="viz-mono" id="viz-comb-note" x="8" y="72">n &lt; max(F²G/2, FG²/2)</text>
+            <g id="viz-comb-beam" class="viz-beam">
+              <line x1="40" y1="40" x2="160" y2="40"/>
+              <rect class="viz-pan" x="28" y="40" width="28" height="14" rx="2"/>
+              <rect class="viz-pan viz-pan-g" x="144" y="40" width="28" height="14" rx="2"/>
+              <text class="viz-mono" x="42" y="51">F</text>
+              <text class="viz-mono" x="154" y="51">G</text>
+            </g>
+            <polygon class="viz-fulcrum" points="100,40 92,62 108,62"/>
+            <rect class="viz-track" x="28" y="70" width="70" height="6" rx="2"/>
+            <rect class="viz-fill" id="viz-comb-f" x="28" y="70" width="0" height="6" rx="2"/>
+            <rect class="viz-track" x="102" y="70" width="70" height="6" rx="2"/>
+            <rect class="viz-fill viz-fill-alt" id="viz-comb-g" x="102" y="70" width="0" height="6" rx="2"/>
+            <text class="viz-mono" id="viz-comb-note" x="8" y="90">n &lt; max(F²G/2, FG²/2)</text>
           </svg>
-          <figcaption>gcd(F,G)=2 · not FG &gt; √n</figcaption>
+          <figcaption>gcd(F,G)=2 · the cubic roof, not FG &gt; √n</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="ecpp" hidden>
-          <svg viewBox="0 0 200 80" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">Atkin–Morain ECPP</text>
-            <ellipse class="viz-orbit" cx="100" cy="48" rx="72" ry="20"/>
-            <circle class="viz-point" id="viz-ecpp-pt" cx="28" cy="48" r="4.5"/>
-            <text class="viz-mono" id="viz-ecpp-d" x="8" y="76">D = —</text>
+          <svg viewBox="0 0 200 110" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Atkin–Morain sky</text>
+            <ellipse class="viz-orbit viz-orbit-dash" cx="100" cy="50" rx="74" ry="22"/>
+            ${ecppConstellation()}
+            <g id="viz-ecpp-comet">
+              <circle class="viz-point" id="viz-ecpp-pt" cx="26" cy="50" r="4.5"/>
+              <path class="viz-tail" d="M26 50 l-10 3"/>
+            </g>
+            <text class="viz-mono" id="viz-ecpp-d" x="8" y="102">D = —</text>
           </svg>
-          <figcaption>class-number-1, then in-tab FastECPP H_D (no RNG)</figcaption>
+          <figcaption>shopping for a CM curve · class-number-1, then H_D · no RNG</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="neighbor" hidden>
+          <svg viewBox="0 0 200 88" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">hopping candidates</text>
+            <line class="viz-floor" x1="10" y1="52" x2="190" y2="52"/>
+            <g id="viz-neighbor-ticks"></g>
+            <g id="viz-neighbor-hopper" class="viz-hopper" transform="translate(20,52)">
+              <circle cx="0" cy="-8" r="5"/>
+              <line x1="0" y1="-3" x2="-4" y2="6"/>
+              <line x1="0" y1="-3" x2="4" y2="6"/>
+            </g>
+            <text class="viz-mono" id="viz-neighbor-n" x="8" y="80">candidate —</text>
+          </svg>
+          <figcaption>odd leftovers only · then the same engines as Check</figcaption>
         </figure>
         <figure class="lab-viz lab-orrery" data-phase="wheel" hidden>
           ${orrerySvg()}
-          <figcaption>30-wheel trial · residue <span id="orrery-res">—</span> (mod 30)</figcaption>
+          <figcaption>30-wheel orrery · residue <span id="orrery-res">—</span> (mod 30) gets the trial</figcaption>
         </figure>
         <p class="lab-stage-label" id="lab-stage-label"></p>
       </div>`;
@@ -421,6 +527,7 @@
     const barFill = $("i", bar);
     const stage = $("#lab-stage", root);
     const stageLabel = $("#lab-stage-label", root);
+    const theatreAct = $("#lab-theatre-act", root);
     const orreryRes = $("#orrery-res", root);
 
     let worker = null;
@@ -463,12 +570,37 @@
         el.classList.toggle("active", res != null && r === res);
       });
       orreryRes.textContent = res != null ? String(res) : "—";
+      const needle = $("#viz-wheel-needle", root);
+      if (needle && res != null) {
+        const ang = (res / 30) * 360 - 90;
+        needle.setAttribute("transform", "rotate(" + ang + " 60 60)");
+      }
+    }
+
+    function setTheatreAct(phase, extra) {
+      if (!theatreAct) return;
+      const lines = {
+        precheck: "Act I · The doormen ask for ID.",
+        fermat: "Act II · Six lanterns. No dice.",
+        split: "An interlude with a saw.",
+        brent: "The hare is twice as fast. When they meet, gcd.",
+        p1: "A smoothness thermometer. If p−1 is tame, n cracks.",
+        ecm: "Suyama sends a scout. The curve may confess.",
+        pocklington: "Ivy over the √n fence: grow F until F² > n.",
+        lucas: "The bouncing U must land on zero at n+1.",
+        combined: "A balance, not FG > √n. The cubic roof decides.",
+        ecpp: "Shopping the CM sky. No RNG in the catalogue.",
+        wheel: "Only residues coprime to 30 may approach the hub.",
+        neighbor: "Hopping odd stones across the number line.",
+      };
+      theatreAct.textContent = extra.act || lines[phase] || phaseLabel(phase, extra);
     }
 
     function applyPhase(msg) {
       const phase = msg.phase || "wheel";
       const extra = msg.extra || {};
       showPhase(phase);
+      setTheatreAct(phase, extra);
       if (stageLabel) {
         stageLabel.textContent = extra.label || phaseLabel(phase, extra);
       }
@@ -484,11 +616,16 @@
         const t = Math.min(1, Math.max(0, i / tot));
         const pt = $("#viz-ecm-pt", root);
         const curve = $("#viz-ecm-path", root);
+        const flag = $("#viz-ecm-flag", root);
         if (pt && curve && typeof curve.getTotalLength === "function") {
           const len = curve.getTotalLength();
           const p = curve.getPointAtLength(t * len);
           pt.setAttribute("cx", String(p.x));
           pt.setAttribute("cy", String(p.y));
+          if (flag) {
+            flag.setAttribute("x", String(p.x + 6));
+            flag.setAttribute("y", String(p.y - 6));
+          }
         } else if (pt) {
           // jsdom / no SVG geometry: stay on the start point
           pt.setAttribute("cx", "12");
@@ -506,12 +643,20 @@
         const hare = $("#viz-brent-hare", root);
         const tort = $("#viz-brent-tort", root);
         if (hare) {
-          hare.setAttribute("cx", String(100 + 70 * Math.cos(th)));
-          hare.setAttribute("cy", String(44 + 18 * Math.sin(th)));
+          hare.setAttribute(
+            "transform",
+            "translate(" + (100 + 72 * Math.cos(th)) + "," + (52 + 20 * Math.sin(th)) + ")"
+          );
         }
         if (tort) {
-          tort.setAttribute("cx", String(100 + 70 * Math.cos(th * 0.5)));
-          tort.setAttribute("cy", String(44 + 18 * Math.sin(th * 0.5)));
+          tort.setAttribute(
+            "transform",
+            "translate(" +
+              (100 + 72 * Math.cos(th * 0.5)) +
+              "," +
+              (52 + 20 * Math.sin(th * 0.5)) +
+              ")"
+          );
         }
       } else if (phase === "fermat") {
         const tot = Number(msg.limit) || 6;
@@ -520,9 +665,24 @@
         if (fill) fill.setAttribute("width", String((184 * i) / tot));
         const a = $("#viz-fermat-a", root);
         if (a) a.textContent = "a = " + (extra.base || "—");
+        const cur = extra.base != null ? String(extra.base) : "";
+        root.querySelectorAll(".viz-lantern").forEach(function (el) {
+          const on = el.getAttribute("data-a") === cur;
+          const lit = Number(el.getAttribute("data-a")) <= Number(cur || 0);
+          el.classList.toggle("on", on);
+          el.classList.toggle("lit", lit);
+        });
       } else if (phase === "p1") {
         const b1 = $("#viz-p1-b1", root);
         if (b1) b1.textContent = "B1 = " + (extra.B1 || "—");
+        const fill = $("#viz-p1-fill", root);
+        if (fill) {
+          const tot = Number(msg.limit) || 1;
+          const i = Number(msg.i) || 0;
+          const h = 8 + (40 * i) / Math.max(1, tot);
+          fill.setAttribute("y", String(72 - h));
+          fill.setAttribute("height", String(h));
+        }
       } else if (phase === "pocklington") {
         let frac = 0;
         try {
@@ -541,6 +701,13 @@
         const i = Number(msg.i) || 0;
         const fill = $("#viz-lucas-fill", root);
         if (fill) fill.setAttribute("width", String((184 * i) / tot));
+        const bob = $("#viz-lucas-bob", root);
+        if (bob) {
+          const x = 8 + (184 * i) / Math.max(1, tot);
+          const y = 50 + 16 * Math.sin((i / Math.max(1, tot)) * 6);
+          bob.setAttribute("cx", String(x));
+          bob.setAttribute("cy", String(y));
+        }
         const qel = $("#viz-lucas-q", root);
         if (qel) {
           qel.textContent =
@@ -550,36 +717,58 @@
       } else if (phase === "combined") {
         const fbar = $("#viz-comb-f", root);
         const gbar = $("#viz-comb-g", root);
+        let tilt = 0;
         try {
           const F = extra.F ? BigInt(extra.F) : 0n;
           const G = extra.G ? BigInt(extra.G) : 0n;
           const T = extra.target ? BigInt(extra.target) : BigInt(msg.limit || "1");
-          if (fbar && T > 0n) fbar.setAttribute("width", String(Math.min(164, Number((F * 164n) / (T + 1n)))));
-          if (gbar && T > 0n) gbar.setAttribute("width", String(Math.min(164, Number((G * 164n) / (T + 1n)))));
+          if (fbar && T > 0n) fbar.setAttribute("width", String(Math.min(70, Number((F * 70n) / (T + 1n)))));
+          if (gbar && T > 0n) gbar.setAttribute("width", String(Math.min(70, Number((G * 70n) / (T + 1n)))));
+          if (F + G > 0n) {
+            const left = Number((F * 100n) / (F + G));
+            tilt = ((left - 50) / 50) * 8;
+          }
         } catch (_) {
           /* ignore */
         }
+        const beam = $("#viz-comb-beam", root);
+        if (beam) beam.setAttribute("transform", "rotate(" + tilt + " 100 40)");
       } else if (phase === "ecpp") {
         const tot = Number(msg.limit) || 13;
         const i = Number(msg.i) || 0;
-        const th = (i / Math.max(1, tot)) * Math.PI * 2;
+        const th = (i / Math.max(1, tot)) * Math.PI * 2 - Math.PI / 2;
+        const px = 100 + 74 * Math.cos(th);
+        const py = 50 + 22 * Math.sin(th);
         const pt = $("#viz-ecpp-pt", root);
         if (pt) {
-          pt.setAttribute("cx", String(100 + 72 * Math.cos(th)));
-          pt.setAttribute("cy", String(48 + 20 * Math.sin(th)));
+          pt.setAttribute("cx", String(px));
+          pt.setAttribute("cy", String(py));
+        }
+        const tail = root.querySelector("#viz-ecpp-comet .viz-tail");
+        if (tail) {
+          tail.setAttribute(
+            "d",
+            "M" + px + " " + py + " l" + (-10 * Math.cos(th)) + " " + (-6 * Math.sin(th))
+          );
         }
         const dEl = $("#viz-ecpp-d", root);
         if (dEl) dEl.textContent = extra.D ? "D = " + extra.D : "searching discriminants";
+        const want = extra.D ? String(extra.D).replace("−", "-") : "";
+        root.querySelectorAll(".viz-star").forEach(function (el) {
+          el.classList.toggle("on", el.getAttribute("data-d") === want);
+        });
       } else if (phase === "split") {
         const bits = $("#viz-split-bits", root);
-        if (bits) bits.textContent = extra.bits ? extra.bits + "-bit cofactor" : extra.label || "cofactor";
+        if (bits) bits.textContent = extra.bits ? extra.bits + "-bit leftover" : extra.label || "cofactor";
+        const tot = Number(msg.limit) || 1;
+        const i = Number(msg.i) || 0;
+        const x = 40 + ((i * 120) / Math.max(1, tot)) % 120;
+        const saw = $("#viz-split-saw", root);
+        if (saw) saw.setAttribute("transform", "translate(" + x + ",0)");
         const cut = $("#viz-split-cut", root);
         if (cut) {
-          const tot = Number(msg.limit) || 1;
-          const i = Number(msg.i) || 0;
-          const x = 40 + ((i * 120) / Math.max(1, tot)) % 120;
-          cut.setAttribute("x1", String(x));
-          cut.setAttribute("x2", String(x));
+          cut.setAttribute("x1", "0");
+          cut.setAttribute("x2", "0");
         }
       } else if (phase === "precheck") {
         const host = $("#viz-precheck-dots", root);
@@ -587,22 +776,56 @@
           const primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53];
           host.innerHTML = primes
             .map(function (p, idx) {
-              const x = 10 + idx * 12;
+              const x = 14 + idx * 11.5;
               return (
-                '<circle class="viz-pd" data-p="' +
+                '<g class="viz-doorman" data-p="' +
+                p +
+                '"><circle class="viz-pd" data-p="' +
                 p +
                 '" cx="' +
                 x +
-                '" cy="40" r="4"/>'
+                '" cy="52" r="5"/><text x="' +
+                x +
+                '" y="76">' +
+                p +
+                "</text></g>"
               );
             })
             .join("");
         }
         if (host) {
           const cur = extra.p ? Number(extra.p) : 0;
-          host.querySelectorAll(".viz-pd").forEach(function (el) {
-            el.classList.toggle("active", Number(el.getAttribute("data-p")) === cur);
+          let glassX = 14;
+          host.querySelectorAll(".viz-doorman").forEach(function (el) {
+            const on = Number(el.getAttribute("data-p")) === cur;
+            el.classList.toggle("active", on);
+            const dot = el.querySelector(".viz-pd");
+            if (dot) dot.classList.toggle("active", on);
+            if (on) glassX = Number(el.querySelector("circle").getAttribute("cx"));
           });
+          const glass = $("#viz-precheck-glass", root);
+          if (glass) glass.setAttribute("transform", "translate(" + glassX + ",40)");
+        }
+      } else if (phase === "neighbor") {
+        const ticks = $("#viz-neighbor-ticks", root);
+        if (ticks && !ticks.childElementCount) {
+          let marks = "";
+          for (let k = 0; k < 9; k++) {
+            const x = 16 + k * 21;
+            marks += '<line class="viz-tick" x1="' + x + '" y1="48" x2="' + x + '" y2="56"/>';
+          }
+          ticks.innerHTML = marks;
+        }
+        const tot = Number(msg.limit) || 1;
+        const i = Number(msg.i) || 0;
+        const x = 16 + ((i * 21) % 168);
+        const hop = $("#viz-neighbor-hopper", root);
+        if (hop) hop.setAttribute("transform", "translate(" + x + ",52)");
+        const lab = $("#viz-neighbor-n", root);
+        if (lab) {
+          lab.textContent = extra.candidate
+            ? "candidate " + extra.candidate
+            : extra.label || "hopping…";
         }
       }
     }
@@ -640,7 +863,7 @@
       const verdict = state.prime ? "Prime" : "Composite";
       out.className = "lab-out show cert " + (state.prime ? "yes" : "no");
       out.innerHTML = `<article class="cert-card">
-        <p class="cert-kicker">Deterministic primality record</p>
+        <p class="cert-kicker">${state.prime ? "the curtain falls · a proof" : "the curtain falls · a factor"}</p>
         <p class="verdict">${verdict}</p>
         <dl>
           <dt>n</dt><dd>${escapeHtml(state.n)}</dd>

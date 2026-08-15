@@ -56,10 +56,16 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "checker-worker.js" in ui
     assert "lab-orrery" in ui
     assert "lab-stage" in ui
+    assert "lab-theatre-kicker" in ui
+    assert "lab-theatre-act" in ui
+    assert 'data-phase="neighbor"' in ui
     assert 'data-phase="ecm"' in ui
     assert "viz-ecm-path" in ui
     assert "getPointAtLength" in ui
     assert "Math.sin(t * Math.PI)" not in ui
+    assert "prefers-reduced-motion" in (ROOT / "docs" / "wiki" / "assets" / "checker.css").read_text(
+        encoding="utf-8"
+    )
     assert "factorRows" in ui
     assert "Download SVG" in ui
     assert "WHEEL30" in ui
