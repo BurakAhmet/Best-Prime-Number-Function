@@ -9,8 +9,9 @@ Verifier is arithmetic only — no discriminant search, no factoring.
 
 from __future__ import annotations
 
+import json
 import math
-from typing import Any
+from typing import Any, TextIO
 
 from .is_prime import _ECPP_MAX_H, _SMALL_LIMIT, _parse_n, _is_prime_small
 
@@ -205,6 +206,8 @@ def _build_ecpp_cert(
     }
     if "j" in data:
         cert["j"] = int(data["j"])
+    if "h" in data:
+        cert["h"] = int(data["h"])
     return cert
 
 
@@ -377,7 +380,37 @@ def primality_certificate(
         kind = str(kind).lower()
         if kind not in {"pratt", "bls", "ecpp"}:
             return {"n": n_int, "kind": "unsupported"}
-    return _certificate(n_int, kind=kind, parallel=parallel, memo={})
+    cert = _certificate(n_int, kind=kind, parallel=parallel, memo={})
+    if cert.get("kind") == "ecpp":
+        from .cm_tree import record_from_cert
+
+        record_from_cert(cert)
+    return cert
+
+
+def dump_certificate(cert: dict[str, Any], fp: TextIO | None = None) -> str:
+    """Pretty-printed JSON. Integer map keys become strings (JSON objects)."""
+    text = json.dumps(cert, indent=2) + "\n"
+    if fp is not None:
+        fp.write(text)
+    return text
+
+
+def write_certificate(cert: dict[str, Any], path: str) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        dump_certificate(cert, fh)
+
+
+def load_certificate(source: str | TextIO) -> dict[str, Any]:
+    """Load a JSON certificate from a path or file object."""
+    if isinstance(source, str):
+        with open(source, encoding="utf-8") as fh:
+            raw = json.load(fh)
+    else:
+        raw = json.load(source)
+    if not isinstance(raw, dict):
+        raise ValueError("certificate JSON must be an object")
+    return raw
 
 
 def _prime_proof_ok(child: dict[str, Any]) -> bool:

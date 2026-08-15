@@ -72,3 +72,20 @@ library lives in this guide and on PyPI.
 unsettled — never as a false composite. `prime_factors(n, max_ms=MS)`
 raises `UnsettledFactorError` with the isolated primes and leftover.
 The `prime-factors` CLI default-caps $n$ wider than 512 bits at 30 s.
+
+## Why is a smaller prime sometimes slower?
+
+FastECPP time follows the CM tree, not the digit count. A 122-digit prime
+with $D=-1316$ ($h=24$) can lose to a 132-digit prime with $D=-467$ ($h=7$).
+`lab(n)["cm_tree"]` and the CLI `CM_TREE:` line print that path.
+
+## How do I check a certificate without this library?
+
+```bash
+primality-certificate --json n > cert.json
+python3 scripts/verify_cert.py cert.json
+```
+
+The script uses only the standard library (`pow`, `gcd`, integer Lucas and
+curve arithmetic). It does not import `best_prime` and does not search for
+a discriminant.

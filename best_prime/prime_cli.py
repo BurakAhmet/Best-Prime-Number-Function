@@ -231,22 +231,66 @@ def divisors_main(argv: list[str] | None = None) -> None:
 
 
 def primality_certificate_main(argv: list[str] | None = None) -> None:
-    usage = "usage: primality-certificate [--serial] n"
-    pos, serial = _scan(argv if argv is not None else sys.argv[1:], usage, 1)
+    usage = "usage: primality-certificate [--serial] [--json] [--write PATH] n"
+    raw = argv if argv is not None else sys.argv[1:]
+    dump_json = False
+    write_path: str | None = None
+    cleaned: list[str] = []
+    i = 0
+    while i < len(raw):
+        a = raw[i]
+        if a == "--json":
+            dump_json = True
+            i += 1
+            continue
+        if a == "--write":
+            if i + 1 >= len(raw):
+                print("usage: --write PATH", file=sys.stderr)
+                raise SystemExit(2)
+            write_path = raw[i + 1]
+            i += 2
+            continue
+        if a.startswith("--write="):
+            write_path = a.split("=", 1)[1]
+            i += 1
+            continue
+        cleaned.append(a)
+        i += 1
+    pos, serial = _scan(cleaned, usage, 1)
     try:
         n = _parse_n(pos[0])
     except (TypeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
-    from .certificate import primality_certificate, verify_certificate
+    from .certificate import dump_certificate, primality_certificate, verify_certificate, write_certificate
+    from .cm_tree import emit_tree, last_cm_tree
     from .progress import configure, deadline_ms_from_env, set_deadline_ms
 
     configure()
     set_deadline_ms(deadline_ms_from_env())
     cert = primality_certificate(n, parallel=not serial)
     ok = verify_certificate(cert)
-    kind = cert.get("kind") or cert.get("reason") or ("factor" if "factor" in cert else "?")
-    _print(str(n), kind, verified=ok, prime=cert.get("prime"))
+    tree = last_cm_tree()
+    if tree:
+        emit_tree(tree)
+    if write_path:
+        write_certificate(cert, write_path)
+    if dump_json:
+        dump_certificate(cert, sys.stdout)
+    else:
+        kind = cert.get("kind") or cert.get("reason") or (
+            "factor" if "factor" in cert else "?"
+        )
+        fields: dict[str, object] = {"verified": ok, "prime": cert.get("prime")}
+        if write_path:
+            fields["wrote"] = write_path
+        if tree:
+            from .cm_tree import format_tree
+
+            fields["cm_tree"] = format_tree(tree)
+        _print(str(n), kind, **fields)
+    if cert.get("kind") == "unsupported" or cert.get("error"):
+        raise SystemExit(3)
     raise SystemExit(0 if cert.get("prime") else 1)
 
 

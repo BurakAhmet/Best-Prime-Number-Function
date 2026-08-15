@@ -737,7 +737,7 @@ def _finish_discriminant(
     else:
         dec = _try_d_from_j(n, D, t, parallel=parallel, max_h=max_h)
     if dec is True:
-        _note(D=int(D), t=int(t), v=int(v), j=int(_J_INVARIANT[D]))
+        _note(D=int(D), t=int(t), v=int(v), j=int(_J_INVARIANT[D]), h=1)
     return dec
 
 
@@ -1013,7 +1013,7 @@ def _try_discriminant_small_h(
         return None
     dec = _try_curve_from_j(n, root, t, parallel=parallel, max_h=max_h)
     if dec is True:
-        _note(D=int(D), t=int(t), v=int(v), j=int(root))
+        _note(D=int(D), t=int(t), v=int(v), j=int(root), h=len(coeffs) - 1)
     return dec
 
 

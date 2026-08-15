@@ -10,6 +10,7 @@ from best_prime.prime_cli import (
     is_prime_power_main,
     nth_prime_main,
     prev_prime_main,
+    primality_certificate_main,
     prime_count_main,
     prime_factors_main,
     primerange_main,
@@ -119,3 +120,16 @@ class TestPrimeCli:
         with pytest.raises(SystemExit) as ei:
             prev_prime_main([])
         assert ei.value.code == 2
+
+    def test_certificate_summary(self):
+        code, out = _run(primality_certificate_main, "17")
+        assert code == 0
+        assert "pratt" in out
+        assert "VERIFIED:" in out
+
+    def test_certificate_write(self, tmp_path):
+        path = tmp_path / "c.json"
+        code, out = _run(primality_certificate_main, "--write", str(path), "17")
+        assert code == 0
+        assert path.is_file()
+        assert "pratt" in path.read_text(encoding="utf-8")

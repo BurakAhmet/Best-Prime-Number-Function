@@ -9,6 +9,8 @@ best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 is-prime --progress --max-ms 15000 10**99+289
 prime-factors --max-ms 30000 $n
+primality-certificate --json 17 | python3 scripts/verify_cert.py -
+primality-certificate --write /tmp/p40.json 100000000000000001000000000000000003029
 next-prime 100                 # 101 (smallest prime > 100)
 next-prime 14 3                # 23
 prev-prime 14                  # 13
@@ -27,7 +29,9 @@ is-perfect-power 36            # yes (exit 0)
 
 `is-prime` with no argument defaults to the 147-bit prime `100000000000000000000000000000000000000000031` (n−1 Pocklington when $n-1$ factors; OpenMP cubic only if n−1 is hostile and `4kn` fits in 128 bits). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
 
-On a TTY (or `BEST_PRIME_PROGRESS=1`) long proofs print stages on stderr: Fermat, usable $D$, prove $q$, factor hunt. `--max-ms` / `BEST_PRIME_MAX_MS` aborts as `RESULT: unsettled` (exit 3). A composite verdict is printed as soon as Fermat / FastECPP rejects; factoring is a bounded extra and does not block it. `prime-factors --max-ms` (default 30 s when $n$ has more than 512 bits) is the same idea for complete factorization.
+On a TTY (or `BEST_PRIME_PROGRESS=1`) long proofs print stages on stderr: Fermat, usable $D$, prove $q$, factor hunt. A successful FastECPP / ECPP proof also prints `CM_TREE:` (`digits/D/h` for each downrun). That is why two similar-size primes can invert on wall-clock. `--max-ms` / `BEST_PRIME_MAX_MS` aborts as `RESULT: unsettled` (exit 3). A composite verdict is printed as soon as Fermat / FastECPP rejects; factoring is a bounded extra and does not block it. `prime-factors --max-ms` (default 30 s when $n$ has more than 512 bits) is the same idea for complete factorization.
+
+`primality-certificate --json` writes only the certificate object (pipe it to `scripts/verify_cert.py`). `--write PATH` stores the same JSON and still prints the `TEST` / `RESULT` summary. `scripts/verify_cert.py` is stdlib-only — it does not import `best_prime`.
 
 ## Exit codes (`is-prime` / power predicates)
 
@@ -85,3 +89,4 @@ TIME:    2806562 ns  (2.806562 ms)
 | `divisors` | `divisors` |
 | `is-prime-power` | `is_prime_power` |
 | `is-perfect-power` | `is_perfect_power` |
+| `primality-certificate` | `primality_certificate` (`--json` / `--write`) |

@@ -928,15 +928,17 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
 
     from .huge_arith import powmod as _powmod
     from .primality_ecpp import fermat_bases_for_bits
+    from .cm_tree import clear_cm_tree, emit_tree, record_from_rec
     from .primality_fastecpp import (
         FASTECPP_MAX_BITS,
         FASTECPP_MIN_BITS,
-        fastecpp_primality,
+        fastecpp_search,
         is_prime_fastecpp_max_ms,
     )
 
     from .progress import deadline_hit, emit
 
+    clear_cm_tree()
     emit("fermat", digits=len(str(n)), bits=bits)
     for a in fermat_bases_for_bits(bits):
         if a % n == 0:
@@ -948,12 +950,15 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
         raise UnsettledPrimalityError(n)
 
     if FASTECPP_MIN_BITS <= bits <= FASTECPP_MAX_BITS:
-        decided = fastecpp_primality(
+        decided, rec = fastecpp_search(
             n,
             parallel=parallel,
             skip_small_h=True,
             max_ms=is_prime_fastecpp_max_ms(bits),
         )
+        if decided is True:
+            tree = record_from_rec(n, rec)
+            emit_tree(tree)
         if decided is not None:
             _last_is_prime_big_path = "bigint_fastecpp"
             return decided
@@ -1023,7 +1028,14 @@ def _isqrt_u64(n):
 
 
 def lab(n: int | str, *, parallel: bool = True) -> dict:
-    """Diagnostic: path, isqrt, result, elapsed ms for the check only."""
+    """Diagnostic: path, isqrt, result, elapsed ms for the check only.
+
+    After a FastECPP / ECPP proof, ``cm_tree`` is the winning
+    discriminant downrun (``D``, class number ``h``, cofactor sizes).
+    """
+    from .cm_tree import clear_cm_tree
+
+    clear_cm_tree()
     n_int = _parse_n(n)
     path: str
     t1 = time.perf_counter()
@@ -1124,6 +1136,9 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
     info["elapsed_ms"] = elapsed_ms
     info["e2e_ms"] = (time.perf_counter_ns() - t0) / 1e6
     info["is_prime"] = prime
+    from .cm_tree import last_cm_tree
+
+    info["cm_tree"] = last_cm_tree()
     notes = {
         "python_small": "Pure-Python trial division for tiny n (no NumPy/Numba).",
         "python_wheel": "Embedded 30030-wheel trial division (stdlib, best e2e TIME).",
@@ -1279,6 +1294,7 @@ def _print_result(
     factor: int | None = None,
     *,
     unsettled: bool = False,
+    cm_tree: str | None = None,
 ) -> None:
     print(f"TEST:    {arg} ({len(arg)} chars)")
     print(f"THREADS: {threads}")
@@ -1286,6 +1302,8 @@ def _print_result(
         print("RESULT:  unsettled")
     else:
         print(f"RESULT:  {'prime' if prime else 'not prime'}")
+    if cm_tree:
+        print(f"CM_TREE: {cm_tree}")
     if prime is False and factor is not None:
         print(f"FACTOR:  {factor}")
     dt = time.perf_counter_ns() - t0
@@ -1398,7 +1416,14 @@ def _main_simple(argv: list[str]) -> int:
                 emit("factor", p=factor)
             else:
                 emit("factor not isolated")
-    _print_result(str(n) if positional else arg, prime, threads, factor)
+    tree_s = None
+    if prime:
+        from .cm_tree import format_tree, last_cm_tree
+
+        tree = last_cm_tree()
+        if tree:
+            tree_s = format_tree(tree)
+    _print_result(str(n) if positional else arg, prime, threads, factor, cm_tree=tree_s)
     return 0 if prime else 1
 
 
@@ -1446,6 +1471,10 @@ def _main_full(argv: list[str] | None = None) -> int:
                 print(f"RESULT:    {'prime' if info['is_prime'] else 'not prime'}")
             if factor is not None:
                 print(f"FACTOR:    {factor}")
+            if info.get("cm_tree"):
+                from .cm_tree import format_tree
+
+                print(f"CM_TREE:   {format_tree(info['cm_tree'])}")
             print(f"TIME_MS:   {info['elapsed_ms']:.6f}")
             print(f"E2E_MS:    {info['e2e_ms']:.6f}")
             print(f"NOTE:      {info['note']}")
