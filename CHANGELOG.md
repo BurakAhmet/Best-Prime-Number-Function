@@ -29,6 +29,7 @@ All notable changes to this project are documented in this file.
   `max_ms` abort on ECM/SIQS (no raise).
 
 ### Changed
+- **Pages lab proves general 132–150 digit primes.** After class-number-1 the worker computes Hilbert $H_D$ (same $j(\tau)$ q-expansion as `classpoly`) and walks $|D|$ up to 12 000, so $10^{131}+63$ and $10^{149}+183$ settle in-tab. `DEFAULT_N` unchanged.
 - **Pages engine theatre:** each lab stage is a small scene (doormen, Fermat lanterns, Brent hare/tortoise, ECM scout, CM sky, 30-wheel orrery needle) with a dry one-line act title. Same engines and IDs; `prefers-reduced-motion` respected.
 - **Stdlib-fallback CI no longer imports Numba** in `_configure_threads` / `_is_prime_u64` when NumPy/Numba are absent (the no-compiler job sets `OMP_NUM_THREADS` and runs BLS certificate tests). Falls back to the 30030-wheel.
 - **Pages lab next/prev after $10^{130}+1113$**: after class-number-1 miss the worker walks in-tab $H_D$ (Cantor–Zassenhaus + Goldwasser–Kilian), including $D=-3076$ so $10^{130}+1189$ proves in-tab. No BLS after an ECPP miss. `DEFAULT_N` unchanged.

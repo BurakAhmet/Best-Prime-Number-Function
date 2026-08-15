@@ -489,9 +489,9 @@
           Factoring uses trial / Brent / p−1 / <strong>ECM</strong>.
           <strong>No digit-length limit.</strong> Smooth <em>n</em>±1 is typically sub-second;
           the 131-digit CM-friendly prime 10^130+1113 proves in this tab via class-number-1
-          ECPP. The next prime after it (10^130+1189) uses in-tab FastECPP (D=−3076).
+          ECPP. General 132–150 digit primes use in-tab computed H_D FastECPP (tens of seconds).
           Stop anytime. Composites print a factor when one is found.
-          Wider misses are <strong>inconclusive</strong> here (Python: computed-H_D FastECPP, then unsettled).</p>
+          Wider misses are <strong>inconclusive</strong> here (Python may still prove them).</p>
         ${stageMarkup()}
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
@@ -1143,7 +1143,7 @@
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
               <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">There is no maximum digit length. The tab uses one engine per band: class-number-1 then in-tab FastECPP H_D on ≥256-bit <em>n</em> (Jacobian mul, stacked Montgomery ECM), combined BLS only below that. No BLS after an ECPP miss. CM-friendly primes such as 10^130+1113 and the next prime 10^130+1189 are in scope. A miss is inconclusive here; Python continues with computed-H_D FastECPP, then UnsettledPrimalityError (AKS is not a product-path fallback).</p>`
+              <p class="lab-hint">There is no maximum digit length. The tab uses one engine per band: class-number-1 then computed-H_D FastECPP on ≥256-bit <em>n</em> (Jacobian mul, stacked Montgomery ECM), combined BLS only below that. No BLS after an ECPP miss. 132–150 digit general primes such as 10^131+63 and 10^149+183 are in scope. A miss is inconclusive here; Python may still prove it, else UnsettledPrimalityError (AKS is not a product-path fallback).</p>`
             );
           } else {
             renderCert({

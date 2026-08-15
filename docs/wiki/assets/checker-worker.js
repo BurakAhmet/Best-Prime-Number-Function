@@ -2,7 +2,8 @@
  * Mirrors the library ladder in-browser:
  *   small precheck → one engine per band (match Python is_prime):
  *   ≥256 bits: Fermat filter + class-number-1 ECPP, then a FastECPP walk
- *   (transcribed / in-tab H_D, numbered Cantor–Zassenhaus). No BLS fallback.
+ *   (computed H_D + transcribed table, numbered Cantor–Zassenhaus).
+ *   |D| scales to 12 000 for ~150-digit n. No BLS fallback.
  *   <256 bits (hard / multi-limb): combined BLS only, then trial if practical.
  *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
  *   Huge leftovers use a short ECM budget so 131-digit n cannot hang in BLS.
@@ -43,6 +44,26 @@
   const FASTECPP_H_CAP = 64;
   const FASTECPP_TRIAL_BOUND = 1_000_000;
   const CZ_S_MAX = 256;
+  const HD_GUARD_DIGITS = 24;
+  const HD_PREC_RETRIES = 4;
+  const HD_ROUND_TOL_NUM = 5n; // 0.05 when placed over 100
+  const _hdCache = new Map();
+
+  function scaledFastecppDMax(bits) {
+    if (bits <= 400) return 4000;
+    if (bits <= 700) return 12000;
+    return 8000;
+  }
+
+  function scaledFastecppHCap(bits) {
+    if (bits <= 400) return 64;
+    return 128;
+  }
+
+  function scaledFastecppTrialBound(bits) {
+    if (bits <= 400) return FASTECPP_TRIAL_BOUND;
+    return 5_000_000;
+  }
 
   const P1_B1 = 250_000;
   /** Exact trial allowed when proving an n−1 cofactor (not the original n). */
@@ -1700,6 +1721,328 @@
     return count;
   }
 
+  function reducedForms(D) {
+    D = D | 0;
+    if (D >= 0) return [];
+    const r = ((D % 4) + 4) % 4;
+    if (r !== 0 && r !== 1) return [];
+    const out = [];
+    const aMax = Math.floor(Math.sqrt((-D) / 3));
+    for (let a = 1; a <= aMax; a++) {
+      for (let b = -a; b <= a; b++) {
+        const rhs = b * b - D;
+        const fourA = 4 * a;
+        if (rhs % fourA !== 0) continue;
+        const c = (rhs / fourA) | 0;
+        if (a > c) continue;
+        if ((a === c || a === Math.abs(b)) && b < 0) continue;
+        if (gcdSmall(gcdSmall(a, Math.abs(b)), c) !== 1) continue;
+        out.push([a, b, c]);
+      }
+    }
+    return out;
+  }
+
+  function decOps(prec) {
+    const S = 10n ** BigInt(prec);
+    return {
+      prec: prec,
+      S: S,
+      one: S,
+      fromInt: function (n) {
+        return BigInt(n) * S;
+      },
+      abs: function (a) {
+        return a < 0n ? -a : a;
+      },
+      mul: function (a, b) {
+        const p = a * b;
+        const q = p / S;
+        const rem = p % S;
+        const ar = rem < 0n ? -rem : rem;
+        if (ar * 2n > S || (ar * 2n === S && (q & 1n) === 1n)) {
+          return q + (p < 0n ? -1n : 1n);
+        }
+        return q;
+      },
+      div: function (a, b) {
+        if (b === 0n) throw new Error("dec div0");
+        const p = a * S;
+        const q = p / b;
+        const rem = p % b;
+        const ar = rem < 0n ? -rem : rem;
+        const ab = b < 0n ? -b : b;
+        if (ar * 2n > ab || (ar * 2n === ab && (q & 1n) === 1n)) {
+          return q + ((p < 0n) !== (b < 0n) ? -1n : 1n);
+        }
+        return q;
+      },
+      sqrt: function (a) {
+        if (a <= 0n) return 0n;
+        return isqrt(a * S);
+      },
+    };
+  }
+
+  function decPi(ops) {
+    const three = ops.fromInt(3);
+    let lasts = 0n;
+    let t = three;
+    let s = three;
+    let n = 1;
+    let na = 0;
+    let d = 0;
+    let da = 24;
+    while (s !== lasts) {
+      lasts = s;
+      n += na;
+      na += 8;
+      d += da;
+      da += 32;
+      t = ops.div(ops.mul(t, ops.fromInt(n)), ops.fromInt(d));
+      s += t;
+    }
+    return s;
+  }
+
+  function decSinCos(x, ops) {
+    const pi = decPi(ops);
+    const half = ops.div(pi, ops.fromInt(2));
+    const twopi = ops.mul(pi, ops.fromInt(2));
+    let xx = x % twopi;
+    if (xx < 0n) xx += twopi;
+    if (xx > pi) xx -= twopi;
+    let signSin = 1n;
+    let signCos = 1n;
+    if (xx < 0n) {
+      signSin = -1n;
+      xx = -xx;
+    }
+    if (xx > half) {
+      xx = pi - xx;
+      signCos = -1n;
+    }
+    let swap = false;
+    const eighth = ops.div(pi, ops.fromInt(4));
+    if (xx > eighth) {
+      xx = half - xx;
+      swap = true;
+    }
+    const lim = 10n ** 2n;
+    const x2 = ops.mul(xx, xx);
+    let sinX = xx;
+    let term = xx;
+    for (let n = 1; n < ops.prec * 4; n++) {
+      term = ops.div(ops.mul(term, -x2), ops.fromInt((2 * n) * (2 * n + 1)));
+      sinX += term;
+      if (ops.abs(term) < lim) break;
+    }
+    let cosX = ops.one;
+    term = ops.one;
+    for (let n = 1; n < ops.prec * 4; n++) {
+      term = ops.div(ops.mul(term, -x2), ops.fromInt((2 * n - 1) * (2 * n)));
+      cosX += term;
+      if (ops.abs(term) < lim) break;
+    }
+    if (swap) {
+      const tmp = sinX;
+      sinX = cosX;
+      cosX = tmp;
+    }
+    return { sin: signSin * sinX, cos: signCos * cosX };
+  }
+
+  function decExp(x, ops) {
+    if (x === 0n) return ops.one;
+    let k = 0;
+    let z = x;
+    while (ops.abs(z) > ops.one && k < 24) {
+      z = z / 2n;
+      k++;
+    }
+    let term = ops.one;
+    let sum = ops.one;
+    for (let i = 1; i < ops.prec * 3 + 8; i++) {
+      term = ops.div(ops.mul(term, z), ops.fromInt(i));
+      sum += term;
+      if (ops.abs(term) < 2n) break;
+    }
+    while (k--) sum = ops.mul(sum, sum);
+    return sum;
+  }
+
+  function cAdd(a, b) {
+    return { re: a.re + b.re, im: a.im + b.im };
+  }
+  function cSub(a, b) {
+    return { re: a.re - b.re, im: a.im - b.im };
+  }
+  function cMul(a, b, ops) {
+    return {
+      re: ops.mul(a.re, b.re) - ops.mul(a.im, b.im),
+      im: ops.mul(a.re, b.im) + ops.mul(a.im, b.re),
+    };
+  }
+  function cDiv(a, b, ops) {
+    const den = ops.mul(b.re, b.re) + ops.mul(b.im, b.im);
+    return {
+      re: ops.div(ops.mul(a.re, b.re) + ops.mul(a.im, b.im), den),
+      im: ops.div(ops.mul(a.im, b.re) - ops.mul(a.re, b.im), den),
+    };
+  }
+  function cPowInt(base, exp, ops) {
+    let result = { re: ops.one, im: 0n };
+    let b = base;
+    let e = exp;
+    if (e < 0) {
+      b = cDiv({ re: ops.one, im: 0n }, b, ops);
+      e = -e;
+    }
+    while (e) {
+      if (e & 1) result = cMul(result, b, ops);
+      b = cMul(b, b, ops);
+      e >>= 1;
+    }
+    return result;
+  }
+
+  function sigma3Table(limit) {
+    const sig = new Array(limit + 1).fill(0);
+    for (let d = 1; d <= limit; d++) {
+      const d3 = d * d * d;
+      for (let n = d; n <= limit; n += d) sig[n] += d3;
+    }
+    return sig;
+  }
+
+  function seriesTerms(prec) {
+    return Math.max(24, Math.floor(((prec + 16) * 10) / 23));
+  }
+
+  function jFromQ(q, terms, ops) {
+    const sig = sigma3Table(terms);
+    const two40 = ops.fromInt(240);
+    let qn = q;
+    let e4 = { re: ops.one, im: 0n };
+    for (let n = 1; n <= terms; n++) {
+      const coef = ops.mul(two40, ops.fromInt(sig[n]));
+      e4 = cAdd(e4, { re: ops.mul(qn.re, coef), im: ops.mul(qn.im, coef) });
+      qn = cMul(qn, q, ops);
+    }
+    qn = q;
+    let delta = q;
+    const one = { re: ops.one, im: 0n };
+    for (let n = 1; n <= terms; n++) {
+      delta = cMul(delta, cPowInt(cSub(one, qn), 24, ops), ops);
+      qn = cMul(qn, q, ops);
+    }
+    return cDiv(cMul(cMul(e4, e4, ops), e4, ops), delta, ops);
+  }
+
+  function qFromTau(re, im, ops) {
+    const pi = decPi(ops);
+    const twoPi = ops.mul(pi, ops.fromInt(2));
+    const absQ = decExp(-ops.mul(twoPi, im), ops);
+    if (re === 0n) return { re: absQ, im: 0n };
+    const sc = decSinCos(ops.mul(twoPi, re), ops);
+    return { re: ops.mul(sc.cos, absQ), im: ops.mul(sc.sin, absQ) };
+  }
+
+  function qForForm(a, b, absD, ops) {
+    const root = ops.sqrt(ops.fromInt(absD));
+    const aa = ops.fromInt(a);
+    const twoA = aa + aa;
+    const re = ops.div(ops.fromInt(-b), twoA);
+    const im = ops.div(root, twoA);
+    return qFromTau(re, im, ops);
+  }
+
+  function heightDigits(D, forms) {
+    if (!forms.length) return HD_GUARD_DIGITS;
+    let s = 0;
+    const root = Math.sqrt(-D);
+    const ln10 = Math.LN10;
+    for (let i = 0; i < forms.length; i++) {
+      s += (Math.PI * root) / (forms[i][0] * ln10);
+    }
+    return (s | 0) + forms.length + HD_GUARD_DIGITS;
+  }
+
+  function polyTimesLinear(coeffs, root, ops) {
+    const n = coeffs.length;
+    const out = [];
+    for (let i = 0; i <= n; i++) out.push({ re: 0n, im: 0n });
+    out[0] = coeffs[0];
+    for (let i = 0; i < n; i++) {
+      out[i + 1] = cSub(out[i + 1], cMul(root, coeffs[i], ops));
+      if (i + 1 < n) out[i + 1] = cAdd(out[i + 1], coeffs[i + 1]);
+    }
+    return out;
+  }
+
+  function reconstructHd(coeffs, ops) {
+    const tol = ops.S / 20n; // 0.05
+    const out = [];
+    for (let i = 0; i < coeffs.length; i++) {
+      if (ops.abs(coeffs[i].im) > tol) return null;
+      const n = nearestScaledInt(coeffs[i].re, ops);
+      if (ops.abs(coeffs[i].re - n * ops.S) > tol) return null;
+      out.push(n);
+    }
+    if (!out.length || out[0] !== 1n) return null;
+    return out;
+  }
+
+  function nearestScaledInt(m, ops) {
+    const S = ops.S;
+    const neg = m < 0n;
+    const a = neg ? -m : m;
+    const q = a / S;
+    const r = a % S;
+    let out = q;
+    if (r * 2n > S || (r * 2n === S && (q & 1n) === 1n)) out = q + 1n;
+    return neg ? -out : out;
+  }
+
+  function computeHd(D, prec) {
+    const forms = reducedForms(D);
+    if (!forms.length) return null;
+    const ops = decOps(prec);
+    const terms = seriesTerms(prec);
+    const js = [];
+    for (let i = 0; i < forms.length; i++) {
+      js.push(jFromQ(qForForm(forms[i][0], forms[i][1], -D, ops), terms, ops));
+    }
+    let poly = [{ re: ops.one, im: 0n }];
+    for (let i = 0; i < js.length; i++) poly = polyTimesLinear(poly, js[i], ops);
+    return reconstructHd(poly, ops);
+  }
+
+  function hilbertClassPoly(D) {
+    D = D | 0;
+    const key = String(D);
+    if (HILBERT_CLASS_POLY[key]) return HILBERT_CLASS_POLY[key];
+    if (_hdCache.has(key)) return _hdCache.get(key);
+    if (D >= 0 || ((D % 4) + 4) % 4 === 2 || ((D % 4) + 4) % 4 === 3) {
+      return null;
+    }
+    const forms = reducedForms(D);
+    if (!forms.length) return null;
+    let prec = Math.max(40, heightDigits(D, forms));
+    let got = null;
+    for (let t = 0; t < HD_PREC_RETRIES; t++) {
+      try {
+        got = computeHd(D, prec);
+      } catch (_) {
+        got = null;
+      }
+      if (got) break;
+      prec = prec * 2 + 16;
+    }
+    if (got) _hdCache.set(key, got);
+    return got;
+  }
+
   function pStrip(p) {
     while (p.length && p[p.length - 1] === 0n) p.pop();
     return p;
@@ -1896,15 +2239,16 @@
     return lr.root;
   }
 
-  function fastecppUsable(n, t) {
+  function fastecppUsable(n, t, trialBound) {
     const minQ = gkMinQ(n);
+    const bound = trialBound == null ? FASTECPP_TRIAL_BOUND : trialBound;
     const orders = [n + 1n - t, n + 1n + t];
     for (let i = 0; i < orders.length; i++) {
       const m = orders[i];
       if (m <= 2n) continue;
       const g0 = gcd(m, n);
       if (g0 > 1n && g0 < n) return true;
-      const ts = trialSplit(m, FASTECPP_TRIAL_BOUND);
+      const ts = trialSplit(m, bound);
       const rem = ts.rem;
       if (rem > 1n && rem < n && rem >= minQ && m / rem >= 2n && !fermatSaysComposite(rem)) {
         return true;
@@ -1914,21 +2258,17 @@
   }
 
   function fastecppWalk(n, depth, onTick, shouldStop) {
+    const bits = bitLength(n);
+    const dMax = scaledFastecppDMax(bits);
+    const hCap = scaledFastecppHCap(bits);
+    const trialBound = scaledFastecppTrialBound(bits);
     const h1 = {};
     for (let i = 0; i < CLASS_NUMBER_1_D.length; i++) h1[String(CLASS_NUMBER_1_D[i])] = true;
-    for (let absd = 3; absd <= FASTECPP_D_MAX; absd++) {
+    for (let absd = 3; absd <= dMax; absd++) {
       if (shouldStop && shouldStop()) return { prime: null, aborted: true };
       const D = -absd;
       if (h1[String(D)]) continue;
-      const coeffs = HILBERT_CLASS_POLY[String(D)];
-      if (!coeffs || coeffs.length - 1 > FASTECPP_H_CAP) continue;
       if (!isFundamentalD(D)) continue;
-      const h = classNumber(D);
-      if (h < 2 || h > FASTECPP_H_CAP) continue;
-      emit(onTick, "ecpp", BigInt(absd), BigInt(FASTECPP_D_MAX), {
-        D: String(D),
-        label: "FastECPP H_D D=" + D,
-      });
       let jac;
       try {
         jac = jacobi(BigInt(D), n);
@@ -1944,7 +2284,15 @@
       const cr = cornacchia(BigInt(D), n);
       if (cr.kind === "factor") return { prime: false, factor: cr.g };
       if (cr.kind !== "ok") continue;
-      if (!fastecppUsable(n, cr.t)) continue;
+      const h = classNumber(D);
+      if (h < 2 || h > hCap) continue;
+      if (!fastecppUsable(n, cr.t, trialBound)) continue;
+      emit(onTick, "ecpp", BigInt(absd), BigInt(dMax), {
+        D: String(D),
+        label: "FastECPP computing H_D D=" + D + " h=" + h,
+      });
+      const coeffs = hilbertClassPoly(D);
+      if (!coeffs || coeffs.length - 1 > hCap) continue;
       const root = hilbertRootModN(coeffs, n);
       if (root && root.factor) {
         const g = root.factor;
@@ -1958,7 +2306,7 @@
         depth,
         onTick,
         shouldStop,
-        FASTECPP_TRIAL_BOUND
+        trialBound
       );
       if (dec.aborted || dec.prime !== null) return dec;
     }
@@ -2052,7 +2400,7 @@
             true,
             "ecpp",
             null,
-            "deterministic Atkin–Morain ECPP (class-number-1, then in-tab FastECPP H_D)",
+            "deterministic Atkin–Morain ECPP (class-number-1, then computed H_D FastECPP)",
             limit,
             t0
           );
@@ -2076,7 +2424,7 @@
           isqrt: limit.toString(),
           ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
           note:
-            "≥256-bit: class-number-1 then in-tab FastECPP H_D did not settle. Python is_prime continues with computed-H_D FastECPP, then UnsettledPrimalityError.",
+            "≥256-bit: class-number-1 then computed-H_D FastECPP did not settle within the in-tab D/h cap. Python is_prime may still prove it, else UnsettledPrimalityError.",
         };
       }
       emit(onTick, "fermat", 0n, 6n, { label: "combined BLS n±1" });
@@ -2368,6 +2716,7 @@
     classNumber: classNumber,
     isFundamentalD: isFundamentalD,
     hilbertRootModN: hilbertRootModN,
+    hilbertClassPoly: hilbertClassPoly,
     HILBERT_CLASS_POLY: HILBERT_CLASS_POLY,
     checkPrime: checkPrime,
     nextPrime: nextPrime,
@@ -2542,6 +2891,20 @@
     assert(HILBERT_CLASS_POLY["-3076"] && HILBERT_CLASS_POLY["-3076"].length === 21, "H_-3076");
     assert(HILBERT_CLASS_POLY["-788"] && HILBERT_CLASS_POLY["-788"].length === 11, "H_-788");
     assert(HILBERT_CLASS_POLY["-187"] && HILBERT_CLASS_POLY["-187"].length === 3, "H_-187");
+    const computed15 = computeHd(-15, 48);
+    assert(
+      computed15 &&
+        computed15.length === 3 &&
+        computed15[0] === 1n &&
+        computed15[1] === 191025n &&
+        computed15[2] === -121287375n,
+      "computed H_-15 " + (computed15 && computed15.join(","))
+    );
+    const computed24 = hilbertClassPoly(-24);
+    assert(
+      computed24 && computed24.join(",") === HILBERT_CLASS_POLY["-24"].join(","),
+      "H_-24 table-or-compute"
+    );
     const r15 = hilbertRootModN(HILBERT_CLASS_POLY["-15"], 59n);
     assert(typeof r15 === "bigint", "H_-15 root mod 59");
     const e59 = ecppPrimality(59n);

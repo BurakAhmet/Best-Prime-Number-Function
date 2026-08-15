@@ -100,3 +100,7 @@ P1000_DIGIT = 10**999 + 7
 # 131-digit CM-friendly prime 10^130+1113. Proved by in-tree ECPP (D=−19).
 # Not the CLI default (F6). Default-suite tests must not call is_prime on it.
 P131_DIGIT = 10**130 + 1113
+# Smallest 132-digit prime (10^131+63). Pages lab yardstick for computed H_D.
+P132_DIGIT = 10**131 + 63
+# Smallest 150-digit prime (10^149+183). Pages lab 150-digit gate.
+P150_DIGIT = 10**149 + 183
