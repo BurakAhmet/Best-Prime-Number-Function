@@ -67,6 +67,11 @@ class TestPrevPrime:
         for n in (100, 10_007, P10_9_7):
             assert prev_prime(n, parallel=True) == prev_prime(n, parallel=False)
 
+    def test_window_sieve_mid_size(self):
+        # Deep window path (n ≥ 10^6): same answer as the wheel fallback.
+        n = 1_000_003
+        assert prev_prime(n) == 999_983
+
     def test_module_cli_prints_result(self):
         r = subprocess.run(
             [sys.executable, "-m", "best_prime.prev_prime", "14"],

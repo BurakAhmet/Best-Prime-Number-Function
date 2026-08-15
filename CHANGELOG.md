@@ -29,6 +29,7 @@ All notable changes to this project are documented in this file.
   `max_ms` abort on ECM/SIQS (no raise).
 
 ### Changed
+- **`prev_prime` window-sieves backward** (same deep odd window as `next_prime`) so a large prime gap is not a 1e6-trial per candidate. FastECPP downruns no longer repeat the 13 class-number-1 discriminants after the caller already missed. Smaller *n* can still take longer when the previous prime has a harder CM tree — that is the proof, not the digit count.
 - **`python -m best_prime.prev_prime n` is a real CLI** (it used to import the module and exit with no output). Same `TEST`/`RESULT`/`TIME` as `prev-prime`. The walk also Fermat-rejects composites before `is_prime`, so a 123-digit predecessor finishes in seconds instead of hanging on every wheel candidate.
 - **Pages lab prints a factor** for huge Fermat composites (trial to \(10^6\), then p−1 / Brent / ECM). \(10^{131}+1113 = 193\cdot q\) no longer shows “factor: not isolated”.
 - **Pages lab proves general 132–150 digit primes.** After class-number-1 the worker computes Hilbert $H_D$ (same $j(\tau)$ q-expansion as `classpoly`) and walks $|D|$ up to 12 000, so $10^{131}+63$ and $10^{149}+183$ settle in-tab. `DEFAULT_N` unchanged.

@@ -13,13 +13,16 @@ from .is_prime import _parse_n
 from .next_prime import (
     _RES_INVALID,
     _W30030,
+    _WINDOW_SIEVE_MIN_N,
     _fermat_composite_fast,
     _get_deep_primes,
     _get_prefilter,
     _get_res_30030,
     _get_steps_30030,
     _prove_prime_candidate,
+    _sieve_odd_window,
     _span_guess,
+    _window_span,
 )
 from .prime_sieve import _SIEVE_PI_MAX, _parse_k, _primes_in_range, _primes_upto_cached
 
@@ -97,6 +100,37 @@ def _prev_prime_wheel(n: int, k: int, parallel: bool) -> int:
     raise ValueError(f"no {k}-th prime strictly less than {n}")
 
 
+def _prev_prime_window(n: int, k: int, parallel: bool) -> int | None:
+    """Deep window sieve walking downward. None if abandoned."""
+    if n < _WINDOW_SIEVE_MIN_N:
+        return None
+    primes = _get_deep_primes()
+    found = 0
+    hi = n
+    span = _window_span(n, k)
+    for _expand in range(48):
+        lo = hi - span
+        if lo < 2:
+            lo = 2
+        if lo >= hi:
+            break
+        cands = _sieve_odd_window(lo, hi, primes)
+        for c in reversed(cands):
+            if c >= n or c < 2:
+                continue
+            if _fermat_composite_fast(c):
+                continue
+            if _prove_prime_candidate(c, parallel):
+                found += 1
+                if found == k:
+                    return c
+        if lo <= 2:
+            break
+        hi = lo
+        span = min(span + (span >> 1), 16_000_000)
+    return None
+
+
 def _try_interval_prev(n: int, k: int) -> int | None:
     if k < 8:
         return None
@@ -168,6 +202,10 @@ def prev_prime(n: int | str, k: int = 1, *, parallel: bool = True) -> int:
     got = _try_interval_prev(n_int, k_int)
     if got is not None:
         return got
+    if n_int >= _WINDOW_SIEVE_MIN_N:
+        got = _prev_prime_window(n_int, k_int, parallel)
+        if got is not None:
+            return got
     return _prev_prime_wheel(n_int, k_int, parallel)
 
 

@@ -136,7 +136,10 @@ def _prove_q_fast(
     if decided is not None:
         return decided
     if _recurse_ok(q):
-        return fastecpp_primality(q, parallel=parallel, skip_small_h=True)
+        # _prove_strictly_smaller already tried class-number-1 on 128+ bit q.
+        return fastecpp_primality(
+            q, parallel=parallel, skip_small_h=True, skip_h1=q.bit_length() >= 128
+        )
     return None
 
 
@@ -306,15 +309,16 @@ def fastecpp_primality(
     *,
     parallel: bool = True,
     skip_small_h: bool = False,
+    skip_h1: bool = False,
     d_max: int | None = None,
     h_cap: int | None = None,
     max_ms: int | None = None,
 ) -> Optional[bool]:
     """True / False / None. Computed-``H_D`` Atkin–Morain.
 
-    ``skip_small_h``: caller already ran ``ecpp_primality(..., max_h=16)``.
-    Still tries the 13 class-number-1 discriminants when that is cheap
-    (recursive cofactor). ``parallel`` must not change which ``D`` wins.
+    ``skip_small_h``: caller already ran transcribed ``h≤16``. Still tries
+    class-number-1 unless ``skip_h1`` (the downrun already did those 13).
+    ``parallel`` must not change which ``D`` wins.
     ``d_max`` / ``h_cap`` default to a bit-length table. ``max_ms`` is a
     wall-clock abort for the computed walk (``None`` = no cap).
     """
@@ -355,6 +359,9 @@ def fastecpp_primality(
         # the 13 discriminants is a full Tonelli; skip and use the catalog.
         if bits > 3_500:
             _trace("skip h=1 / transcribed (huge n)")
+        elif skip_h1:
+            # Caller already ran the 13 class-number-1 discriminants.
+            _trace("skip h=1 (caller)")
         elif skip_small_h or _in_band(n):
             for D in CLASS_NUMBER_1_D:
                 dec = _try_discriminant(D, n, parallel=parallel, max_h=1)
