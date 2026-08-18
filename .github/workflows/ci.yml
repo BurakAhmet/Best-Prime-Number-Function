@@ -27,7 +27,7 @@ jobs:
       full: ${{ steps.scope.outputs.full }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
       - id: scope
@@ -57,7 +57,7 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Docs/meta-only — required check green
         if: needs.plan.outputs.code == 'false'
@@ -226,12 +226,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR head (or push commit)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: candidate
 
       - name: Checkout baseline ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           path: baseline_src
@@ -308,7 +308,7 @@ jobs:
     if: needs.plan.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -341,7 +341,7 @@ jobs:
     if: needs.plan.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -379,7 +379,7 @@ jobs:
     if: needs.plan.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build image
         run: docker build -t best-prime:ci .
       - name: Smoke CLI (tiny + C-path n)
@@ -394,7 +394,7 @@ jobs:
     if: needs.plan.outputs.full == 'true' && needs.test.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout PR (candidate)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: cand
           ref: ${{ github.event.pull_request.head.sha }}
@@ -84,7 +84,7 @@ jobs:
 
       - name: Checkout main (baseline engine)
         if: steps.delta.outputs.empty != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: main_src
           ref: ${{ github.event.pull_request.base.sha }}
