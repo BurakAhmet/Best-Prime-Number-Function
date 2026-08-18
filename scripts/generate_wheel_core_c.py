@@ -28,10 +28,9 @@ DATA = ROOT / "is_prime_data"
 # Covers default e2e mid-size primes (12-digit isqrt = 999_999) with headroom.
 PRE_MAX = 1_048_576  # 2^20
 # Hard-path sieve knobs (overridable at compile time via -DTILE_BYTES=… etc.).
-TILE_BYTES = 16384
+TILE_BYTES = 32768
 TILE_P_MAX = 4096
 PARALLEL_SEG_MIN = 10_000_000
-
 BODY = r"""
 /* BEGIN_WHEEL_CORE_BODY */
 
