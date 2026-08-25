@@ -76,7 +76,7 @@ jobs:
             --json optimize_baseline.json \
             --md optimize_baseline.md
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: optimize-baseline
           path: |
@@ -214,7 +214,7 @@ jobs:
           print("winner", bool(w), (w or {}).get("id"))
           PY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: optimize-hunt
           path: |
@@ -349,7 +349,7 @@ jobs:
           pytest -q -m "not slow"
           python benchmarks/check_determinism.py --trials 2
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: optimize-examine

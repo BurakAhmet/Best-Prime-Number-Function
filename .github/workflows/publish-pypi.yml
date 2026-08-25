@@ -23,7 +23,7 @@ jobs:
           python-version: "3.12"
       - run: pip install build
       - run: python -m build --sdist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist/*.tar.gz
@@ -57,7 +57,7 @@ jobs:
           assert "manylinux" in name, name
           print("ok", name)
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-linux
           path: wheelhouse/*.whl
@@ -94,7 +94,7 @@ jobs:
           assert "none-any" not in name, name
           print("ok", name)
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-macos
           path: wheelhouse/*.whl
