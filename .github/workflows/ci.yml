@@ -171,7 +171,7 @@ jobs:
           python3 benchmarks/timing_table.py --band "$band" --json timing_table.json
       - name: Upload timing table
         if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: timing-table-${{ needs.plan.outputs.full }}
           path: timing_table.json
@@ -193,7 +193,7 @@ jobs:
           PY
       - name: Upload engine sample
         if: needs.plan.outputs.code == 'true' && matrix.python-version == '3.12' && runner.os == 'Linux' && needs.plan.outputs.full == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: engine-sample
           path: engine_sample.json
@@ -294,7 +294,7 @@ jobs:
 
       - name: Upload benchmark artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-json
           path: |
@@ -416,7 +416,7 @@ jobs:
           if [ ! -f engine_sample.json ]; then
             echo '{"path":"unavailable","note":"engine sample artifact missing"}' > engine_sample.json
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: correctness-attestation
           path: |
