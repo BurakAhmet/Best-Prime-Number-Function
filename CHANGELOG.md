@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Auto-optimize **`tile-32k`** (`tile_bytes=32768, tile_p_max=4096, parallel_seg_min=10000000`): hard-path geomean **6.5%** faster on the Optimize runner. Rejected this round: `tile-8k`, `tile-64k`, `pmax-128`, `pmax-192`, `pmax-384`, `pmax-512`, `par-5e6`, `par-2e7`, `tile-32k-p384`.
+
 ### Added
 - **CM tree on huge proofs.** A successful FastECPP / ECPP walk records
   `D`, class number $h$, and cofactor sizes. `lab(n)["cm_tree"]` and the
