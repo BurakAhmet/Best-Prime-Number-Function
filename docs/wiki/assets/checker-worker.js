@@ -218,6 +218,10 @@
       const D = sign * absD;
       absD += 2n;
       sign = -sign;
+      emit(onTick, "lucas", BigInt(attempt + 1), 32n, {
+        D: String(D),
+        label: "Selfridge D = " + String(D),
+      });
       const j = jacobi(D, n);
       if (j === 0) {
         const g = gcd(D < 0n ? -D : D, n);
@@ -1124,10 +1128,20 @@
   }
 
   function blsOnce(n, depth, onTick, shouldStop, effort) {
+    emit(onTick, "sides", effort === "quick" ? 1n : 2n, 2n, {
+      side: "nm1",
+      effort: effort,
+      label: (effort === "quick" ? "quick pass · " : "full pass · ") + "n−1",
+    });
     const nm1 = nm1Primality(n, depth, onTick, shouldStop, effort);
     if (nm1.prime === true) return { prime: true, factor: null, side: "nm1" };
     if (nm1.prime === false) return { prime: false, factor: nm1.factor, side: "nm1" };
 
+    emit(onTick, "sides", effort === "quick" ? 1n : 2n, 2n, {
+      side: "np1",
+      effort: effort,
+      label: (effort === "quick" ? "quick pass · " : "full pass · ") + "n+1",
+    });
     emit(onTick, "split", 0n, 1n, { label: "factoring n+1" });
     const facG = factorEnoughPlus(n, depth, onTick, shouldStop, effort);
     if (facG) {
