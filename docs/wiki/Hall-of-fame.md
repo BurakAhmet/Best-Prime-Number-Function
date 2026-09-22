@@ -9,12 +9,12 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 1000000009 | $10^9+9$ | ~2–3 ms |
 | 2147483647 | $2^{31}-1$ (M31) | ~2–3 ms |
 | 999999999989 | 12-digit prime | ~2–4 ms |
-| 2305843009213693951 | $2^{61}-1$ (M61) | ~0.10–0.12 s |
-| 9223372036854775783 | near $2^{63}$ | ~0.19–0.22 s |
-| 100000000000000000000000000000000000000000031 | CLI default (147-bit n−1 Pocklington) | ~0.3 s |
-| 18446744073709551557 | largest prime $\lt 2^{64}$ | ~0.21–0.23 s |
+| 2305843009213693951 | $2^{61}-1$ (M61) | ~3 ms |
+| 9223372036854775783 | near $2^{63}$ | ~3 ms |
+| 100000000000000000000000000000000000000000031 | CLI default (147-bit n−1 Pocklington) | ~5 ms |
+| 18446744073709551557 | largest prime $\lt 2^{64}$ | ~3 ms |
 
-C core (v1.8.1+): precomputed primes $\le 2^{20}$ with 2-adic inverse trial for mid-size $n$; harder 64-bit paths use a **wheel-30** segmented sieve, **memcpy / OR presieve** ($7{\cdot}29$), **uint32 persisted byte-index marks**, **`DELTA[64]`/`ctzll` extract**, and **8-way 2-adic** (INV16) prime-only trial. Stdlib / Numba still keep the **30030** / **9699690** wheels.
+C core (v1.8.1+): precomputed primes $\le 2^{20}$ with 2-adic inverse trial for mid-size $n$. The same table peels odd prime powers while BLS factors $n\pm 1$ (no Python prime tuple). Harder full-trial paths still use a **wheel-30** segmented sieve, **memcpy / OR presieve** ($7{\cdot}29$), **uint32 persisted byte-index marks**, **`DELTA[64]`/`ctzll` extract**, and **8-way 2-adic** (INV16) prime-only trial. Stdlib / Numba still keep the **30030** / **9699690** wheels.
 
 Reproduce:
 

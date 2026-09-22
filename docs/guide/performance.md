@@ -14,8 +14,8 @@ Both in-process baselines are **deterministic** (no Miller–Rabin).
 | Input size | Typical engine (with `.so`) | Notes |
 |------------|----------------------------|--------|
 | Tiny / moderate | Python loop or stdlib wheel | Sub-ms to tens of ms |
-| Hard 64-bit primes | n−1 `u64_nm1` (else cubic) | ~0.3–30 ms check (was ~30–55 ms cubic) |
-| Up to about $10^{20}$ in cubic budget | n−1 `u128_nm1` (else cubic) | ~3 ms e2e CLI default (was ~0.15 s cubic) |
+| Hard 64-bit primes | n−1 `u64_nm1` (else cubic) | ~0.2 ms check, ~3 ms e2e (C peel of $n-1$) |
+| Up to about $10^{20}$ in cubic budget | n−1 `u128_nm1` (else cubic) | CLI default ~5 ms e2e / ~1 ms check |
 | Else practical $\sqrt{n}$ (≤128-bit) | OpenMP `u128_wheel_c` | Seconds, not AKS |
 | Huge primes, no small factors | FastECPP (`bigint_fastecpp`) | 100 digits in seconds, 200 digits ~1 min here; 10k-digit / 10 s not claimed |
 
@@ -30,12 +30,12 @@ End-to-end CLI `TIME` on a dev machine (`compare_e2e.py`, best of several runs; 
 | Small prime | 97 | ~0.4 ms |
 | $10^9+7$ | 1000000007 | ~2–3 ms |
 | 12-digit prime | 999999999989 | ~2–4 ms |
-| Near $2^{63}$ | 9223372036854775783 | ~0.19–0.22 s |
-| CLI default (147-bit n−1) | 100000000000000000000000000000000000000000031 | ~0.3 s e2e |
-| Largest prime $<2^{64}$ | 18446744073709551557 | ~0.21–0.23 s |
-| Mersenne M61 | $2^{61}-1$ | ~0.10–0.12 s |
+| Near $2^{63}$ | 9223372036854775783 | ~3 ms |
+| CLI default (147-bit n−1) | 100000000000000000000000000000000000000000031 | ~5 ms |
+| Largest prime $<2^{64}$ | 18446744073709551557 | ~3 ms |
+| Mersenne M61 | $2^{61}-1$ | ~3 ms |
 
-Recent engine work (INV16, persist uint32 marks, `DELTA[64]`, L1-tiled marking in v1.10.0, then **tiles to $p<4096$ + 4+4 wrap-mul**) moved the hard 64-bit class roughly **20–30%** in-process versus the v1.7 engine. Mid-size e2e stays on the precomputed-prime path and is unchanged in class.
+Recent engine work (INV16, persist uint32 marks, `DELTA[64]`, L1-tiled marking in v1.10.0, then **tiles to $p<4096$ + 4+4 wrap-mul**) moved the hard 64-bit class roughly **20–30%** in-process versus the v1.7 engine. BLS cofactors now peel odd primes from that same $2^{20}$ table in C, which is why the near-$2^{63}$ and 147-bit rows are a few milliseconds end to end. Mid-size e2e stays on the precomputed-prime path and is unchanged in class.
 
 ## Reproduce
 

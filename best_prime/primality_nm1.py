@@ -15,6 +15,7 @@ Deterministic. No RNG. Not Miller–Rabin as the engine.
 from __future__ import annotations
 
 import math
+import threading
 from typing import Optional
 
 _BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
@@ -35,6 +36,17 @@ Result = Optional[bool]
 
 _primes_cache: tuple[int, ...] | None = None
 _primes_cache_limit = 0
+# Must match scripts/generate_wheel_core_c.py PRE_MAX (embedded odd primes).
+_PRE_MAX_C = 1 << 20
+_C_SPLIT_CAP = 64
+_c_split_ready = False
+_c_ps = None
+_c_es = None
+_c_rem = None
+_c_complete = None
+_c_limbs_rem = None
+_c_rn = None
+_c_split_lock = threading.Lock()
 
 
 def _primes_upto(limit: int) -> tuple[int, ...]:
@@ -117,13 +129,15 @@ def _siqs_max_ms(bits: int) -> int:
     return 20000
 
 
-def _trial_split(m: int, bound: int) -> tuple[dict[int, int], int]:
-    """Peel prime powers ≤ bound. Returns (factors, remaining)."""
+def _trial_split_py(m: int, bound: int, min_p: int = 2) -> tuple[dict[int, int], int]:
+    """Peel prime powers in ``[min_p, bound]``. Returns (factors, remaining)."""
     fac: dict[int, int] = {}
     if m <= 1:
         return fac, m
     bound = min(int(bound), _TRIAL_PRIME_CACHE_MAX)
     for p in _primes_upto(bound):
+        if p < min_p:
+            continue
         if p > bound or p * p > m:
             break
         if m % p == 0:
@@ -134,6 +148,165 @@ def _trial_split(m: int, bound: int) -> tuple[dict[int, int], int]:
             fac[p] = fac.get(p, 0) + e
             if m == 1:
                 break
+    return fac, m
+
+
+def _bind_c_split(lib: object) -> bool:
+    """Set ctypes signatures once. False when this .so has no splitter."""
+    global _c_split_ready
+    if _c_split_ready:
+        return True
+    if not hasattr(lib, "trial_split_odd_u64"):
+        return False
+    import ctypes
+
+    u32 = ctypes.c_uint32
+    u64 = ctypes.c_uint64
+    lib.trial_split_odd_u64.argtypes = [
+        u64,
+        u64,
+        ctypes.POINTER(u32),
+        ctypes.POINTER(u32),
+        ctypes.c_int,
+        ctypes.POINTER(u64),
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.trial_split_odd_u64.restype = ctypes.c_int
+    lib.trial_split_odd_limbs.argtypes = [
+        u64,
+        u64,
+        u64,
+        u64,
+        ctypes.c_int,
+        u64,
+        ctypes.POINTER(u32),
+        ctypes.POINTER(u32),
+        ctypes.c_int,
+        ctypes.POINTER(u64),
+        ctypes.POINTER(u64),
+        ctypes.POINTER(u64),
+        ctypes.POINTER(u64),
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.trial_split_odd_limbs.restype = ctypes.c_int
+    global _c_ps, _c_es, _c_rem, _c_complete, _c_limbs_rem, _c_rn
+    _c_ps = (ctypes.c_uint32 * _C_SPLIT_CAP)()
+    _c_es = (ctypes.c_uint32 * _C_SPLIT_CAP)()
+    _c_rem = ctypes.c_uint64()
+    _c_complete = ctypes.c_int()
+    _c_limbs_rem = tuple(ctypes.c_uint64() for _ in range(4))
+    _c_rn = ctypes.c_int()
+    _c_split_ready = True
+    return True
+
+
+def _trial_split_c(m: int, bound: int) -> tuple[dict[int, int], int, bool] | None:
+    """Odd peel via wheel_core. None → caller uses Python.
+
+    The third value is True when every prime ≤ min(bound, √m) was covered.
+    """
+    if m <= 1 or bound < 3:
+        return {}, m, True
+    from .is_prime import _load_c_core
+
+    lib = _load_c_core()
+    if not lib:
+        return None
+    with _c_split_lock:
+        if not _bind_c_split(lib):
+            return None
+        return _trial_split_c_locked(lib, m, bound, _c_ps, _c_es, _c_complete)
+
+
+def _trial_split_c_locked(lib, m: int, bound: int, ps, es, complete):
+    import ctypes
+
+    if m.bit_length() <= 64:
+        rem = _c_rem
+        nf = int(
+            lib.trial_split_odd_u64(
+                m, bound, ps, es, _C_SPLIT_CAP, ctypes.byref(rem), ctypes.byref(complete)
+            )
+        )
+        if nf < 0:
+            return None
+        fac = {int(ps[i]): int(es[i]) for i in range(nf)}
+        return fac, int(rem.value), bool(complete.value)
+    if m.bit_length() > 256:
+        return None
+    nlimbs = (m.bit_length() + 63) // 64
+    limbs = [0, 0, 0, 0]
+    mm = m
+    for i in range(nlimbs):
+        limbs[i] = mm & ((1 << 64) - 1)
+        mm >>= 64
+    r0, r1, r2, r3 = _c_limbs_rem
+    rn = _c_rn
+    nf = int(
+        lib.trial_split_odd_limbs(
+            limbs[0],
+            limbs[1],
+            limbs[2],
+            limbs[3],
+            nlimbs,
+            bound,
+            ps,
+            es,
+            _C_SPLIT_CAP,
+            ctypes.byref(r0),
+            ctypes.byref(r1),
+            ctypes.byref(r2),
+            ctypes.byref(r3),
+            ctypes.byref(rn),
+            ctypes.byref(complete),
+        )
+    )
+    if nf < 0:
+        return None
+    fac = {int(ps[i]): int(es[i]) for i in range(nf)}
+    got = int(r0.value)
+    nout = int(rn.value)
+    if nout > 1:
+        got |= int(r1.value) << 64
+    if nout > 2:
+        got |= int(r2.value) << 128
+    if nout > 3:
+        got |= int(r3.value) << 192
+    return fac, got, bool(complete.value)
+
+
+def _trial_split(m: int, bound: int) -> tuple[dict[int, int], int]:
+    """Peel prime powers ≤ bound. Returns (factors, remaining).
+
+    Odd primes ≤ 2^20 go through wheel_core (the table trial already uses).
+    A larger bound finishes in Python from the next prime above that table.
+    """
+    fac: dict[int, int] = {}
+    if m <= 1:
+        return fac, m
+    bound = min(int(bound), _TRIAL_PRIME_CACHE_MAX)
+    # p*p > m stops before the prime is peeled, so m==2 stays a cofactor.
+    if bound >= 2 and m >= 4 and (m & 1) == 0:
+        e = 0
+        while (m & 1) == 0:
+            m >>= 1
+            e += 1
+        fac[2] = e
+        if m == 1 or bound < 3:
+            return fac, m
+    got = _trial_split_c(m, bound)
+    if got is None:
+        extra, m = _trial_split_py(m, bound, min_p=3)
+        fac.update(extra)
+        return fac, m
+    extra, m, complete = got
+    for p, e in extra.items():
+        fac[p] = fac.get(p, 0) + e
+    if not complete and m > 1:
+        tail, m = _trial_split_py(m, bound, min_p=_PRE_MAX_C + 1)
+        for p, e in tail.items():
+            fac[p] = fac.get(p, 0) + e
     return fac, m
 
 

@@ -13,6 +13,8 @@ Emits a compact OpenMP C engine:
   * DELTA[64] extract: one table lookup from ctzll instead of (byte,residue) math
   * uint64 ctzll extract of unset wheel-30 bits (8 bytes / iteration)
   * same sieve model for u128 full trial (128-bit DIV; wrap-mul is 64-bit)
+  * trial_split_odd_*: peel odd prime powers ≤ bound using the PRE_P table
+    (2-adic on one limb, small-p remainder on up to four limbs)
 
 The 9699690-wheel table is intentionally *not* embedded: it bloated the .so
 and lost to prime-only trial once a modest prime table is available. Numba /
@@ -728,6 +730,190 @@ int is_prime_u128_core(uint64_t lo, uint64_t hi, int parallel) {
     uint64_t limit = isqrt_u128(n);
     if (limit <= PRE_MAX) return trial_pre_u128(n, limit);
     return seg_primes_u128(n, limit, parallel);
+}
+
+/*
+ * Odd prime-power peel for BLS cofactors. 2 is the caller's job.
+ * Uses the embedded prime table only (no sieve). *complete is 0 when
+ * bound > PRE_MAX and the cofactor may still have a prime factor in
+ * (PRE_MAX, bound] — the caller finishes that tail.
+ * Returns the number of distinct primes written, or -1 if cap is too small.
+ */
+static int split_u64_from(uint64_t n, uint64_t bound, int i,
+                          uint32_t *ps, uint32_t *es, int cap, int nf,
+                          uint64_t *rem, int *complete) {
+    int end = pre_end_for_limit(bound);
+    while (i < end && n > 1) {
+        uint32_t p = PRE_P[i];
+        if ((uint64_t)p > bound || (uint64_t)p * (uint64_t)p > n) break;
+        int batch = 1;
+        if (i + 8 <= end) {
+            uint32_t plast = PRE_P[i + 7];
+            if ((uint64_t)plast <= bound &&
+                (uint64_t)plast * (uint64_t)plast <= n)
+                batch = 8;
+        }
+        if (batch == 8) {
+            int i0 = i;
+            uint64_t hit = (n * PRE_INV[i0] <= PRE_TH[i0]) |
+                           (n * PRE_INV[i0 + 1] <= PRE_TH[i0 + 1]) |
+                           (n * PRE_INV[i0 + 2] <= PRE_TH[i0 + 2]) |
+                           (n * PRE_INV[i0 + 3] <= PRE_TH[i0 + 3]) |
+                           (n * PRE_INV[i0 + 4] <= PRE_TH[i0 + 4]) |
+                           (n * PRE_INV[i0 + 5] <= PRE_TH[i0 + 5]) |
+                           (n * PRE_INV[i0 + 6] <= PRE_TH[i0 + 6]) |
+                           (n * PRE_INV[i0 + 7] <= PRE_TH[i0 + 7]);
+            if (!hit) {
+                i += 8;
+                continue;
+            }
+            for (int j = 0; j < 8; j++) {
+                uint32_t pj = PRE_P[i0 + j];
+                if ((uint64_t)pj * (uint64_t)pj > n) {
+                    i = end;
+                    break;
+                }
+                if (!(n * PRE_INV[i0 + j] <= PRE_TH[i0 + j])) continue;
+                uint32_t e = 0;
+                do {
+                    n /= pj;
+                    e++;
+                } while (n % pj == 0);
+                if (nf >= cap) {
+                    *rem = n;
+                    *complete = 0;
+                    return -1;
+                }
+                ps[nf] = pj;
+                es[nf] = e;
+                nf++;
+                if (n <= 1) {
+                    i = end;
+                    break;
+                }
+            }
+            if (i == end) break;
+            i = i0 + 8;
+            continue;
+        }
+        if (n * PRE_INV[i] <= PRE_TH[i]) {
+            uint32_t e = 0;
+            do {
+                n /= p;
+                e++;
+            } while (n % p == 0);
+            if (nf >= cap) {
+                *rem = n;
+                *complete = 0;
+                return -1;
+            }
+            ps[nf] = p;
+            es[nf] = e;
+            nf++;
+        }
+        i++;
+    }
+    *rem = n;
+    *complete = 1;
+    if (n > 1 && bound > (uint64_t)PRE_MAX) {
+        if (isqrt_u64(n) > (uint64_t)PRE_MAX) *complete = 0;
+    }
+    return nf;
+}
+
+int trial_split_odd_u64(uint64_t n, uint64_t bound,
+                        uint32_t *ps, uint32_t *es, int cap,
+                        uint64_t *rem, int *complete) {
+    if (cap < 0) cap = 0;
+    return split_u64_from(n, bound, 0, ps, es, cap, 0, rem, complete);
+}
+
+static uint32_t limbs_mod_small(const uint64_t *a, int n, uint32_t p) {
+    uint64_t r = 0;
+    for (int i = n - 1; i >= 0; --i) {
+        unsigned __int128 cur = ((unsigned __int128)r << 64) | a[i];
+        r = (uint64_t)(cur % p);
+    }
+    return (uint32_t)r;
+}
+
+static void limbs_div_small(uint64_t *a, int n, uint32_t p) {
+    uint64_t r = 0;
+    for (int i = n - 1; i >= 0; --i) {
+        unsigned __int128 cur = ((unsigned __int128)r << 64) | a[i];
+        a[i] = (uint64_t)(cur / p);
+        r = (uint64_t)(cur % p);
+    }
+}
+
+static int limbs_norm(const uint64_t *a, int n) {
+    while (n > 1 && a[n - 1] == 0) n--;
+    return n;
+}
+
+/* Up to 4 little-endian limbs (256 bits). nlimbs is the significant count. */
+int trial_split_odd_limbs(uint64_t n0, uint64_t n1, uint64_t n2, uint64_t n3,
+                          int nlimbs, uint64_t bound,
+                          uint32_t *ps, uint32_t *es, int cap,
+                          uint64_t *r0, uint64_t *r1, uint64_t *r2, uint64_t *r3,
+                          int *rnlimbs, int *complete) {
+    if (nlimbs < 1 || nlimbs > 4 || cap < 0) {
+        *complete = 0;
+        return -1;
+    }
+    uint64_t a[4] = {n0, n1, n2, n3};
+    nlimbs = limbs_norm(a, nlimbs);
+    if (nlimbs == 1) {
+        uint64_t rem = 0;
+        int nf = split_u64_from(a[0], bound, 0, ps, es, cap, 0, &rem, complete);
+        *r0 = rem;
+        *r1 = *r2 = *r3 = 0;
+        *rnlimbs = rem ? 1 : 0;
+        return nf;
+    }
+    int end = pre_end_for_limit(bound);
+    int nf = 0;
+    int i = 0;
+    while (i < end && !(nlimbs == 1 && a[0] <= 1)) {
+        if (nlimbs == 1) {
+            uint64_t rem = 0;
+            nf = split_u64_from(a[0], bound, i, ps, es, cap, nf, &rem, complete);
+            *r0 = rem;
+            *r1 = *r2 = *r3 = 0;
+            *rnlimbs = rem ? 1 : 0;
+            return nf;
+        }
+        uint32_t p = PRE_P[i];
+        if ((uint64_t)p > bound) break;
+        if (limbs_mod_small(a, nlimbs, p) != 0) {
+            i++;
+            continue;
+        }
+        uint32_t e = 0;
+        do {
+            limbs_div_small(a, nlimbs, p);
+            e++;
+            nlimbs = limbs_norm(a, nlimbs);
+        } while (limbs_mod_small(a, nlimbs, p) == 0);
+        if (nf >= cap) {
+            *complete = 0;
+            return -1;
+        }
+        ps[nf] = p;
+        es[nf] = e;
+        nf++;
+        i++;
+    }
+    *r0 = a[0];
+    *r1 = nlimbs > 1 ? a[1] : 0;
+    *r2 = nlimbs > 2 ? a[2] : 0;
+    *r3 = nlimbs > 3 ? a[3] : 0;
+    *rnlimbs = (nlimbs == 1 && a[0] == 0) ? 0 : nlimbs;
+    *complete = 1;
+    if (!(nlimbs == 1 && a[0] <= 1) && bound > (uint64_t)PRE_MAX) {
+        if (nlimbs > 1 || isqrt_u64(a[0]) > (uint64_t)PRE_MAX) *complete = 0;
+    }
+    return nf;
 }
 
 """

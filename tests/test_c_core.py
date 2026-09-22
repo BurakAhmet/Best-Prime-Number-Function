@@ -68,6 +68,53 @@ class TestCPathEngine:
         assert info["isqrt"] == (1 << 32) - 1
 
 
+class TestTrialSplitOdd:
+    """BLS cofactor peel must match pure-Python trial, including the >2^20 tail."""
+
+    def test_c_split_matches_python(self):
+        from best_prime.primality_nm1 import _trial_split, _trial_split_py
+
+        samples = [
+            1,
+            2,
+            4,
+            9,
+            27,
+            49,
+            97,
+            210,
+            3**40,
+            2**61 - 1,
+            (1 << 64) - 1,
+            P_NEAR_1E6 * P_NEAR_1E6_B,
+            P_GT_2_20 * P_GT_2_20_B,
+            P_GT_2_20 * P_LE_2_20,
+            NEAR_2_63_PRIME - 1,
+            LARGEST_PRIME_LT_2_64 - 1,
+            DEFAULT_N - 1,
+            (1 << 140) - 1,
+            145612264166821,  # 48-bit cofactor of the near-2^63 prime
+        ]
+        bounds = [2, 3, 10, 100, 50_000, 1_000_000, (1 << 20), 2_000_000]
+        for m in samples:
+            for bound in bounds:
+                if m.bit_length() > 80 and bound > 50_000:
+                    continue  # tail above 2^20 on a 140-bit prime is the slow sieve
+                assert _trial_split(m, bound) == _trial_split_py(m, bound)
+
+    def test_split_reconstructs_n(self):
+        from best_prime.primality_nm1 import _trial_split
+
+        m = (P_GT_2_20 ** 2) * P_NEAR_1E6 * 8 * 9
+        fac, rem = _trial_split(m, 2_000_000)
+        prod = rem
+        for p, e in fac.items():
+            prod *= p**e
+        assert prod == m
+        assert 2 in fac and fac[2] == 3
+        assert fac[P_GT_2_20] == 2
+
+
 class TestPrecomputedPrimeBound:
     """Exercise the embedded prime-table path (isqrt ≤ 2^20) and just above it."""
 
