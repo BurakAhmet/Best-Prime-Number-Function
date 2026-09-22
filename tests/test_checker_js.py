@@ -51,7 +51,9 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "jacDbl" in src
     assert "admissiblePairs" in src
     assert "Montgomery ECM" in ui or "ECM" in ui
+    assert 'data-phase="sides"' in ui
     assert 'data-phase="lucas"' in ui
+    assert "Selfridge" in ui
     assert 'data-phase="combined"' in ui
     assert 'data-phase="ecpp"' in ui
     assert "Combined Theorem 1" in ui

@@ -333,7 +333,7 @@
               <line class="viz-cut" id="viz-split-cut" x1="0" y1="30" x2="0" y2="64"/>
             </g>
           </svg>
-          <figcaption>trial / Fermat / then the heavier tools</figcaption>
+          <figcaption id="viz-split-cap">one side of n±1 · a wide leftover waits while the other side is tried</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="brent" hidden>
           <svg viewBox="0 0 200 92" aria-hidden="true">
@@ -387,18 +387,43 @@
             <rect class="viz-fill viz-fill-alt" x="28" y="48" width="164" height="8" rx="2"/>
             <text class="viz-mono" id="viz-pock-q" x="8" y="80">q | F</text>
           </svg>
-          <figcaption>grow a fully-factored F until F² &gt; n</figcaption>
+          <figcaption>factored piece of n−1 must clear √n · then a fixed base for each prime</figcaption>
+        </figure>
+        <figure class="lab-viz" data-phase="sides" hidden>
+          <svg viewBox="0 0 200 96" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">two doors · easier proof first</text>
+            <g id="viz-side-nm1" class="viz-side" data-side="nm1">
+              <rect class="viz-door" x="14" y="26" width="78" height="46" rx="4"/>
+              <text class="viz-mono" x="53" y="46" text-anchor="middle">n−1</text>
+              <text class="viz-mono" x="53" y="60" text-anchor="middle">Pocklington</text>
+            </g>
+            <g id="viz-side-np1" class="viz-side" data-side="np1">
+              <rect class="viz-door" x="108" y="26" width="78" height="46" rx="4"/>
+              <text class="viz-mono" x="147" y="46" text-anchor="middle">n+1</text>
+              <text class="viz-mono" x="147" y="60" text-anchor="middle">Lucas</text>
+            </g>
+            <text class="viz-mono" id="viz-sides-pass" x="8" y="90">quick pass</text>
+          </svg>
+          <figcaption>open n−1, then n+1, before any long factor search</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="lucas" hidden>
-          <svg viewBox="0 0 200 88" aria-hidden="true">
-            <text class="viz-title" x="4" y="14">Lucas n+1  the bouncing U</text>
-            <path class="viz-wave" d="M8 50 Q 32 22 56 50 T 104 50 T 152 50 T 192 50"/>
-            <circle class="viz-point viz-bob" id="viz-lucas-bob" cx="8" cy="50" r="4"/>
-            <rect class="viz-track" x="8" y="68" width="184" height="6" rx="2"/>
-            <rect class="viz-fill viz-fill-alt" id="viz-lucas-fill" x="8" y="68" width="0" height="6" rx="2"/>
-            <text class="viz-mono" id="viz-lucas-q" x="8" y="84">q | G</text>
+          <svg viewBox="0 0 200 100" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">Selfridge’s sequence</text>
+            <g id="viz-lucas-discs">
+              <g class="viz-disc" data-d="5"><circle cx="18" cy="32" r="8"/><text x="18" y="35">5</text></g>
+              <g class="viz-disc" data-d="-7"><circle cx="40" cy="32" r="8"/><text x="40" y="35">−7</text></g>
+              <g class="viz-disc" data-d="9"><circle cx="62" cy="32" r="8"/><text x="62" y="35">9</text></g>
+              <g class="viz-disc" data-d="-11"><circle cx="84" cy="32" r="8"/><text x="84" y="35">−11</text></g>
+              <g class="viz-disc" data-d="13"><circle cx="108" cy="32" r="8"/><text x="108" y="35">13</text></g>
+              <g class="viz-disc" data-d="-15"><circle cx="132" cy="32" r="8"/><text x="132" y="35">−15</text></g>
+              <g class="viz-disc" data-d="17"><circle cx="156" cy="32" r="8"/><text x="156" y="35">17</text></g>
+              <g class="viz-disc" data-d="-19"><circle cx="180" cy="32" r="8"/><text x="180" y="35">−19</text></g>
+            </g>
+            <path class="viz-wave" d="M8 62 Q 32 46 56 62 T 104 62 T 152 62 T 192 62"/>
+            <circle class="viz-point viz-bob" id="viz-lucas-bob" cx="8" cy="62" r="3.5"/>
+            <text class="viz-mono" id="viz-lucas-q" x="8" y="92">D = —</text>
           </svg>
-          <figcaption>Selfridge D · U<sub>n+1</sub> must vanish · Condition (II)</figcaption>
+          <figcaption>keep the next discriminant until U<sub>n+1</sub> vanishes and each q | G splits cleanly</figcaption>
         </figure>
         <figure class="lab-viz" data-phase="combined" hidden>
           <svg viewBox="0 0 200 96" aria-hidden="true">
@@ -485,7 +510,8 @@
           One engine per band, matching the Python library:
           <strong>class-number-1 ECPP, then in-tab FastECPP H_D</strong> when <em>n</em> has 256 or more bits
           (Montgomery ECM; no BLS fallback), else <strong>combined BLS only</strong>
-          (n−1 Pocklington, Lucas n+1, Combined Theorem 1). Then exact 30-wheel trial if practical.
+          (both doors of n±1: quick pass, then a long search only if neither side proves).
+          Then exact 30-wheel trial if practical.
           Factoring uses trial / Brent / p−1 / <strong>ECM</strong>.
           <strong>No digit-length limit.</strong> Smooth <em>n</em>±1 is typically sub-second;
           the 131-digit CM-friendly prime 10^130+1113 proves in this tab via class-number-1
@@ -582,12 +608,13 @@
       const lines = {
         precheck: "Act I · The doormen ask for ID.",
         fermat: "Act II · Six lanterns. No dice.",
-        split: "An interlude with a saw.",
+        sides: "Two doors. The easier proof is tried before a long search.",
+        split: "Opening one side of n±1. A stubborn leftover can wait.",
         brent: "The hare is twice as fast. When they meet, gcd.",
         p1: "A smoothness thermometer. If p−1 is tame, n cracks.",
         ecm: "Suyama sends a scout. The curve may confess.",
-        pocklington: "Ivy over the √n fence: grow F until F² > n.",
-        lucas: "The bouncing U must land on zero at n+1.",
+        pocklington: "Ivy over the √n fence: the factored piece of n−1 must clear it.",
+        lucas: "Selfridge’s sequence, until one discriminant makes U land on zero.",
         combined: "A balance, not FG > √n. The cubic roof decides.",
         ecpp: "Shopping the CM sky. No RNG in the catalogue.",
         wheel: "Only residues coprime to 30 may approach the hub.",
@@ -696,23 +723,40 @@
         if (fbar) fbar.setAttribute("width", String(Math.min(164, Math.max(2, frac))));
         const qel = $("#viz-pock-q", root);
         if (qel) qel.textContent = extra.q ? "q | F = " + extra.q : "building F";
+      } else if (phase === "sides") {
+        const side = extra.side === "np1" ? "np1" : "nm1";
+        root.querySelectorAll(".viz-side").forEach(function (el) {
+          el.classList.toggle("on", el.getAttribute("data-side") === side);
+        });
+        const pass = $("#viz-sides-pass", root);
+        if (pass) {
+          const name = extra.effort === "full" ? "full pass" : "quick pass";
+          pass.textContent = name + " · " + (side === "np1" ? "n+1" : "n−1");
+        }
       } else if (phase === "lucas") {
         const tot = Number(msg.limit) || 1;
         const i = Number(msg.i) || 0;
-        const fill = $("#viz-lucas-fill", root);
-        if (fill) fill.setAttribute("width", String((184 * i) / tot));
         const bob = $("#viz-lucas-bob", root);
         if (bob) {
           const x = 8 + (184 * i) / Math.max(1, tot);
-          const y = 50 + 16 * Math.sin((i / Math.max(1, tot)) * 6);
+          const y = 62 + 10 * Math.sin((i / Math.max(1, tot)) * 6);
           bob.setAttribute("cx", String(x));
           bob.setAttribute("cy", String(y));
         }
+        const want = extra.D != null ? String(extra.D) : "";
+        const order = ["5", "-7", "9", "-11", "13", "-15", "17", "-19"];
+        const at = order.indexOf(want);
+        root.querySelectorAll(".viz-disc").forEach(function (el) {
+          const d = el.getAttribute("data-d");
+          const idx = order.indexOf(d);
+          el.classList.toggle("on", d === want);
+          el.classList.toggle("lit", at >= 0 && idx >= 0 && idx < at);
+        });
         const qel = $("#viz-lucas-q", root);
         if (qel) {
           qel.textContent =
-            (extra.q ? "q | G = " + extra.q : "U_{n+1}") +
-            (extra.D ? "   D = " + extra.D : "");
+            (extra.D ? "D = " + extra.D : "D = —") +
+            (extra.q ? "    q | G = " + extra.q : "");
         }
       } else if (phase === "combined") {
         const fbar = $("#viz-comb-f", root);
@@ -759,7 +803,18 @@
         });
       } else if (phase === "split") {
         const bits = $("#viz-split-bits", root);
-        if (bits) bits.textContent = extra.bits ? extra.bits + "-bit leftover" : extra.label || "cofactor";
+        if (bits) {
+          const side = extra.label && extra.label.indexOf("n+1") >= 0 ? "n+1" : extra.label && extra.label.indexOf("n−1") >= 0 ? "n−1" : "";
+          bits.textContent = extra.bits
+            ? (side ? side + " · " : "") + extra.bits + "-bit leftover"
+            : extra.label || "cofactor";
+        }
+        const cap = $("#viz-split-cap", root);
+        if (cap) {
+          cap.textContent = extra.label && extra.label.indexOf("n+1") >= 0
+            ? "n+1 is open · n−1 waits if this side is awkward"
+            : "n−1 is open · n+1 is next if this leftover will not split quickly";
+        }
         const tot = Number(msg.limit) || 1;
         const i = Number(msg.i) || 0;
         const x = 40 + ((i * 120) / Math.max(1, tot)) % 120;
@@ -835,8 +890,13 @@
       if (phase === "brent") return "Brent–Pollard on a cofactor";
       if (phase === "fermat") return "Fermat a^{n−1} mod n";
       if (phase === "p1") return "Pollard p−1 stage 1";
+      if (phase === "sides") {
+        const which = extra.side === "np1" ? "n+1" : "n−1";
+        const pass = extra.effort === "full" ? "full pass" : "quick pass";
+        return pass + " · " + which;
+      }
       if (phase === "pocklington") return "Pocklington check on primes of F";
-      if (phase === "lucas") return "Lucas n+1 on primes of G";
+      if (phase === "lucas") return extra.D ? "Selfridge D = " + extra.D : "Lucas n+1 on primes of G";
       if (phase === "combined") return "Combined Theorem 1 (not FG>√n)";
       if (phase === "ecpp") return extra.D ? "ECPP discriminant D=" + extra.D : "class-number-1 / FastECPP";
       if (phase === "split") return extra.label || "factoring a cofactor of n±1";
