@@ -609,6 +609,7 @@ Profile on Zen 2 (12 threads): fill ~1 ms, **mark ≈ trial ≈ 100 ms** eac
 | **1.10.0** | + **L1 tiles for $p<256$** (16 KiB) | same tiles on u128 | same | Yes | Hard 64-bit ~6–14% (marking-bound) | Tile only the dense streams; tiling *all* primes still loses |
 | **unreleased** | + **L1 tiles $p<4096$** + **4+4 wrap-mul** | same | same | Yes | Hard 64-bit ~4% geomean (DEFAULT_N ~4–6%) | Tiling $p\ge 8192$ restarts too often; forced 8-wide `\|` spills |
 | **unreleased** | same 64-bit (BLS then cubic on hard path) | same cubic / u128 | **BLS → ECPP (h=1 then small-$h$) → AKS** | Yes | Special-form BLS; general 100-digit = small-$h$; `DEFAULT_N` unchanged | $FG>\sqrt{n}$ is not a theorem; h=1 is not completeness; F7 still holds |
+| **unreleased** | BLS cofactor peel on the $2^{20}$ prime table | same | same | Yes | Hard BLS e2e: near $2^{63}$ ~36→3 ms, CLI default ~41→5 ms | Python sieve of $\pi(10^6)$ was the CLI; do not materialize that list |
 
 ---
 
@@ -798,6 +799,32 @@ An 8-bit NTT (mod $998244353$) matches Python `*` through 521 limbs but is ~12×
 | **Advantages** | First general 100-digit proof in this tree; no extra dependencies; F6/F7 hold |
 | **Disadvantages** | Python decimal $H_D$ and trial peel are not Enge FastECPP; 10k-digit still unsettled |
 | **Failures / lessons** | $j=1728\,E_4^3/\Delta$ is the wrong normalisation (Ramanujan is $E_4^3/\Delta$); ring class polynomials use *primitive* forms only |
+
+---
+
+## Era — unreleased: C trial peel for BLS cofactors
+
+**Problem.** On the hard path the predicate is combined BLS, and almost all of the time was building a Python tuple of primes and walking it. A cold `python -m best_prime` of the near-$2^{63}$ prime spent ~29 ms inside `_sieve_primes_upto(10^6)` (78 k Python ints) and then another ~2 ms of `m % p`. The 147-bit CLI default did the same while proving its 140-bit cofactor: ~41 ms e2e, ~7 ms once that list was cached. The odd primes ≤ $2^{20}$ were already sitting in `wheel_core.so`.
+
+**Change.** `trial_split_odd_u64` / `trial_split_odd_limbs` (generator `BODY`) peel odd prime powers with that table: 8-wide 2-adic wrap-mul on one limb, small-prime remainder on up to four limbs (256 bits). Factor 2 stays in Python, and the `p^2 > m` cutoff is unchanged, so `m = 2` is still a cofactor rather than a recorded factor. A bound above $2^{20}$ finishes in the old Python loop from the next prime. No new sieve, no Miller–Rabin, no external prime library.
+
+**Same machine, 12 threads, page cache warm (best of several fresh processes).**
+
+| Case | e2e before | e2e after | warm `lab` before → after |
+|------|----------:|----------:|---------------------------|
+| near $2^{63}$ | ~36 ms | **~2.9 ms** | 3.0 → **0.16 ms** |
+| largest $<2^{64}$ | ~5.4 ms | **~2.8 ms** | 1.15 → **0.17 ms** |
+| CLI default (147-bit) | ~41 ms | **~4.7 ms** | 7.0 → **1.0 ms** |
+| M61 | ~4.7 ms | **~2.8 ms** | ~0.15 ms (unchanged) |
+| $10^9+7$ / 12-digit | ~2.6–3.0 ms | same class | wheel path untouched (`.so` hot loop ratio ≈ 1.00) |
+
+Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel on a fixed matrix, including a factor above $2^{20}$.
+
+| | |
+|--|--|
+| **Advantages** | Removes the Python prime-tuple tax from every hard BLS check; mid-size wheel path unchanged |
+| **Disadvantages** | Bounds above $2^{20}$ still pay the Python sieve for the tail; shared ctypes buffers are locked |
+| **Failures / lessons** | Do not “optimize” the peel by treating $p=2$ when $p^2>m$ ($m=2$ must stay a cofactor). Batch gcd in Python was slower than the plain `%` loop |
 
 ---
 

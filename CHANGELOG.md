@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Performance
+- **BLS cofactor trial uses the OpenMP prime table.** Odd prime powers ≤ $2^{20}$ are peeled in `wheel_core` (2-adic on 64-bit cofactors, four-limb remainder above that) instead of a Python sieve. Same machine: near-$2^{63}$ e2e ~36 ms → ~3 ms, 147-bit CLI default ~41 ms → ~5 ms. Mid-size wheel trial is unchanged. Still deterministic; no Miller–Rabin.
+
 ### Added
 - **CM tree on huge proofs.** A successful FastECPP / ECPP walk records
   `D`, class number $h$, and cofactor sizes. `lab(n)["cm_tree"]` and the
