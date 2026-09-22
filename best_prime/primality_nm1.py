@@ -339,6 +339,12 @@ def _trial_split_staged(m: int) -> tuple[dict[int, int], int]:
     if rem <= 1 or _looks_prime(rem):
         return fac, rem
     full = _adaptive_trial_bound(rem)
+    # A Fermat-composite above 96 bits almost never has its smallest prime
+    # factor in (2^20, 5·10^6]. Scanning that range builds a Python prime
+    # tuple. Brent / ECM / SIQS find a 21-bit factor far sooner, and the
+    # embedded table already covers every prime ≤ 2^20.
+    if rem.bit_length() > 96:
+        full = min(full, _PRE_MAX_C)
     if full > cheap:
         extra, rem = _trial_split(rem, full)
         for p, e in extra.items():
@@ -478,6 +484,15 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
     # this band. DEFAULT_N is 147-bit and never reaches here.
     if bits > 3_500:
         return None
+
+    # A few short Brent curves catch a small prime factor. Running every
+    # curve out to 2^22 before trying the other side of n±1 is what made
+    # a 48-bit factor cost tens of seconds.
+    if bits <= 96:
+        for cv in range(1, 5):
+            g = _brent(c, cv, max_r=1 << 18)
+            if 1 < g < c:
+                return g
 
     if bits > 160:
         f = _pollard_p1(c, B1=_p1_b1(bits))

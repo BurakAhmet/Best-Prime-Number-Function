@@ -102,6 +102,12 @@ class TestBlsPrimality:
         assert bls_primality(NP1_SMOOTH_SMALL) is True
         assert is_prime(NP1_SMOOTH_SMALL) is True
 
+    def test_hostile_n_minus_1_still_prime(self):
+        # n−1 hides a 115-bit semiprime; n+1 factors. Must stay prime.
+        n = 1000000000000000000000000000000000000000000009
+        assert bls_primality(n) is True
+        assert is_prime(n) is True
+
     def test_np1_smooth_lab_bigint_bls(self):
         assert bls_primality(NP1_SMOOTH_PRIME) is True
         assert bls_side(NP1_SMOOTH_PRIME) == "np1"

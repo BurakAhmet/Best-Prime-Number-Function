@@ -828,6 +828,26 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+## Era — unreleased: both sides of \(n\pm 1\) before a long split
+
+**Problem.** `100…0009` is prime, but after primes \(\le 5\cdot 10^6\) its \(n-1\) is a 115-bit semiprime (\(166666666666667\) times a 68-bit prime). The in-browser lab ran dozens of full Brent curves on that piece before looking at \(n+1\). Node took ~74 s; a browser about 19 s. The zero-heavy default `…031` stayed under a second because \(n-1 = 2\cdot 5\cdot 13\cdot Q\) with \(Q\) prime.
+
+\(n+1\) of `…0009` **does** factor completely. The Lucas test then failed closed: it kept only the first Selfridge discriminant with Jacobi symbol \(-1\), and that discriminant does not satisfy condition (II). The Python library already walks the Selfridge sequence until one witness works.
+
+**Change.**
+- Browser: a quick pass (short Brent, no ECM, no split of a composite wider than 104 bits) on \(n-1\), then \(n+1\). Lucas tries up to 256 Selfridge discriminants. A full Brent/ECM pass runs only if both sides are still open.
+- Library: a Fermat-composite cofactor above 96 bits is not trial-divided from \(2^{20}\) to \(5\cdot 10^6\) in Python. The splitter still runs after that, unchanged.
+
+**Same machine.** Browser engine in Node: `…0009` ~74 s → **~0.9 s** (`n+1-lucas`). Python `lab` ~320 ms → **~130 ms**. `…031` unchanged (~1 ms in Python, a few hundred ms in Node).
+
+| | |
+|--|--|
+| **Advantages** | The common “one side is awkward, the other factors” shape no longer pays for a semiprime search |
+| **Disadvantages** | If **both** \(n-1\) and \(n+1\) hide a large semiprime, a full ECM/Brent pass still runs. That is factoring work, not a missed dispatch |
+| **Failures / lessons** | Do not treat the first Jacobi \(-1\) discriminant as the Lucas witness. Do not Brent-search the hard side to completion before the other side has been factored |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:

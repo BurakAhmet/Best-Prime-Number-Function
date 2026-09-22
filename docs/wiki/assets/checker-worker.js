@@ -208,27 +208,56 @@
   }
 
   function conditionII(n, primesOfG, onTick) {
-    const pick = selfridgeParams(n);
-    if (!pick) return { ok: null, factor: null };
-    if (pick.factor) return { ok: false, factor: pick.factor };
-    const full = lucasUv(n + 1n, pick.P, pick.Q, n);
-    if (!full) return { ok: null, factor: null };
-    if (full.factor) return { ok: false, factor: full.factor };
-    if (full.U % n !== 0n) return { ok: null, factor: null };
-    for (let i = 0; i < primesOfG.length; i++) {
-      const q = primesOfG[i];
-      emit(onTick, "lucas", BigInt(i + 1), BigInt(primesOfG.length), {
-        q: String(q),
-        D: String(pick.D),
-      });
-      const uq = lucasUv((n + 1n) / q, pick.P, pick.Q, n);
-      if (!uq) return { ok: null, factor: null };
-      if (uq.factor) return { ok: false, factor: uq.factor };
-      const g = gcd(uq.U, n);
-      if (g > 1n && g < n) return { ok: false, factor: g };
-      if (g !== 1n) return { ok: null, factor: null };
+    // Same search as the Python library: the first Jacobi −1 discriminant
+    // is not always a Lucas witness. Try the Selfridge sequence until one
+    // satisfies condition (II), instead of abandoning the n+1 proof.
+    if (!primesOfG.length) return { ok: null, factor: null };
+    let absD = 5n;
+    let sign = 1n;
+    for (let attempt = 0; attempt < 32; attempt++) {
+      const D = sign * absD;
+      absD += 2n;
+      sign = -sign;
+      const j = jacobi(D, n);
+      if (j === 0) {
+        const g = gcd(D < 0n ? -D : D, n);
+        if (g > 1n && g < n) return { ok: false, factor: g };
+        continue;
+      }
+      if (j !== -1) continue;
+      const P = 1n;
+      const Q = (1n - D) / 4n;
+      const full = lucasUv(n + 1n, P, Q, n);
+      if (!full) continue;
+      if (full.factor) return { ok: false, factor: full.factor };
+      if (full.U % n !== 0n) continue;
+      let ok = true;
+      for (let i = 0; i < primesOfG.length; i++) {
+        const q = primesOfG[i];
+        emit(onTick, "lucas", BigInt(i + 1), BigInt(primesOfG.length), {
+          q: String(q),
+          D: String(D),
+        });
+        if (q <= 1n || (n + 1n) % q !== 0n) {
+          ok = false;
+          break;
+        }
+        const uq = lucasUv((n + 1n) / q, P, Q, n);
+        if (!uq) {
+          ok = false;
+          break;
+        }
+        if (uq.factor) return { ok: false, factor: uq.factor };
+        const g = gcd(uq.U, n);
+        if (g > 1n && g < n) return { ok: false, factor: g };
+        if (g !== 1n) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return { ok: true, factor: null, lucas: { D: D, P: P, Q: Q } };
     }
-    return { ok: true, factor: null, lucas: pick };
+    return { ok: null, factor: null };
   }
 
   function gcd(a, b) {
@@ -513,8 +542,12 @@
     return r;
   }
 
-  function trySplitCofactor(c, onTick, shouldStop, knownComposite) {
+  function trySplitCofactor(c, onTick, shouldStop, knownComposite, effort) {
     const bits = bitLength(c);
+    const quick = effort === "quick";
+    // A composite this wide is a semiprime hunt. Try the other side of n±1
+    // before paying for it. Medium cofactors still get a short Brent.
+    if (quick && bits > 104) return null;
     const bound = knownComposite
       ? Math.max(FACTOR_TRIAL_BOUND, adaptiveTrialBound(c))
       : adaptiveTrialBound(c);
@@ -533,34 +566,59 @@
     // ECPP order-peel on ≥256-bit leftovers stays cheap. A known composite
     // (Fermat miss) gets p−1 / Brent / deeper ECM so the lab can print a factor.
     const hunt = !!knownComposite;
-    const fermatRounds = bits >= HUGE_BITS ? (hunt ? 4096 : 256) : bits > 140 ? 8192 : bits > 100 ? 4096 : 2048;
-    const brentCurves = hunt
-      ? bits > 200
-        ? 16n
-        : bits > 140
-          ? 32n
-          : 64n
-      : bits > 200
-        ? 0n
-        : bits > 140
-          ? 16n
-          : bits > 100
-            ? 32n
-            : 64n;
-    const brentMaxR = bits > 140 ? (1n << 18n) : bits > 100 ? (1n << 20n) : BRENT_MAX_R;
-    const p1B1 = hunt
-      ? bits >= HUGE_BITS
-        ? 250_000
-        : bits > 140
-          ? 1_000_000
-          : P1_B1
+    // "quick" is the first pass: a small factor or nothing. A 48-bit prime
+    // factor is not worth 32 Brent curves at 2^20 before the other side of
+    // n±1 has been tried. "full" is the second pass.
+    const fermatRounds = quick
+      ? 128
       : bits >= HUGE_BITS
-        ? 0
+        ? hunt
+          ? 4096
+          : 256
         : bits > 140
-          ? 1_000_000
+          ? 8192
           : bits > 100
-            ? 500_000
-            : P1_B1;
+            ? 4096
+            : 2048;
+    const brentCurves = quick
+      ? 6n
+      : hunt
+        ? bits > 200
+          ? 16n
+          : bits > 140
+            ? 32n
+            : 64n
+        : bits > 200
+          ? 0n
+          : bits > 140
+            ? 16n
+            : bits > 100
+              ? 32n
+              : 64n;
+    const brentMaxR = quick
+      ? bits > 80
+        ? 1n << 18n
+        : 1n << 16n
+      : bits > 140
+        ? 1n << 18n
+        : bits > 100
+          ? 1n << 20n
+          : BRENT_MAX_R;
+    const p1B1 = quick
+      ? 20_000
+      : hunt
+        ? bits >= HUGE_BITS
+          ? 250_000
+          : bits > 140
+            ? 1_000_000
+            : P1_B1
+        : bits >= HUGE_BITS
+          ? 0
+          : bits > 140
+            ? 1_000_000
+            : bits > 100
+              ? 500_000
+              : P1_B1;
 
     emit(onTick, "split", 0n, 4n, { label: "Fermat near-square probe" });
     let f = fermatSplit(c, fermatRounds);
@@ -580,6 +638,7 @@
       f = pollardP1(c, p1B1);
       if (f && f > 1n && f < c) return f;
     }
+    if (quick) return null;
 
     const ecmMs = hunt && bits >= HUGE_BITS ? 60_000 : ecmMaxMs(bits);
     const ecmPhasesHunt =
@@ -838,7 +897,8 @@
     return false;
   }
 
-  function factorEnough(n, depth, onTick, shouldStop) {
+  function factorEnough(n, depth, onTick, shouldStop, effort) {
+    if (!effort) effort = "quick";
     const target = isqrt(n);
     let m = n - 1n;
     const fac = new Map();
@@ -878,7 +938,7 @@
         emit(onTick, "split", BigInt(splits), BigInt(maxSplits), {
           bits: String(bitLength(c)),
         });
-        const f = trySplitCofactor(c, onTick, shouldStop);
+        const f = trySplitCofactor(c, onTick, shouldStop, false, effort);
         if (f && f > 1n && f < c) {
           const lo = f < c / f ? f : c / f;
           stack.push(c / lo);
@@ -896,7 +956,7 @@
       emit(onTick, "split", BigInt(splits), BigInt(maxSplits), {
         bits: String(bitLength(c)),
       });
-      const f = trySplitCofactor(c, onTick, shouldStop);
+      const f = trySplitCofactor(c, onTick, shouldStop, false, effort);
       if (f === null || f <= 1n || f >= c) return null;
       const lo = f < c / f ? f : c / f;
       stack.push(c / lo);
@@ -906,7 +966,8 @@
   }
 
   /** Factor n+1 until G > √n or G = n+1. */
-  function factorEnoughPlus(n, depth, onTick, shouldStop) {
+  function factorEnoughPlus(n, depth, onTick, shouldStop, effort) {
+    if (!effort) effort = "quick";
     const target = isqrt(n);
     let m = n + 1n;
     const fac = new Map();
@@ -945,7 +1006,7 @@
         bits: String(bitLength(c)),
         label: "factoring n+1",
       });
-      const f = trySplitCofactor(c, onTick, shouldStop);
+      const f = trySplitCofactor(c, onTick, shouldStop, false, effort);
       if (f === null || f <= 1n || f >= c) return null;
       const lo = f < c / f ? f : c / f;
       stack.push(c / lo);
@@ -990,7 +1051,7 @@
   }
 
   /** {prime: true|false|null, factor}. */
-  function nm1Primality(n, depth, onTick, shouldStop) {
+  function nm1Primality(n, depth, onTick, shouldStop, effort) {
     if (depth === undefined) depth = 0;
     if (n < 2n) return { prime: false, factor: null };
     if (n === 2n || n === 3n || n === 5n || n === 7n) {
@@ -1012,7 +1073,7 @@
     }
 
     emit(onTick, "split", 0n, 1n, { label: "factoring n−1" });
-    const fac = factorEnough(n, depth, onTick, shouldStop);
+    const fac = factorEnough(n, depth, onTick, shouldStop, effort);
     if (!fac) return { prime: null, factor: null };
 
     const F = FValue(fac);
@@ -1051,12 +1112,24 @@
 
   /** Combined BLS: n−1, then Lucas n+1, then Combined Theorem 1. */
   function blsPrimality(n, depth, onTick, shouldStop) {
-    const nm1 = nm1Primality(n, depth, onTick, shouldStop);
+    // Quick pass uses both sides of n±1 before any long factor search.
+    // Above 160 bits the tuned n−1 path (55-digit yardstick) stays first.
+    const efforts = bitLength(n) <= 160 ? ["quick", "full"] : ["full"];
+    for (let pass = 0; pass < efforts.length; pass++) {
+      const effort = efforts[pass];
+      const settled = blsOnce(n, depth, onTick, shouldStop, effort);
+      if (settled.prime !== null || effort === "full") return settled;
+    }
+    return { prime: null, factor: null, side: null };
+  }
+
+  function blsOnce(n, depth, onTick, shouldStop, effort) {
+    const nm1 = nm1Primality(n, depth, onTick, shouldStop, effort);
     if (nm1.prime === true) return { prime: true, factor: null, side: "nm1" };
     if (nm1.prime === false) return { prime: false, factor: nm1.factor, side: "nm1" };
 
     emit(onTick, "split", 0n, 1n, { label: "factoring n+1" });
-    const facG = factorEnoughPlus(n, depth, onTick, shouldStop);
+    const facG = factorEnoughPlus(n, depth, onTick, shouldStop, effort);
     if (facG) {
       const G = FValue(facG);
       const primesG = Array.from(facG.keys()).sort(function (a, b) {
@@ -1069,7 +1142,7 @@
       }
 
       emit(onTick, "split", 0n, 1n, { label: "factoring n−1 for Combined Theorem 1" });
-      const facF = factorEnough(n, depth, onTick, shouldStop);
+      const facF = factorEnough(n, depth, onTick, shouldStop, effort);
       if (facF) {
         const F = FValue(facF);
         emit(onTick, "combined", F, isqrt(n), {
@@ -2939,6 +3012,17 @@
     const weak = (r + 1n) * (r + 1n);
     assert(gkMinQ(nComb) === (r + 2n) * (r + 2n), "gkMinQ");
     assert(weak < gkMinQ(nComb), "weak (r+1)² is below gkMinQ");
+
+    // n−1 hides a 115-bit semiprime; n+1 factors completely. Must not spend
+    // a long Brent search on n−1 before the Lucas proof.
+    const hostileZeros = 1000000000000000000000000000000000000000000009n;
+    const tHostile = typeof performance !== "undefined" ? performance.now() : 0;
+    const rHostile = checkPrime(hostileZeros);
+    assert(rHostile.prime === true, "46-digit hostile prime " + JSON.stringify(rHostile));
+    if (typeof performance !== "undefined") {
+      const dt = performance.now() - tHostile;
+      assert(dt < 15000, "hostile prime took " + dt.toFixed(0) + "ms");
+    }
 
     const np1 = 47265372806959999999n;
     const rnp = checkPrime(np1);
