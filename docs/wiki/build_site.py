@@ -28,8 +28,9 @@ ROOT = Path(__file__).resolve().parents[2]
 WIKI = Path(__file__).resolve().parent
 PAGES_ORIGIN = "https://burakahmet.github.io/Best-Prime-Number-Function"
 OG_DESC = (
-    "Deterministic primality testing — exact wheel trial, AKS only when needed, "
-    "no stochastic Miller–Rabin. Interactive lab, daily specimen, trial certificates."
+    "Deterministic primality — wheel trial, BLS below 256 bits "
+    "(hard checks a few milliseconds), FastECPP at 256+ bits. "
+    "No stochastic Miller–Rabin. Interactive lab."
 )
 POTD_ROW = re.compile(
     r"^\|\s*(?P<date>\d{4}-\d{2}-\d{2})\s*\|\s*`?(?P<n>\d+)`?\s*\|\s*"
@@ -41,8 +42,8 @@ CANONICAL_SPECIMEN = {
     "date": "canonical",
     "n": "9223372036854775783",
     "is_prime": True,
-    "path": "u64_wheel_c",
-    "e2e_ms": "~0.32",
+    "path": "u64_nm1",
+    "e2e_ms": "~3",
     "elapsed_ms": "",
     "source": "hall-of-fame",
     "note": "near 2^63",
