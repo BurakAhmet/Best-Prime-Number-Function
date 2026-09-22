@@ -20,9 +20,9 @@ This page is an in-browser **exhibit**, not the Python library. Today’s CI spe
 | | |
 |--|--|
 | **Library** | `is_prime`, `next_prime` / `prev_prime`, `nth_prime`, `prime_count`, `primes` / `primerange`, `prime_factors` / `factorint`, `totient` / `primorial` / `divisors`, `is_prime_power` / `is_perfect_power` |
-| **Fast path** | $n \lt 2^{64}$: OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
-| **Mid-large path** | $n \ge 2^{64}$ in cubic budget: **combined BLS** then cubic C; else OpenMP **u128** full trial / stdlib wheel |
-| **Huge path** | bits $<256$: **BLS only** (147-bit CLI default `u128_nm1`). bits $\ge 256$: **FastECPP only** (class-number-1 inside that walk). A miss raises `UnsettledPrimalityError`. AKS is not a product-path fallback. |
+| **Fast path** | Mid-size $n \lt 2^{64}$ ($\lfloor\sqrt{n}\rfloor < 10^{7}$): OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
+| **Hard path** | Larger 64-bit $n$, and $n \ge 2^{64}$ inside the cubic budget: **combined BLS**. Odd factors of $n\pm 1$ come from that same prime table ($\le 2^{20}$). Near $2^{63}$ ~3 ms e2e; 147-bit CLI default ~5 ms. Cubic C only when $n\pm 1$ is hostile. |
+| **Huge path** | bits $<256$: **BLS only** (147-bit CLI default `u128_nm1`, same peel). bits $\ge 256$: **FastECPP only** (class-number-1 inside that walk). A miss raises `UnsettledPrimalityError`. AKS is not a product-path fallback. |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
 **Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function)

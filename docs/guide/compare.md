@@ -12,8 +12,8 @@ How `best_prime` sits next to common primality tools — especially **Miller–R
 | **Failure mode** | False prime (rare but real above fixed-witness bounds) | Timeout / slow AKS on huge hard primes — **never** a silent false prime |
 | **Typical engine** | Modular exponentiations with $k$ bases | Wheel / OpenMP trial → **n−1 Pocklington** → complete cubic ($O(n^{1/3})$) → AKS |
 | **Certificates** | Usually none | Pratt / BLS / FastECPP; arithmetic-only verifier |
-| **Speed class** | Microseconds–milliseconds even for huge $n$ | Competitive on smooth $n-1$; slower on hostile hard primes by design |
-| **CLI default (147-bit)** | Instant probable-prime | ~0.3 s e2e via **n−1 Pocklington** (`u128_nm1`) |
+| **Speed class** | Microseconds–milliseconds even for huge $n$ | A few milliseconds e2e on the hard BLS cases below; slower when $n\pm 1$ is hostile |
+| **CLI default (147-bit)** | Instant probable-prime | ~5 ms e2e via **n−1 Pocklington** (`u128_nm1`); cofactors peeled on the OpenMP prime table |
 | **Allowed here?** | **Forbidden as the engine** | Required contract |
 
 Miller–Rabin is an excellent *filter*. It is not this repository’s primality engine. Project restrictions ban stochastic MR and prime sieving libraries as the source of truth.
