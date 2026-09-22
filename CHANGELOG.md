@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Performance
+- **Hostile \(n\pm 1\) no longer starts with a long Brent search.** The lab tries both sides and keeps looking for a Lucas witness instead of stopping at the first discriminant. `100…0009` (a prime whose \(n-1\) hides a 115-bit semiprime, while \(n+1\) factors completely) drops from tens of seconds to under a second. Primes above 96 bits no longer build a Python prime list out to \(5\cdot 10^6\) when the cofactor is already a Fermat composite.
 - **Pages copy matches the faster BLS peel.** The exhibit, comparison, and cubic-search guides no longer quote the old ~0.3 s CLI default.
 - **BLS cofactor trial uses the OpenMP prime table.** Odd prime powers ≤ $2^{20}$ are peeled in `wheel_core` (2-adic on 64-bit cofactors, four-limb remainder above that) instead of a Python sieve. Same machine: near-$2^{63}$ e2e ~36 ms → ~3 ms, 147-bit CLI default ~41 ms → ~5 ms. Mid-size wheel trial is unchanged. Still deterministic; no Miller–Rabin.
 
