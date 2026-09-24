@@ -5,12 +5,14 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Performance
+- **100-digit numbers in the Pages lab.** There is no digit-length cutoff. A 100-digit Fermat composite is already settled by the Fermat filter; the factor hunt is ECM-first and capped at 8s (previously a long Brent, then 60s of ECM). \(10^{99}+9\) prints its factor in a few seconds. \(10^{99}+289\) still proves via ECPP. Longer decimals are accepted the same way.
 - **Check theatre shows both doors.** After Check, the lab draws the n−1 / n+1 pass and the Selfridge discriminant row while that proof runs.
 - **Hostile \(n\pm 1\) no longer starts with a long Brent search.** The lab tries both sides and keeps looking for a Lucas witness instead of stopping at the first discriminant. `100…0009` (a prime whose \(n-1\) hides a 115-bit semiprime, while \(n+1\) factors completely) drops from tens of seconds to under a second. Primes above 96 bits no longer build a Python prime list out to \(5\cdot 10^6\) when the cofactor is already a Fermat composite.
 - **Pages copy matches the faster BLS peel.** The exhibit, comparison, and cubic-search guides no longer quote the old ~0.3 s CLI default.
 - **BLS cofactor trial uses the OpenMP prime table.** Odd prime powers ≤ $2^{20}$ are peeled in `wheel_core` (2-adic on 64-bit cofactors, four-limb remainder above that) instead of a Python sieve. Same machine: near-$2^{63}$ e2e ~36 ms → ~3 ms, 147-bit CLI default ~41 ms → ~5 ms. Mid-size wheel trial is unchanged. Still deterministic; no Miller–Rabin.
 
 ### Added
+- **Cyclotomic proofs for wide primes.** `is_prime` on an integer with at least 800 bits tries a deterministic Jacobi-sum (APR-CL) proof before FastECPP. $10^{999}+7$ proves in about six minutes on 12 cores. The GMP helper `is_prime_data/aprcl_hot.c` does the ring arithmetic; without it the same proof still runs in pure Python.
 - **CM tree on huge proofs.** A successful FastECPP / ECPP walk records
   `D`, class number $h$, and cofactor sizes. `lab(n)["cm_tree"]` and the
   CLI `CM_TREE:` line print the downrun so a slower smaller prime is

@@ -7,6 +7,9 @@
  *   <256 bits (hard / multi-limb): combined BLS only, then trial if practical.
  *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
  *   Huge leftovers use a short ECM budget so 131-digit n cannot hang in BLS.
+ *   A ≥256-bit Fermat composite is already settled; the factor hunt is capped
+ *   (ECM before Brent, 8s) so a 100-digit composite does not sit in a 60s ECM.
+ *   There is no digit-length ceiling on the input.
  *   ECPP point mul is Jacobian (one inversion); a wrong-order curve is the
  *   next (q,c) pair, not “point at infinity”. Peel of m is a cached stack.
  *   No hard digit / √n size ban: if proof is impractical, return path=inconclusive.
@@ -469,7 +472,7 @@
     return null;
   }
 
-  function brent(n, c, x0, maxR) {
+  function brent(n, c, x0, maxR, shouldStop) {
     if (x0 === undefined) x0 = 2n;
     if (maxR === undefined) maxR = BRENT_MAX_R;
     let y = x0 % n;
@@ -480,10 +483,15 @@
     const m = 512n;
     let x = y;
     while (g === 1n && r <= maxR) {
+      if (shouldStop && shouldStop()) return null;
       x = y;
-      for (let i = 0n; i < r; i++) y = (y * y + c) % n;
+      for (let i = 0n; i < r; i++) {
+        if (shouldStop && (i & 255n) === 0n && shouldStop()) return null;
+        y = (y * y + c) % n;
+      }
       let k = 0n;
       while (k < r && g === 1n) {
+        if (shouldStop && shouldStop()) return null;
         ys = y;
         let lim = r - k;
         if (lim > m) lim = m;
@@ -570,72 +578,139 @@
     // ECPP order-peel on ≥256-bit leftovers stays cheap. A known composite
     // (Fermat miss) gets p−1 / Brent / deeper ECM so the lab can print a factor.
     const hunt = !!knownComposite;
+    // ≥256-bit Fermat composites are already proved composite. A long Brent
+    // on a 100-digit modulus finds nothing useful and used to run before ECM,
+    // so the lab sat for tens of seconds (then a 60s ECM) before printing
+    // the verdict. Hunt a factor inside a short wall clock, ECM first.
+    const hugeHunt = hunt && bits >= HUGE_BITS;
+    let deadline = null;
+    if (hugeHunt && typeof performance !== "undefined") {
+      deadline = performance.now() + 8000;
+    }
+    const timedStop = function () {
+      if (shouldStop && shouldStop()) return true;
+      return deadline != null && performance.now() >= deadline;
+    };
     // "quick" is the first pass: a small factor or nothing. A 48-bit prime
     // factor is not worth 32 Brent curves at 2^20 before the other side of
     // n±1 has been tried. "full" is the second pass.
     const fermatRounds = quick
       ? 128
-      : bits >= HUGE_BITS
-        ? hunt
-          ? 4096
-          : 256
-        : bits > 140
-          ? 8192
-          : bits > 100
+      : hugeHunt
+        ? 256
+        : bits >= HUGE_BITS
+          ? hunt
             ? 4096
-            : 2048;
+            : 256
+          : bits > 140
+            ? 8192
+            : bits > 100
+              ? 4096
+              : 2048;
     const brentCurves = quick
       ? 6n
-      : hunt
-        ? bits > 200
-          ? 16n
-          : bits > 140
-            ? 32n
-            : 64n
-        : bits > 200
-          ? 0n
-          : bits > 140
+      : hugeHunt
+        ? 4n
+        : hunt
+          ? bits > 200
             ? 16n
-            : bits > 100
+            : bits > 140
               ? 32n
-              : 64n;
+              : 64n
+          : bits > 200
+            ? 0n
+            : bits > 140
+              ? 16n
+              : bits > 100
+                ? 32n
+                : 64n;
     const brentMaxR = quick
       ? bits > 80
         ? 1n << 18n
         : 1n << 16n
-      : bits > 140
-        ? 1n << 18n
-        : bits > 100
-          ? 1n << 20n
-          : BRENT_MAX_R;
+      : hugeHunt
+        ? 1n << 16n
+        : bits > 140
+          ? 1n << 18n
+          : bits > 100
+            ? 1n << 20n
+            : BRENT_MAX_R;
     const p1B1 = quick
       ? 20_000
-      : hunt
-        ? bits >= HUGE_BITS
-          ? 250_000
-          : bits > 140
-            ? 1_000_000
-            : P1_B1
-        : bits >= HUGE_BITS
-          ? 0
-          : bits > 140
-            ? 1_000_000
-            : bits > 100
-              ? 500_000
-              : P1_B1;
+      : hugeHunt
+        ? 0
+        : hunt
+          ? bits >= HUGE_BITS
+            ? 250_000
+            : bits > 140
+              ? 1_000_000
+              : P1_B1
+          : bits >= HUGE_BITS
+            ? 0
+            : bits > 140
+              ? 1_000_000
+              : bits > 100
+                ? 500_000
+                : P1_B1;
 
+    const stop = hugeHunt ? timedStop : shouldStop;
     emit(onTick, "split", 0n, 4n, { label: "Fermat near-square probe" });
+    if (stop && stop()) return null;
     let f = fermatSplit(c, fermatRounds);
     if (f && f > 1n && f < c) return f;
 
-    for (let cv = 1n; cv <= brentCurves; cv++) {
-      if (shouldStop && shouldStop()) return null;
-      if ((cv & 7n) === 0n) {
-        emit(onTick, "brent", cv, brentCurves, { curve: String(cv) });
+    function runBrent() {
+      for (let cv = 1n; cv <= brentCurves; cv++) {
+        if (stop && stop()) return null;
+        if ((cv & 7n) === 0n) {
+          emit(onTick, "brent", cv, brentCurves, { curve: String(cv) });
+        }
+        const g = brent(c, cv, 2n, brentMaxR, stop);
+        if (g > 1n && g < c) return g;
       }
-      const g = brent(c, cv, 2n, brentMaxR);
-      if (g > 1n && g < c) return g;
+      return null;
     }
+
+    function runEcm() {
+      if (quick) return null;
+      const ecmMs = hugeHunt ? 7000 : ecmMaxMs(bits);
+      const ecmPhasesHunt = hugeHunt
+        ? [{ B1: 11_000, curves: 40 }]
+        : hunt && bits >= HUGE_BITS
+          ? [
+              { B1: 11_000, curves: 80 },
+              { B1: 50_000, curves: 120 },
+            ]
+          : null;
+      let hit = ecmFactor(c, onTick, stop, 6, ecmMs, ecmPhasesHunt);
+      if (hit && hit > 1n && hit < c) return hit;
+      if (stop && stop()) return null;
+      if (bits < HUGE_BITS || hunt) {
+        const secondMs = hugeHunt ? 2000 : ecmMs;
+        hit = ecmFactor(c, onTick, stop, 806, secondMs, ecmPhasesHunt);
+        if (hit && hit > 1n && hit < c) return hit;
+      }
+      return null;
+    }
+
+    // 100-digit (and wider) known composites: ECM before Brent. Brent at
+    // 2^18 on this width burned ~20s and missed a 19-digit factor ECM found.
+    if (hugeHunt) {
+      if (p1B1 > 0 && !(stop && stop())) {
+        emit(onTick, "p1", 1n, 1n, { B1: String(p1B1) });
+        f = pollardP1(c, p1B1);
+        if (f && f > 1n && f < c) return f;
+      }
+      f = runEcm();
+      if (f && f > 1n && f < c) return f;
+      if (stop && stop()) return null;
+      f = runBrent();
+      if (f && f > 1n && f < c) return f;
+      return null;
+    }
+
+    f = runBrent();
+    if (f && f > 1n && f < c) return f;
 
     if (p1B1 > 0) {
       emit(onTick, "p1", 1n, 1n, { B1: String(p1B1) });
@@ -643,21 +718,8 @@
       if (f && f > 1n && f < c) return f;
     }
     if (quick) return null;
-
-    const ecmMs = hunt && bits >= HUGE_BITS ? 60_000 : ecmMaxMs(bits);
-    const ecmPhasesHunt =
-      hunt && bits >= HUGE_BITS
-        ? [
-            { B1: 11_000, curves: 80 },
-            { B1: 50_000, curves: 120 },
-          ]
-        : null;
-    f = ecmFactor(c, onTick, shouldStop, 6, ecmMs, ecmPhasesHunt);
+    f = runEcm();
     if (f && f > 1n && f < c) return f;
-    if (bits < HUGE_BITS || hunt) {
-      f = ecmFactor(c, onTick, shouldStop, 806, ecmMs, ecmPhasesHunt);
-      if (f && f > 1n && f < c) return f;
-    }
     return null;
   }
 

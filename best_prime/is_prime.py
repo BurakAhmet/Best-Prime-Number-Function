@@ -945,6 +945,18 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
             return n == a
         if _powmod(a, n - 1, n) != 1:
             return False
+    # Cyclotomic proof for wide n. FastECPP's downrun only sheds a few
+    # digits per step, so a 1000-digit prime stays in that walk for a long
+    # time. APR-CL decides the same n in a few minutes.
+    if bits >= 800:
+        from .primality_aprcl import aprcl_primality
+
+        decided = aprcl_primality(n)
+        if decided is True:
+            _last_is_prime_big_path = "bigint_aprcl"
+            return True
+        if decided is False:
+            return False
     if deadline_hit():
         _last_is_prime_big_path = "bigint_unsettled"
         raise UnsettledPrimalityError(n)
@@ -1105,6 +1117,8 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
             else:
                 if _last_is_prime_big_path == "bigint_fastecpp":
                     path = "bigint_fastecpp"
+                elif _last_is_prime_big_path == "bigint_aprcl":
+                    path = "bigint_aprcl"
                 else:
                     path = "bigint_unsettled"
                     if prime is True or prime is False:
@@ -1153,8 +1167,12 @@ def lab(n: int | str, *, parallel: bool = True) -> dict:
         "bigint_trial_or_aks": "Huge-int path: 30030-wheel partial trial, then AKS (Kronecker; may be slow).",
         "bigint_bls": "BLS n+1 or combined n±1 proof (n−1 did not settle).",
         "bigint_ecpp": "Deterministic Atkin–Morain ECPP.",
+        "bigint_aprcl": (
+            "Deterministic cyclotomic proof (Jacobi sums) for a wide n. "
+            "A 1000-digit prime is a few minutes."
+        ),
         "bigint_fastecpp": (
-            "Deterministic FastECPP — the only engine for n with ≥ 256 bits."
+            "Deterministic FastECPP when the cyclotomic modulus does not cover n."
         ),
         "bigint_unsettled": (
             "The single engine for this bit length did not settle. "

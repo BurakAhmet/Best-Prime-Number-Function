@@ -141,6 +141,26 @@ def _compile_wheel_core(target_dir: Path) -> bool:
                     print(f"is_prime: built huge_arith -> {huge_out}")
                 except (FileNotFoundError, subprocess.CalledProcessError):
                     print("is_prime: huge_arith compile skipped (pow fallback)")
+            apr_src = DATA / "aprcl_hot.c"
+            if apr_src.is_file():
+                apr_out = target_dir / f"aprcl_hot.{ext}"
+                gmp = "/lib/x86_64-linux-gnu/libgmp.so.10"
+                acmd = [
+                    cc, "-O3", "-fPIC", "-shared", *arch,
+                    "-o", str(apr_out), str(apr_src),
+                    gmp if Path(gmp).is_file() else "-lgmp",
+                ]
+                try:
+                    subprocess.run(acmd, check=True, capture_output=True, text=True)
+                    aso = target_dir / "aprcl_hot.so"
+                    if apr_out != aso:
+                        try:
+                            shutil.copy2(apr_out, aso)
+                        except OSError:
+                            pass
+                    print(f"is_prime: built aprcl_hot -> {apr_out}")
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    print("is_prime: aprcl_hot compile skipped (pure Python fallback)")
             return True
         except FileNotFoundError as exc:
             last_err = exc
