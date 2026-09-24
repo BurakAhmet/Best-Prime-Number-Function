@@ -15,6 +15,7 @@ All notable changes to this project are documented in this file.
 - **BLS cofactor trial uses the OpenMP prime table.** Odd prime powers ≤ $2^{20}$ are peeled in `wheel_core` (2-adic on 64-bit cofactors, four-limb remainder above that) instead of a Python sieve. Same machine: near-$2^{63}$ e2e ~36 ms → ~3 ms, 147-bit CLI default ~41 ms → ~5 ms. Mid-size wheel trial is unchanged. Still deterministic; no Miller–Rabin.
 
 ### Fixed
+- **71-bit strong pseudoprime no longer walks to √n.** `1955097530374556503981` passes the first ten Miller–Rabin bases, so BLS does not settle it. The lab then trial-divided up to ~4.4×10^10 (~minutes). A short Brent search now prints the factor 31265776261 in well under a second.
 - **Pages lab no longer asks before checking near \(2^{63}\).** \(9223372036854775783\) is an n−1 proof in the worker (tens of milliseconds); the confirm dialog is gone. In-tab ECPP peels for cofactors up to 380 bits no longer spend seconds of ECM on orders that trial and Fermat already settle, so \(10^{99}+289\) proves faster in the tab.
 ### Added
 - **Cyclotomic proofs for wide primes.** `is_prime` on an integer with at least 800 bits tries a deterministic Jacobi-sum (APR-CL) proof before FastECPP. $10^{999}+7$ proves in about six minutes on 12 cores. The GMP helper `is_prime_data/aprcl_hot.c` does the ring arithmetic; without it the same proof still runs in pure Python.

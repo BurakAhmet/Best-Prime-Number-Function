@@ -118,6 +118,32 @@ def test_checker_worker_self_test():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_checker_worker_spsp_above_2_64_is_fast_composite() -> None:
+    """71-bit strong pseudoprime must not fall through to a √n trial."""
+    script = r"""
+const api=require('./docs/wiki/assets/checker-worker.js');
+const n=1955097530374556503981n;
+const t0=Date.now();
+const r=api.checkPrime(n);
+const dt=Date.now()-t0;
+if (r.prime !== false || n % BigInt(r.factor) !== 0n || dt >= 3000) {
+  console.error(dt, JSON.stringify(r));
+  process.exit(1);
+}
+console.log('spsp', r.factor, dt);
+"""
+    r = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 def test_checker_worker_100_digit_under_30s() -> None:
     """100-digit prime, Fermat composite, and a 400-digit input. No digit cap.
 

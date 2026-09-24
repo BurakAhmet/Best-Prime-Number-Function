@@ -2697,6 +2697,26 @@
       }
     }
 
+    // BLS did not settle. A strong pseudoprime (passes the Fermat bases, but
+    // n±1 will not prove it) used to fall through to trial up to √n. For
+    // 1955097530374556503981 that is ~4.4·10^10 divisions (~minutes) even
+    // though an 11-digit factor is a few Brent curves away.
+    if (limit >= NM1_ISQRT) {
+      emit(onTick, "brent", 0n, 1n, { label: "Brent factor of n before a long trial" });
+      const fac = trySplitCofactor(n, onTick, shouldStop, false, "quick");
+      if (shouldStop && shouldStop()) return { aborted: true };
+      if (fac && fac > 1n && fac < n) {
+        return done(
+          false,
+          "brent",
+          fac,
+          "composite; Brent factor " + fac.toString(),
+          limit,
+          t0
+        );
+      }
+    }
+
     if (limit > TRIAL_SOFT_ISQRT) {
       return {
         prime: null,
