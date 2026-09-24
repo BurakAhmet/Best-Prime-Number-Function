@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Removed
+- **Kronecker AKS** is no longer in the library. It was not on any size band. A miss is still `UnsettledPrimalityError`. The unused affine ECM curve constructor is gone; factoring stays on Montgomery ECM, and ECPP point search stays on the Jacobian scalar multiply.
+
 ### Performance
 - **100-digit numbers in the Pages lab.** There is no digit-length cutoff. A 100-digit Fermat composite is already settled by the Fermat filter; the factor hunt is ECM-first and capped at 8s (previously a long Brent, then 60s of ECM). \(10^{99}+9\) prints its factor in a few seconds. \(10^{99}+289\) still proves via ECPP. Longer decimals are accepted the same way.
 - **Check theatre shows both doors.** After Check, the lab draws the n−1 / n+1 pass and the Selfridge discriminant row while that proof runs.

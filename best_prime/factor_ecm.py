@@ -1,8 +1,8 @@
 """Deterministic Lenstra ECM (fixed sigma schedule; no RNG).
 
 Factoring uses Suyama/Montgomery curves with ``sigma = 6, 7, 8, …``.
-Stage 1 multiplies per prime power ``p^k ≤ B1`` (gcd on Z). Affine
-Weierstrass ``_add`` / Jacobian ``_mul`` remain for ECPP point search.
+Stage 1 multiplies per prime power ``p^k ≤ B1`` (gcd on Z). Jacobian
+``_mul`` remains for ECPP point search.
 
 Does not import ``ntheory`` / ``prime_factors`` (those import this module).
 """
@@ -46,34 +46,6 @@ def _lcm_upto(lo: int, hi: int) -> int:
         elif p >= lo:
             acc *= p
     return acc
-
-
-def _add(p1: Point, p2: Point, a: int, n: int) -> tuple[Point, int]:
-    """Elliptic add. Second value is a proper factor of n, or 1."""
-    if p1 is None:
-        return p2, 1
-    if p2 is None:
-        return p1, 1
-    x1, y1 = p1
-    x2, y2 = p2
-    if x1 == x2:
-        if (y1 + y2) % n == 0:
-            return None, 1
-        num = (3 * x1 * x1 + a) % n
-        den = (2 * y1) % n
-    else:
-        num = (y2 - y1) % n
-        den = (x2 - x1) % n
-    g = math.gcd(den, n)
-    if g > 1:
-        return None, g
-    if den == 0:
-        return None, 1
-    inv = pow(den, -1, n)
-    m = (num * inv) % n
-    x3 = (m * m - x1 - x2) % n
-    y3 = (m * (x1 - x3) - y1) % n
-    return (x3, y3), 1
 
 
 def _mul(k: int, p: Point, a: int, n: int) -> tuple[Point, int]:
@@ -160,22 +132,6 @@ def _jac_add(x1: int, y1: int, z1: int, x2: int, y2: int, z2: int, n: int):
     if 1 < g < n:
         return g
     return x3, y3, z3
-
-
-def _curve(sigma: int, n: int) -> tuple[int, Point, int] | tuple[None, None, int]:
-    """Weierstrass curve from integer sigma. Third value is a factor or 1."""
-    x0 = sigma % n
-    y0 = 1
-    a = sigma % n
-    b = (y0 * y0 - (x0 * x0 % n) * x0 - a * x0) % n
-    # disc = -16 (4a³ + 27b²); a singular curve still yields a factor often.
-    disc = (4 * pow(a, 3, n) + 27 * (b * b % n)) % n
-    g = math.gcd(disc, n)
-    if 1 < g < n:
-        return None, None, g
-    if g == n:
-        return None, None, 1
-    return a, (x0, y0), 1
 
 
 def _schedule(bits: int) -> tuple[int, int, int]:

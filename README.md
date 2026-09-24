@@ -3,7 +3,7 @@
 > [!WARNING]
 > **This repository was created and designed by an AI agent**, including code, tests, docs, benchmarks, and automation. Treat it as **AI-generated work**: review, test, and validate before production or research-critical use.
 
-**Exact `is_prime(n)`** — one engine per size band: wheel / OpenMP trial, **combined BLS** below 256 bits (`DEFAULT_N`), **FastECPP** at 256+ bits. AKS is not a product-path fallback. No stochastic Miller–Rabin. No prime libraries as the engine.
+**Exact `is_prime(n)`** — one engine per size band: wheel / OpenMP trial, **combined BLS** below 256 bits (`DEFAULT_N`), **FastECPP** at 256+ bits, **cyclotomic APR-CL** from 800 bits. AKS is not in the library. No stochastic Miller–Rabin. No prime libraries as the engine.
 
 [Open the exhibit →](https://burakahmet.github.io/Best-Prime-Number-Function/) · [Library guide →](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) · [API](https://burakahmet.github.io/Best-Prime-Number-Function/guide/api/) · [FAQ](https://burakahmet.github.io/Best-Prime-Number-Function/guide/faq/)
 
@@ -74,7 +74,7 @@ CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `prim
 
 | | Engine | Deterministic for every $n$? | Typical use |
 |--|--------|------------------------------|-------------|
-| **best_prime** | Wheel / OpenMP trial, BLS, cubic, **FastECPP** (AKS not on the product path) | **Yes** | Proof-grade boolean |
+| **best_prime** | Wheel / OpenMP trial, BLS, cubic, **FastECPP**, cyclotomic APR-CL (AKS is not in the library) | **Yes** | Proof-grade boolean |
 | `sympy.isprime` | BPSW + extras | No above proven bounds | CAS default |
 | `gmpy2.is_prime` | Miller–Rabin | No | Fast probable-prime |
 | `primesieve` | Sieve | N/A (enumeration) | **Forbidden** here as the engine |
@@ -118,7 +118,7 @@ is_prime(n)
        ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
        │                      →  OpenMP C full trial (u128 limbs; no AKS)
        ├─ same size, no .so  →  stdlib 9699690-wheel full trial
-       └─ larger still       →  ECPP first if ≥256-bit (Montgomery ECM); else BLS → ECPP → AKS
+       └─ larger still       →  BLS below 256 bits; FastECPP from 256 bits; cyclotomic APR-CL from 800 bits
 
   ✗  stochastic Miller–Rabin · prime sieving libraries
   ✓  deterministic for every natural number

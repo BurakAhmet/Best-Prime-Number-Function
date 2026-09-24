@@ -301,13 +301,11 @@ class TestLarge64Bit:
 
     def test_wide_fermat_holder_is_unsettled_not_aks(self):
         from best_prime.errors import UnsettledPrimalityError
-        from best_prime.is_prime import AKS_SKIP_BITS
 
-        # Wider than the FastECPP product band (~1000 digits). Fermat
-        # composite → False; Fermat holder → Unsettled. Never AKS.
-        # 10**200+357 is A003617(201) and is now an M2 specimen.
+        # Wider than a casual check. Fermat composite → False; a Fermat
+        # holder that no engine settles → Unsettled. AKS is not called.
         n = 10**1999 + 357
-        assert n.bit_length() >= AKS_SKIP_BITS
+        assert n.bit_length() > 512
         t0 = time.perf_counter()
         try:
             assert is_prime(n) is False

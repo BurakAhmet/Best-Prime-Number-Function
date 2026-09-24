@@ -1,6 +1,6 @@
 # Best-Prime-Number-Function Wiki
 
-**Fully deterministic** primality testing for natural numbers — one engine per size band (stdlib / OpenMP C / Numba / **BLS** below 256 bits / **FastECPP** at 256+ bits). AKS is not a product-path fallback.
+**Fully deterministic** primality testing for natural numbers — one engine per size band (stdlib / OpenMP C / Numba / **BLS** below 256 bits / **FastECPP** at 256+ bits / **cyclotomic APR-CL** from 800 bits). AKS is not in the library.
 
 > [!WARNING]
 > **This entire project (code, tests, docs, and wiki) was created and designed by an AI agent**. Treat it as AI-generated work: review code and results before production or research-critical use. Human oversight is recommended.
@@ -22,7 +22,7 @@ This page is an in-browser **exhibit**, not the Python library. Today’s CI spe
 | **Library** | `is_prime`, `next_prime` / `prev_prime`, `nth_prime`, `prime_count`, `primes` / `primerange`, `prime_factors` / `factorint`, `totient` / `primorial` / `divisors`, `is_prime_power` / `is_perfect_power` |
 | **Fast path** | Mid-size $n \lt 2^{64}$ ($\lfloor\sqrt{n}\rfloor < 10^{7}$): OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
 | **Hard path** | Larger 64-bit $n$, and $n \ge 2^{64}$ inside the cubic budget: **combined BLS**. Odd factors of $n\pm 1$ come from that same prime table ($\le 2^{20}$). Near $2^{63}$ ~3 ms e2e; 147-bit CLI default ~5 ms. Cubic C only when $n\pm 1$ is hostile. |
-| **Huge path** | bits $<256$: **BLS only** (147-bit CLI default `u128_nm1`, same peel). bits $\ge 256$: **FastECPP only** (class-number-1 inside that walk). A miss raises `UnsettledPrimalityError`. AKS is not a product-path fallback. |
+| **Huge path** | bits $<256$: **BLS only** (147-bit CLI default `u128_nm1`, same peel). bits $\ge 256$: **FastECPP** (class-number-1 inside that walk) until 800 bits, then **cyclotomic APR-CL**. A miss raises `UnsettledPrimalityError`. AKS is not in the library. |
 | **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
 
 **Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function)
