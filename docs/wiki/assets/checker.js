@@ -1,7 +1,6 @@
 /* Deterministic lab UI. Heavy work runs in checker-worker.js
  * (≥256-bit: class-number-1 then in-tab FastECPP H_D; else combined BLS; then trial). */
 (function () {
-  const WARN_ISQRT = 8_000_000n;
   const TWO64 = 1n << 64n;
   const WHEEL30 = [1, 7, 11, 13, 17, 19, 23, 29];
   const DOCTRINE = "deterministic · BLS (<256 bits) / class-number-1 then FastECPP H_D (256+) · no stochastic Miller–Rabin";
@@ -1091,17 +1090,6 @@
       }
 
       const limit = isqrt(n);
-      const multiLimb = n >= TWO64;
-      // No digit / √n hard ban. Optional confirm only for long pure-trial class (64-bit hard).
-      if (kind === "check" && !multiLimb && limit > WARN_ISQRT) {
-        const ok = window.confirm(
-          "⌊√n⌋ ≈ " +
-            fmt(limit) +
-            ". If n−1 is hostile, exact 30-wheel trial may take minutes in the browser " +
-            "(background worker; Stop is available). Multi-limb n tries n−1 first with no size ban. Continue?"
-        );
-        if (!ok) return;
-      }
 
       killWorker();
       go.disabled = true;

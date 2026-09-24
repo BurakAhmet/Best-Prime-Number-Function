@@ -771,9 +771,10 @@
     if (bits <= 40) return 50;
     if (bits <= 64) return 200;
     if (bits <= 80) return 500;
-    if (bits <= 100) return 2000;
-    if (bits <= 160) return 8000;
-    if (bits <= 220) return 2000;
+    if (bits <= 100) return 800;
+    // 100-digit downruns were spending the old 2–8s cap on orders that
+    // trial+Fermat already settle. Keep a deeper peel only above ~120 digits.
+    if (bits <= 380) return 0;
     return 2000;
   }
 
@@ -2295,8 +2296,11 @@
     for (let i = 0; i < a.length; i++) {
       if (!a[i]) continue;
       for (let j = 0; j < b.length; j++) {
-        if (b[j]) out[i + j] = (out[i + j] + a[i] * b[j]) % n;
+        if (b[j]) out[i + j] += a[i] * b[j];
       }
+    }
+    for (let i = 0; i < out.length; i++) {
+      if (out[i]) out[i] %= n;
     }
     return pStrip(out);
   }
@@ -2405,6 +2409,27 @@
       if (mon && mon.factor) return mon;
       h = mon;
       if (pDeg(h) < 1) return null;
+    }
+    if (pDeg(h) === 1) {
+      const lr0 = linearRoot(h, n);
+      if (lr0 == null) return null;
+      if (lr0.factor) return lr0;
+      return lr0.root;
+    }
+    if (pDeg(h) === 2 && powBig(2n, n - 1n, n) === 1n) {
+      const b = h[1] % n;
+      const c0 = h[0] % n;
+      const disc = (((b * b - 4n * c0) % n) + n) % n;
+      const root = tonelliModN(disc, n);
+      if (root && root.factor) return root;
+      if (typeof root === "bigint" && (root * root) % n === disc) {
+        const inv2 = modInv(2n, n);
+        if (inv2 === null) {
+          const g = gcd(2n, n);
+          return { factor: g > 1n && g < n ? g : n };
+        }
+        return (((-b + root) % n) + n) % n * inv2 % n;
+      }
     }
     const xn = pPowMod([0n, 1n], n, h, n);
     if (xn.factor) return xn;
