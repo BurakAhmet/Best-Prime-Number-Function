@@ -3,161 +3,155 @@
 > [!WARNING]
 > **This repository was created and designed by an AI agent**, including code, tests, docs, benchmarks, and automation. Treat it as **AI-generated work**: review, test, and validate before production or research-critical use.
 
-**Exact `is_prime(n)`** — one engine per size band: wheel / OpenMP trial, **combined BLS** below 256 bits (`DEFAULT_N`), **FastECPP** at 256+ bits, **cyclotomic APR-CL** from 800 bits. AKS is not in the library. No stochastic Miller–Rabin. No prime libraries as the engine.
+**Ask whether a natural number is prime. Get a proof, or an honest “not settled.” Never a guess.**
 
-[Open the exhibit →](https://burakahmet.github.io/Best-Prime-Number-Function/) · [Library guide →](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) · [API](https://burakahmet.github.io/Best-Prime-Number-Function/guide/api/) · [FAQ](https://burakahmet.github.io/Best-Prime-Number-Function/guide/faq/)
+[Try a number in the browser →](https://burakahmet.github.io/Best-Prime-Number-Function/) · [Library guide →](https://burakahmet.github.io/Best-Prime-Number-Function/guide/) · [API](https://burakahmet.github.io/Best-Prime-Number-Function/guide/api/)
 
 <p align="center">
   <a href="https://burakahmet.github.io/Best-Prime-Number-Function/">
-    <img src="docs/wiki/assets/og.png" alt="Best Prime — deterministic primality; 9223372036854775783 near 2^63" width="640"/>
+    <img src="docs/wiki/assets/og.png" alt="Best Prime — deterministic primality. 9223372036854775783, near 2^63, proved in the library by an n−1 argument." width="640"/>
   </a>
 </p>
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Deterministic](https://img.shields.io/badge/primality-deterministic-success.svg)](#design-restrictions)
-[![OpenMP](https://img.shields.io/badge/hard%2064--bit-OpenMP%20C-blue.svg)](scripts/compile_wheel_core.sh)
-[![Numba](https://img.shields.io/badge/fallback-Numba-orange.svg)](https://numba.pydata.org/)
+[![Deterministic](https://img.shields.io/badge/primality-deterministic-success.svg)](#what-prime-means-here)
 [![CI](https://github.com/BurakAhmet/Best-Prime-Number-Function/actions/workflows/ci.yml/badge.svg)](https://github.com/BurakAhmet/Best-Prime-Number-Function/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/docs-library%20guide-teal.svg)](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)
 [![PyPI](https://img.shields.io/pypi/v/best-prime-number-function.svg)](https://pypi.org/project/best-prime-number-function/)
-[![Packages GHCR](https://img.shields.io/badge/Packages-GHCR%20container-blue?logo=github)](https://github.com/BurakAhmet/Best-Prime-Number-Function/pkgs/container/best-prime-number-function)
+
+The idea is small. The code is large because **one proof method is not fast at every size**, and this library refuses to fill the gap with “probably prime.”
 
 ---
 
-## Install
+## What you get
 
-```bash
-pip install best-prime-number-function          # PyPI (Trusted Publisher on first upload)
-pip install "git+https://github.com/BurakAhmet/Best-Prime-Number-Function.git"
-pip install -e ".[dev]"                         # clone + tests, ruff, mypy, Numba
-bash scripts/compile_wheel_core.sh              # gcc+OpenMP (Linux) or clang+libomp (macOS)
+```mermaid
+flowchart LR
+  n["Any natural number n"] --> q{"Is n prime?"}
+  q --> yes["Prime — a theorem finished"]
+  q --> no["Composite — a factor, or a failed identity"]
+  q --> wait["Unsettled — the proof did not finish"]
 ```
 
-Package name: **`best-prime-number-function`**. Import: **`best_prime`**. Extra `[fast]` adds NumPy / Numba. See [install](https://burakahmet.github.io/Best-Prime-Number-Function/guide/install/).
+`is_prime(n)` is `True` only when a proof finished, and `False` only when compositeness is proved. If neither happens it raises `UnsettledPrimalityError`. It does not return “probably.”
 
-Native core: Linux CI builds `wheel_core.so`. macOS wants `brew install libomp`. Windows uses the stdlib / Numba fallback unless MinGW is present. A no-compiler install still covers $n \le 4\cdot10^{12}$ exactly.
+That rules out three common shortcuts:
+
+| Shortcut | Why it is not used |
+|---|---|
+| Stochastic Miller–Rabin | A fixed set of bases can call a composite prime. `3943673813084040361` passes bases 2, 3, and 5 and is composite. |
+| Prime-library sieves | Enumeration is not a proof engine for one arbitrary `n`. |
+| AKS for every huge `n` | Correct, and far too slow here. **AKS is not in the library.** |
+
+Same `n`, any machine, serial or parallel: the same answer. The number we time is end-to-end CLI `TIME` (`benchmarks/compare_e2e.py`), not a warm inner loop (`benchmarks/compare_speed.py` is the secondary check).
 
 ---
 
-## API
+## Why there are several engines
 
-| Symbol | Role |
-|--------|------|
-| `is_prime(n, *, parallel=True)` | `True` iff prime. Also accepts a `list` / NumPy array. |
-| `primality_certificate(n)` / `verify_certificate(c)` | Same ladder as `is_prime` (Pratt / BLS / FastECPP), or a factor if composite. |
-| `next_prime` / `prev_prime` / `next_primes` / `prev_primes` | Neighbours; generators stream. Interval sieve while $\sqrt{\text{bound}}\le$ `NEXT_PRIME_SIEVE_ISQRT_MAX` ($2\cdot10^6$). |
-| `nth_prime(k)` / `prime_count(n)` / `primes` / `primerange` | $p_k$, $\pi(n)$ (**hard ceiling** `PRIME_COUNT_MAX_N = 2⁶⁴−1`), lists. |
-| `prime_factors` / `factorint` / `lehman_factor` | Trial + Fermat + **two-band cubic search** + deterministic Brent + **ECM** + **SIQS**. Hard `is_prime` uses **combined BLS** before cubic; $n$ with $\ge 256$ bits is **FastECPP** only. |
-| `totient` / `primorial` / `divisors` / `gcd` / `jacobi` / … | Exact arithmetic. Catalogue: [`docs/wiki/Library.md`](docs/wiki/Library.md). |
-| `lab(n)` | Diagnostics (`path`, timings). |
+Dividing by every prime up to $\lfloor\sqrt{n}\rfloor$ proves primality. It is the right tool while that square root is small. Near $2^{63}$ the square root is about three billion, so a full walk is the wrong tool even though the theorem is the same.
+
+So the checker looks at the size and picks **one** proof that is still practical:
+
+```mermaid
+flowchart TD
+  start["is_prime of n"] --> tiny{"Fewer than 10 to the 4?"}
+  tiny -->|yes| loop["Check directly"]
+  tiny -->|no| band{"Which size band?"}
+
+  band -->|"Below 2 to the 64, and square root below 10 million"| trial["Trial division up to the square root"]
+  band -->|"Harder 64-bit, or a modest number past 2 to the 64"| bls["Combined BLS on n minus 1 and n plus 1"]
+  bls -->|"Enough factors"| done["Prime or composite"]
+  bls -->|"n plus or minus 1 will not factor, and n is still in budget"| cubic["Cubic search"]
+
+  band -->|"256 bits up to 800 bits"| ecpp["Elliptic-curve proof"]
+  band -->|"800 bits and wider"| apr["Cyclotomic proof"]
+  apr -->|"Modulus no longer larger than the square root"| ecpp
+  ecpp -->|"Curve walk does not finish"| unsettled["UnsettledPrimalityError"]
+  apr -->|"Identities do not settle"| unsettled
+```
+
+In symbols: below $10^{4}$ the check is direct. Below $2^{64}$ with $\lfloor\sqrt{n}\rfloor < 10^{7}$ it is trial division. From 256 bits it is an elliptic-curve proof, and from 800 bits a cyclotomic one.
+
+| You are looking at | What actually runs | What “proved” feels like |
+|---|---|---|
+| A small integer | A short loop | Instant |
+| Most 64-bit numbers with $\lfloor\sqrt{n}\rfloor < 10^7$ | Wheel trial, in OpenMP C when `wheel_core.so` is built, otherwise a 30030-wheel or a 9699690-wheel | Milliseconds |
+| A hard 64-bit prime, or the 147-bit default | Combined BLS: factor $n-1$ or $n+1$ and check the witnesses | Milliseconds when the factors are kind |
+| The same band when $n\pm 1$ is hostile | Cubic search, the complete fallback inside its budget | Still a proof, slower |
+| About 100 digits (256–800 bits) | FastECPP: an elliptic curve whose order leads to a smaller prime, proved the same way | Seconds in the library |
+| About 1000 digits (from 800 bits), while the cyclotomic modulus exceeds $\sqrt{n}$ | Jacobi sums. Any prime divisor is forced into a short list, then that list is checked | Minutes, not a guess |
+| Wider than the engines cover | Stop | `UnsettledPrimalityError` |
+
+NumPy / Numba speed the wheel when the OpenMP core is absent. They are not a second answer.
+
+---
+
+## What each proof is doing
+
+**Trial.** Divide by the primes up to $\lfloor\sqrt{n}\rfloor$. No divisor means prime. The wheel skips multiples of 2, 3, 5, and further small primes so the loop does less work. OpenMP runs that loop in C.
+
+**Combined BLS.** Fermat’s little theorem says a prime $p$ satisfies $a^{p-1}\equiv 1$. The converse is false. Brillhart–Lehmer–Selfridge repairs it: if you factor enough of $n-1$ (Pocklington) or $n+1$ (Lucas), and the witnesses check out, $n$ is prime. The library tries both sides. $9223372036854775783$, near $2^{63}$, is this proof, not a walk up to its square root.
+
+**Cubic search.** When $n\pm 1$ does not factor, look for a factor of $n$ with a complete two-band search that is cheaper than trial, but only while $n$ is still inside the budget.
+
+**Elliptic-curve proof.** Build a curve whose order splits as $c\cdot q$ with $q$ a smaller prime. A point on the curve, plus a proof of $q$, proves $n$. Repeat until the cofactor is small enough for trial or BLS. This is the 100-digit path. The in-browser lab uses the same idea; the Python library is the one that continues into the cyclotomic band.
+
+**Cyclotomic proof.** For a wide $n$, pick a modulus $s>\sqrt{n}$ built from many small primes. Jacobi-sum identities in cyclotomic rings force every prime divisor of $n$ to equal $n^k \bmod s$ for some small $k$. Divide those few residues into $n$. That is how $10^{999}+7$ is proved, in minutes rather than by an elliptic-curve chain that only shrinks a few digits per step.
+
+```mermaid
+sequenceDiagram
+  participant You
+  participant Checker
+  participant Proof
+  You->>Checker: n
+  Checker->>Checker: too small, even, or a square?
+  Checker->>Proof: the one engine for this size
+  Proof-->>Checker: prime, composite, or not finished
+  Checker-->>You: True, False, or UnsettledPrimalityError
+```
+
+---
+
+## Try it
+
+```bash
+pip install best-prime-number-function
+```
+
+Package name **`best-prime-number-function`**. Import **`best_prime`**. Extra `[fast]` adds NumPy / Numba. `bash scripts/compile_wheel_core.sh` builds the OpenMP core (Linux gcc, or macOS with `brew install libomp`). Without a compiler the stdlib wheel is still exact through $4\cdot 10^{12}$.
 
 ```python
-from best_prime import is_prime, next_prime, prime_count, primality_certificate
+from best_prime import is_prime, next_prime, prime_count
 
-is_prime(17)                              # True
-is_prime([17, 18, 19])                    # [True, False, True]
-next_prime(14, 3)                         # 23
-prime_count(10)                           # 4   — n > 2**64-1 raises ValueError
-primality_certificate(17)["kind"]         # 'pratt'
-is_prime(100000000000000000000000000000000000000000031)           # CLI default — 147-bit n−1 Pocklington
-is_prime(18446744073709551557)            # largest prime < 2^64
-is_prime(9223372036854775783)             # near 2^63
-is_prime(2305843009213693951)             # M61 = 2^{61}-1
+is_prime(17)                    # True
+is_prime([17, 18, 19])          # [True, False, True]
+next_prime(14, 3)               # 23
+prime_count(10)                 # 4
+is_prime(9223372036854775783)   # near 2^63 — n−1 proof
+is_prime(18446744073709551557)  # largest prime under 2^64
+is_prime(2305843009213693951)   # M61 = 2^61 − 1
 ```
 
-CLI after install: `is-prime`, `next-prime`, `next-primes`, `prime-count`, `primality-certificate`, … Exit 0 = prime, 1 = not prime, 2 = bad input. Default `is-prime` yardstick is `100000000000000000000000000000000000000000031` (147-bit; n−1 Pocklington; cubic only if n−1 is hostile). Printed `TIME` is **end-to-end** (import + check).
+`is-prime` with no argument checks the 147-bit default `100000000000000000000000000000000000000000031` and prints end-to-end `TIME`. Exit 0 = prime, 1 = not prime, 2 = bad input, 3 = unsettled.
+
+| Also in the library | |
+|---|---|
+| `next_prime` / `prev_prime` / `nth_prime` / `primes` / `primerange` | Neighbours and lists. `prime_count(n)` stops at `PRIME_COUNT_MAX_N = 2⁶⁴−1`. |
+| `prime_factors` / `factorint` | Trial, Fermat, cubic search, Brent, ECM, SIQS. |
+| `primality_certificate` / `verify_certificate` | A checkable record of the same proof. |
+| `totient`, `primorial`, `divisors`, `gcd`, `jacobi`, … | Exact arithmetic. Full list: [`docs/wiki/Library.md`](docs/wiki/Library.md). |
+| `lab(n)` | Which path ran, and how long it took. |
 
 ---
 
-## vs other libraries
+## Where to read next
 
-| | Engine | Deterministic for every $n$? | Typical use |
-|--|--------|------------------------------|-------------|
-| **best_prime** | Wheel / OpenMP trial, BLS, cubic, **FastECPP**, cyclotomic APR-CL (AKS is not in the library) | **Yes** | Proof-grade boolean |
-| `sympy.isprime` | BPSW + extras | No above proven bounds | CAS default |
-| `gmpy2.is_prime` | Miller–Rabin | No | Fast probable-prime |
-| `primesieve` | Sieve | N/A (enumeration) | **Forbidden** here as the engine |
+| | |
+|---|---|
+| [Exhibit](https://burakahmet.github.io/Best-Prime-Number-Function/) | Type a number in the browser |
+| [Engines](https://burakahmet.github.io/Best-Prime-Number-Function/guide/engines/) | The same dispatch, with the inequalities |
+| [Restrictions](https://burakahmet.github.io/Best-Prime-Number-Function/guide/restrictions/) | The rules, including the Miller–Rabin counterexample |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to change the code without breaking the contract |
 
-A 3-base Miller–Rabin can lie: $n = 3943673813084040361$ is `mr([2,3,5])` “prime” and `is_prime` composite. Worked example: [restrictions](https://burakahmet.github.io/Best-Prime-Number-Function/guide/restrictions/) · [FAQ](https://burakahmet.github.io/Best-Prime-Number-Function/guide/faq/).
-
----
-
-## Why
-
-`is_prime(n)` is true **if and only if** `n` is prime. The boolean must not depend on a random number generator, a runtime witness, a thread schedule, or a “probably prime” threshold. Same `n`, any machine, serial or parallel → same answer.
-
-Most libraries stop at stochastic Miller–Rabin (a filter, not a proof). This one does not outsource the answer to primesieve, `sympy.isprime`, or a dice roll. Speed is end-to-end CLI `TIME`. The same contract covers $\pi(n)$, deterministic factoring, and certificates.
-
-## Design restrictions
-
-| Rule | Meaning |
-|------|---------|
-| **Deterministic** | Same input → same answer; no RNG |
-| **No stochastic Miller–Rabin** | No “probably prime” engines |
-| **No prime libraries as the engine** | No primesieve, `sympy.isprime`, … |
-| **All natural numbers** | `int` or decimal `str`, including $>64$ bits |
-| **Allowed accelerators** | NumPy / Numba, plus our OpenMP `wheel_core` |
-
-## How the checker chooses a path
-
-Linux/macOS **wheels** (v1.12.0+) ship `wheel_core.so`. A no-compiler or Windows install still falls back to stdlib / Numba. Same dispatch either way:
-
-```text
-is_prime(n)
-  n < 10⁴              →  tiny pure-Python loop
-  10⁴ ≤ n < 2⁶⁴
-       ├─ isqrt(n) ≥ 10⁷ and cubic budget
-       │     →  BLS n±1, else OpenMP cubic (hard 64-bit)
-       ├─ wheel_core.so present  →  OpenMP C (precomputed primes / seg-primes + 2-adic trial)
-       ├─ else n ≤ 4·10¹²        →  embedded 30030-wheel (stdlib only)
-       └─ else                   →  lazy NumPy/Numba 9699690-wheel
-  n ≥ 2⁶⁴
-       ├─ cubic budget (4·k·n fits in 128 bits (no artificial cub cap))
-       │     →  BLS n±1, else OpenMP cubic
-       ├─ isqrt(n) ≤ 2.5·10¹⁰ (e.g. ~10²⁰) and wheel_core.so
-       │                      →  OpenMP C full trial (u128 limbs; no AKS)
-       ├─ same size, no .so  →  stdlib 9699690-wheel full trial
-       └─ larger still       →  BLS below 256 bits; FastECPP from 256 bits; cyclotomic APR-CL from 800 bits
-
-  ✗  stochastic Miller–Rabin · prime sieving libraries
-  ✓  deterministic for every natural number
-```
-
-Diagram and path notes: [engines](https://burakahmet.github.io/Best-Prime-Number-Function/guide/engines/). Mid-size 64-bit is exact trial to $\lfloor\sqrt{n}\rfloor$. Hard 64-bit and cubic-budget multi-limb try **combined BLS** first; cubic search is the fallback when $n\pm 1$ is hostile and in budget. Still-larger $n$ with $256+$ bits tries **ECPP** first (deterministic Montgomery ECM). The **147-bit CLI default** stays `u128_nm1`. `DEFAULT_N` is unchanged.
-
-`primality_certificate` / `factorint` sit on top of this predicate (Pratt; trial + Fermat + deterministic Brent + ECM + SIQS). They do not change the boolean contract.
-
-Primary perf metric: e2e CLI `TIME` (`benchmarks/compare_e2e.py`). Secondary: warm hot-loop (`benchmarks/compare_speed.py`).
-
----
-
-## Platforms and C bindings
-
-| Platform | Native OpenMP core | Fallback |
-|----------|--------------------|----------|
-| **Linux x86_64** (CI, Docker) | Built in CI; `lab(n)["path"] == "u64_wheel_c"` | — |
-| **macOS** | `brew install libomp` then `compile_wheel_core.sh` | 30030-wheel / Numba |
-| **Windows** | MinGW `gcc` if present | 30030-wheel / Numba |
-| **Pure Python** | Unavailable | Stdlib through $4\cdot10^{12}$ |
-
-C API: [`include/best_prime.h`](include/best_prime.h) + [`native/Makefile`](native/Makefile) (`pkg-config best_prime`). Rust/Go notes: [bindings](https://burakahmet.github.io/Best-Prime-Number-Function/guide/bindings/).
-
----
-
-## Develop
-
-```bash
-pip install -e ".[dev]"
-bash scripts/compile_wheel_core.sh
-python3 scripts/check_restrictions.py
-python3 scripts/check_wiki_sync.py
-ruff check best_prime tests
-mypy
-pytest -q -m "not slow"
-OMP_NUM_THREADS=2 python3 benchmarks/check_determinism.py
-```
-
-Nightly Actions runs `@pytest.mark.slow`. Releases attach sdist/wheels and a GHCR image. Cite via [`CITATION.cff`](CITATION.cff).
-
-Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Security: [SECURITY.md](SECURITY.md).
+Primary metric: end-to-end CLI `TIME`. `DEFAULT_N` stays the 147-bit prime above.
