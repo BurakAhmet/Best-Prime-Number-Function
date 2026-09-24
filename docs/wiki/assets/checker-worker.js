@@ -4,7 +4,9 @@
  *   ≥256 bits: Fermat filter + class-number-1 ECPP, then a FastECPP walk
  *   (computed H_D + transcribed table, numbered Cantor–Zassenhaus).
  *   |D| scales to 12 000 for ~150-digit n. No BLS fallback.
- *   <256 bits (hard / multi-limb): combined BLS only, then trial if practical.
+ *   <256 bits (hard / multi-limb): combined BLS, then the two-band cubic
+ *   search (primes through ∛n, then Lehman). Trial to √n is only the
+ *   wheel band, floor(√n) < 10^7. A BLS miss never walks up to √n.
  *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
  *   Huge leftovers use a short ECM budget so 131-digit n cannot hang in BLS.
  *   A ≥256-bit Fermat composite is already settled; the factor hunt is capped
@@ -899,7 +901,9 @@
       if (p * p > n) return true;
     }
     const limit = isqrt(n);
-    if (limit > TRIAL_SOFT_ISQRT) return null; // skip automatic pure trial of original n
+    // Original n is trialed only inside the wheel band. Past that, BLS
+    // and the cubic search are the engines; this helper must not walk √n.
+    if (limit >= NM1_ISQRT) return null;
     if (n <= MAX_SAFE) {
       const r = trialNumber(Number(n), Number(limit), 0, onTick, shouldStop);
       if (r.aborted) return null;
@@ -2573,6 +2577,103 @@
     }
   }
 
+  /** Smallest c with c³ ≥ n. */
+  function ceilIcbrt(n) {
+    let c = icbrt(n);
+    if (c < 1n) c = 1n;
+    while (c * c * c < n) c += 1n;
+    return c;
+  }
+
+  // Quadratic residues mod 64. Bit i set ⇒ i is a square mod 64.
+  let _SQ64 = 0;
+  for (let s = 0; s < 32; s++) _SQ64 |= 1 << ((s * s) & 63);
+
+  function isSquareFast(x) {
+    if (x < 0n) return false;
+    if (((_SQ64 >> Number(x & 63n)) & 1) === 0) return false;
+    const s = isqrt(x);
+    return s * s === x;
+  }
+
+  /**
+   * Factor in (53, limit] by the same 30-wheel the small band uses.
+   * limit is ∛n, never √n.
+   */
+  function wheelFactor(n, limit, onTick, shouldStop) {
+    if (limit < 59n) return { factor: null };
+    let i = 59n;
+    let si = 6;
+    let steps = 0;
+    while (i <= limit) {
+      if (n % i === 0n) return { factor: i };
+      i += STEPS_B[si];
+      si = (si + 1) & 7;
+      steps++;
+      if ((steps & 0x3ffff) === 0) {
+        if (shouldStop && shouldStop()) return { aborted: true };
+        emit(onTick, "cubic", i, limit, { label: "primes through the cube root" });
+      }
+    }
+    return { factor: null };
+  }
+
+  /**
+   * Lehman windows: a² − 4kn = b² for some k ≤ ∛n splits a composite
+   * whose prime factors all exceed ∛n. Deterministic. k = 2 splits
+   * 1955097530374556503981; the loop is not special-cased to that n.
+   */
+  function lehmanFactor(n, cub, kMax, onTick, shouldStop) {
+    for (let k = 1n; k <= kMax; k++) {
+      if ((k & 1023n) === 0n) {
+        if (shouldStop && shouldStop()) return { aborted: true };
+        emit(onTick, "cubic", k, kMax, { label: "Lehman window" });
+      }
+      const fourkn = 4n * k * n;
+      let a = isqrt(fourkn);
+      if (a * a < fourkn) a += 1n;
+      const need = (cub + 16n * k - 1n) / (16n * k);
+      let extra = isqrt(need);
+      if (extra * extra !== need) extra += 1n;
+      let a2 = a * a;
+      const aEnd = a + extra;
+      while (a <= aEnd) {
+        const b2 = a2 - fourkn;
+        if (isSquareFast(b2)) {
+          const b = isqrt(b2);
+          let g = gcd(a + b, n);
+          if (g > 1n && g < n) return { factor: g };
+          const amb = a > b ? a - b : b - a;
+          g = gcd(amb, n);
+          if (g > 1n && g < n) return { factor: g };
+        }
+        a2 += (a << 1n) + 1n;
+        a += 1n;
+      }
+    }
+    return { factor: null };
+  }
+
+  /**
+   * Complete cubic search when ∛n is still a tab-sized loop.
+   * Otherwise a bounded window: a factor is a composite proof, and a
+   * miss is inconclusive. Never a walk to √n.
+   */
+  function cubicSearch(n, onTick, shouldStop) {
+    const cub = ceilIcbrt(n);
+    const wheelCap = 10_000_000n;
+    const lehmanCap = 50_000n;
+    const wheelLim = cub < wheelCap ? cub : wheelCap;
+    const kMax = cub < lehmanCap ? cub : lehmanCap;
+    const lh = lehmanFactor(n, cub, kMax, onTick, shouldStop);
+    if (lh.aborted) return lh;
+    if (lh.factor) return { factor: lh.factor, complete: false };
+    const wh = wheelFactor(n, wheelLim, onTick, shouldStop);
+    if (wh.aborted) return wh;
+    if (wh.factor) return { factor: wh.factor, complete: false };
+    return { factor: null, complete: kMax >= cub && wheelLim >= cub };
+  }
+
   function checkPrime(n, onTick, shouldStop) {
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
     emit(onTick, "precheck", 0n, 1n, { label: "small-prime / parity filter" });
@@ -2697,27 +2798,26 @@
       }
     }
 
-    // BLS did not settle. A strong pseudoprime (passes the Fermat bases, but
-    // n±1 will not prove it) used to fall through to trial up to √n. For
-    // 1955097530374556503981 that is ~4.4·10^10 divisions (~minutes) even
-    // though an 11-digit factor is a few Brent curves away.
+    // Past the wheel band, √n is not an engine. BLS already ran. The
+    // complete fallback is the cubic search (primes ≤ ∛n, then Lehman).
+    // A bounded miss is inconclusive. It does not resume trial at √n.
     if (limit >= NM1_ISQRT) {
-      emit(onTick, "brent", 0n, 1n, { label: "Brent factor of n before a long trial" });
-      const fac = trySplitCofactor(n, onTick, shouldStop, false, "quick");
-      if (shouldStop && shouldStop()) return { aborted: true };
-      if (fac && fac > 1n && fac < n) {
+      emit(onTick, "cubic", 0n, 1n, { label: "cubic search after BLS" });
+      const cub = cubicSearch(n, onTick, shouldStop);
+      if (cub.aborted || (shouldStop && shouldStop())) return { aborted: true };
+      if (cub.factor && cub.factor > 1n && cub.factor < n) {
         return done(
           false,
-          "brent",
-          fac,
-          "composite; Brent factor " + fac.toString(),
+          "cubic",
+          cub.factor,
+          "composite; cubic factor " + cub.factor.toString(),
           limit,
           t0
         );
       }
-    }
-
-    if (limit > TRIAL_SOFT_ISQRT) {
+      if (cub.complete) {
+        return done(true, "cubic", null, "no factor in the complete cubic search", limit, t0);
+      }
       return {
         prime: null,
         path: "inconclusive",
@@ -2725,7 +2825,7 @@
         isqrt: limit.toString(),
         ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
         note:
-          "No size ban: the single in-tab engine for this size (BLS below 256 bits, class-number-1 then FastECPP H_D at 256+) did not settle, and automatic pure trial would need ~⌊√n⌋ modular divisions. Python is_prime uses computed-H_D FastECPP at 256+ bits, then UnsettledPrimalityError.",
+          "BLS did not settle and the in-tab cubic search did not finish every k ≤ ∛n. Trial division up to √n is not the engine in this band. Python is_prime runs the same cubic search to completion.",
       };
     }
 
@@ -3093,8 +3193,15 @@
     const hard = 9223372036854775783n;
     const lim = isqrt(hard);
     assert(lim === 3037000499n, "isqrt(near-2^63) = " + lim);
-    assert(lim <= TRIAL_SOFT_ISQRT, "TRIAL_SOFT_ISQRT still allows near-2^63 trial");
-    assert(lim > WARN_ISQRT, "WARN_ISQRT should flag near-2^63 as slow");
+    assert(lim > NM1_ISQRT, "near-2^63 is outside the wheel band");
+    const hardR = checkPrime(hard);
+    assert(hardR.prime === true && hardR.path !== "wheel-30", "near-2^63 path " + hardR.path);
+    const spsp = 1955097530374556503981n;
+    const spspR = checkPrime(spsp);
+    assert(
+      spspR.prime === false && spspR.path === "cubic" && spsp % BigInt(spspR.factor) === 0n,
+      "spsp must be a cubic factor, not a √n trial: " + JSON.stringify(spspR)
+    );
 
     // Hostile 55-digit n is not run here (ECM can take minutes).
     // docs/wiki/assets/checker-worker.js must not hard-ban by digit length.

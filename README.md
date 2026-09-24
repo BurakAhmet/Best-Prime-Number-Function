@@ -39,7 +39,7 @@ That rules out three common shortcuts:
 
 | Shortcut | Why it is not used |
 |---|---|
-| Stochastic Miller–Rabin | A fixed list of bases still accepts composites. Past 2^64, SymPy’s `mr(n, [2, 3, 5, 7, 11, 13, 17, 19, 23, 29])` returns true for `1955097530374556503981`. That number is 31265776261 × 62531552521. `is_prime` proves it composite. Current `sympy.isprime` also rejects it, because it adds a Lucas test; the Miller–Rabin helper does not. |
+| Stochastic Miller–Rabin | A fixed list of bases still accepts composites. Past $2^{64}$, SymPy’s `mr(n, [2, 3, 5, 7, 11, 13, 17, 19, 23, 29])` returns true for $1955097530374556503981$. That number is $31265776261 \times 62531552521$. `is_prime` proves it composite. Current `sympy.isprime` also rejects it: below $3317044064679887385961981$ the bases are a deterministic set, and above that it is Baillie–PSW, which has no known composite. |
 | Prime-library sieves | Enumeration is not a proof engine for one arbitrary `n`. |
 | AKS for every huge `n` | Correct, and far too slow here. **AKS is not in the library.** |
 
