@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Performance
+- **150-digit FastECPP no longer builds the primorial by folding one prime at a time.** `product_tree.primorial` multiplies the primes in a product tree. On this machine the 150-digit prime \(10^{149}+183\) drops from about 40 s to about 7.2 s end to end. The witness is unchanged.
+
 ## [1.14.0] — 2026-09-25
 
 ### Performance

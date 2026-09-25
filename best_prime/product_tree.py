@@ -46,7 +46,12 @@ def remainder_tree(a: int, tree: list[list[int]]) -> list[int]:
 
 
 def _primorial(bound: int) -> int:
-    """Product of primes ≤ bound. Bound is modest (≤ 2e6)."""
+    """Product of primes ≤ bound.
+
+    A left fold into one accumulator is quadratic in the primorial's
+    bit length. Pairwise products stay linearithmic, which is what
+    makes a 5·10^6 primorial usable inside a 150-digit proof.
+    """
     bound = int(bound)
     if bound < 2:
         return 1
@@ -56,11 +61,10 @@ def _primorial(bound: int) -> int:
     for p in range(2, r + 1):
         if sieve[p]:
             sieve[p * p : bound + 1 : p] = b"\x00" * (((bound - p * p) // p) + 1)
-    acc = 1
-    for p in range(2, bound + 1):
-        if sieve[p]:
-            acc *= p
-    return acc
+    primes = [p for p in range(2, bound + 1) if sieve[p]]
+    if not primes:
+        return 1
+    return product_tree(primes)[-1][0]
 
 
 _PRIMORIAL_CACHE: dict[int, int] = {}

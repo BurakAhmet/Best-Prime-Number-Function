@@ -848,6 +848,22 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+## Era — unreleased: product-tree primorial for the 150-digit walk
+
+**Problem.** A 150-digit FastECPP proof (\(P_{150}=10^{149}+183\), 495 bits) spent 33 s of a 39 s run inside `_primorial(5·10^6)`. The primes were multiplied left to right into one accumulator, which is quadratic in the ~7·10^6-bit primorial, and the same integer was built twice.
+
+**Change.** Sieve the primes, then multiply them with the existing product tree. The value is identical and stays cached per bound. No discriminant, trial bound, or witness changes.
+
+**Same machine, fresh processes.** CLI `TIME` on \(10^{149}+183\): ~40 s → **7.2 s** (two runs, 7.18 s and 7.20 s). `DEFAULT_N` is untouched.
+
+| | |
+|--|--|
+| **Advantages** | The 150-digit specimen finishes in one CLI run under 10 s |
+| **Disadvantages** | A 150-digit prime whose cofactor chain is harder than this specimen can still take longer. The primorial is still built on first use |
+| **Failures / lessons** | Do not “fix” the 13-step downrun by accepting only a much smaller \(q\). In the first 4 000 discriminants of \(h\le 16\) the best Goldwasser–Kilian cofactor of this \(n\) was still 417 bits |
+
+---
+
 ## Era — 1.14.0 (2026-09-25): do not dlopen the core for a Python proof
 
 **Problem.** A cold `python -m best_prime` of M61 or the largest prime below $2^{64}$ spent most of its ~3 ms inside `import ctypes` and `dlopen(wheel_core.so)`. Two callers loaded that library even when combined BLS had already finished: `cubic_complete_ready` (to learn that the pure-Python cubic budget was already enough) and the CLI thread line. Proving a 128-bit cofactor also imported `primality_ecpp` only to store a certificate witness the boolean check never reads.

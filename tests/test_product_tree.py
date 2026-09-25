@@ -37,6 +37,21 @@ def test_peel_kernel_strips_smooth_part():
     assert smooth == 2**5 * 3**2 * 5
 
 
+def test_primorial_matches_fold():
+    bound = 5_000
+    sieve = bytearray(b"\x01") * (bound + 1)
+    sieve[0:2] = b"\x00\x00"
+    root = math.isqrt(bound)
+    for p in range(2, root + 1):
+        if sieve[p]:
+            sieve[p * p : bound + 1 : p] = b"\x00" * (((bound - p * p) // p) + 1)
+    acc = 1
+    for p in range(2, bound + 1):
+        if sieve[p]:
+            acc *= p
+    assert primorial(bound) == acc
+
+
 def test_empty_and_singleton():
     assert batch_smooth_kernel([], 100) == []
     assert batch_smooth_kernel([30], 10) == [math.gcd(30, primorial(10))]
