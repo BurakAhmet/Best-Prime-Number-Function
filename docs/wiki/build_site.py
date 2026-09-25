@@ -234,17 +234,17 @@ def rewrite_html_hrefs(body: str, stems: set[str]) -> str:
 
 CSS = r"""
 :root {
-  --board: #163028;
-  --chalk: #e9f2ea;
-  --chalk-dim: #9db5a6;
-  --chalk-yellow: #f3e08a;
-  --sheet: #fbf6ea;
-  --ink: #1b2437;
-  --muted: #5c6778;
-  --line: #e4d9c4;
-  --accent: #c45c2c;
-  --forest: #245c3d;
-  --soft: #efe4cf;
+  --board: #f4f6f8;
+  --chalk: #0f172a;
+  --chalk-dim: #64748b;
+  --chalk-yellow: #0f766e;
+  --sheet: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e5e7eb;
+  --accent: #0f766e;
+  --forest: #047857;
+  --soft: #f3f4f6;
   --max: 1180px;
   --sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
   --serif: "STIX Two Text", "Times New Roman", serif;
@@ -256,25 +256,21 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--sans);
-  color: var(--chalk);
-  background-color: var(--board);
-  background-image:
-    linear-gradient(rgba(233, 242, 234, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(233, 242, 234, 0.045) 1px, transparent 1px);
-  background-size: 28px 28px;
-  line-height: 1.7;
+  color: var(--ink);
+  background: var(--board);
+  line-height: 1.65;
 }
-a { color: var(--chalk-yellow); text-underline-offset: 3px; }
-a:hover { color: #fff; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { color: #115e59; }
 main.page a { color: var(--accent); }
 main.page a:hover { color: var(--ink); }
 .skip { position: absolute; left: -999px; top: 0; }
 .skip:focus { left: 1rem; top: 1rem; background: var(--sheet); color: var(--ink); padding: .5rem 1rem; z-index: 20; }
 .topbar {
   position: sticky; top: 0; z-index: 10;
-  background: rgba(22, 48, 40, 0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(233, 242, 234, 0.12);
+  border-bottom: 1px solid var(--line);
 }
 .topbar-inner {
   max-width: var(--max);
@@ -299,20 +295,21 @@ main.page a:hover { color: var(--ink); }
 }
 .btn {
   display: inline-flex;
-  border: 1px solid rgba(233, 242, 234, 0.35);
-  color: var(--chalk);
+  border: 1px solid #d7dde5;
+  color: var(--ink);
   text-decoration: none;
   padding: 0.36rem 0.8rem;
-  border-radius: 2px;
+  border-radius: 999px;
   font-size: 0.8rem;
+  font-weight: 600;
 }
-.btn:hover { background: var(--chalk-yellow); color: var(--board); border-color: var(--chalk-yellow); }
+.btn:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
 .nav-toggle {
   display: none;
-  background: transparent;
-  border: 1px solid rgba(233, 242, 234, 0.35);
-  color: var(--chalk);
-  border-radius: 2px;
+  background: #fff;
+  border: 1px solid #d7dde5;
+  color: var(--ink);
+  border-radius: 999px;
   padding: 0.35rem 0.7rem;
   font-size: 0.8rem;
 }
@@ -340,7 +337,7 @@ nav.side ol { list-style: none; margin: 0; padding: 0; }
 nav.side a {
   display: flex; align-items: baseline; gap: 0.6rem;
   text-decoration: none;
-  color: var(--chalk);
+  color: var(--ink);
   padding: 0.3rem 0;
   font-size: 0.94rem;
 }
@@ -350,10 +347,11 @@ nav.side a[aria-current="page"] .idx { color: var(--chalk-yellow); }
 main.page {
   background: var(--sheet);
   color: var(--ink);
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid var(--line);
+  border-radius: 18px;
   padding: 2.1rem 2.25rem 2.6rem;
   min-width: 0;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 16px 40px rgba(15, 23, 42, 0.05);
 }
 main.page, main.page p, main.page li { color: var(--ink); }
 .is-home main.page > h1:first-child {
@@ -376,11 +374,7 @@ h2 {
   padding: 0;
   font-size: 1.35rem;
 }
-h2::before {
-  content: "§ ";
-  color: var(--accent);
-  font-weight: 500;
-}
+h2::before { content: none; }
 h3 { font-size: 1.12rem; }
 main.page > p:first-of-type {
   color: var(--muted);
@@ -415,8 +409,8 @@ code, pre { font-family: var(--mono); font-size: 0.86em; }
   color: var(--forest);
 }
 pre {
-  background: #12241d;
-  color: #e9f2ea;
+  background: #0f172a;
+  color: #e5e7eb;
   border-radius: 2px;
   padding: 1rem 1.05rem;
   overflow-x: auto;
@@ -448,10 +442,10 @@ footer.site {
   max-width: var(--max);
   margin: 0 auto 2rem;
   padding: 0 1.4rem;
-  color: var(--chalk-dim);
+  color: var(--muted);
   font-size: 0.86rem;
 }
-footer.site a { color: var(--chalk-yellow); }
+footer.site a { color: var(--accent); }
 @media (max-width: 860px) {
   .nav-toggle { display: inline-block; }
   .shell { grid-template-columns: 1fr; padding-top: 1.1rem; }

@@ -619,55 +619,74 @@
   function mount(root) {
     root.innerHTML = `
       <section class="prime-lab" aria-label="Interactive primality lab">
-        <div class="lab-nhead">
-          <label class="lab-label" for="lab-n">n</label>
-          <p class="lab-digits" id="lab-digits" aria-live="polite">—</p>
-        </div>
-        <div class="row">
-          <input id="lab-n" type="text" inputmode="numeric" autocomplete="off"
-            placeholder="Enter a natural number" aria-label="n"/>
-          <button type="button" class="primary" id="lab-go">Check</button>
-          <button type="button" id="lab-stop" disabled>Stop</button>
-          <button type="button" id="lab-random">Random n</button>
-          <button type="button" id="lab-random-prime">Random prime</button>
-        </div>
-        <div class="row lab-rand">
-          <label class="lab-kwrap" for="lab-rand-digits">digits
-            <input id="lab-rand-digits" type="number" min="1" max="150" value="20"
-              aria-label="Digits in the random number"/>
-          </label>
-          <label class="lab-any"><input id="lab-rand-any" type="checkbox"/> any length, from 1 digit up to 10^149</label>
-        </div>
-        <p class="lab-hint">Proves the number in this tab, or prints a factor.
-          Below 256 bits it uses both sides of n±1. From 256 bits it uses an elliptic-curve proof.
-          There is no digit limit. Stop anytime.
-          A miss is <strong>inconclusive</strong> here; the Python library may still prove it.</p>
-        ${stageMarkup()}
+        <form class="lab-ask" id="lab-ask">
+          <div class="lab-nhead">
+            <label class="lab-label" for="lab-n">Number</label>
+            <p class="lab-digits" id="lab-digits" aria-live="polite">—</p>
+          </div>
+          <div class="lab-ask-row">
+            <input id="lab-n" type="text" inputmode="numeric" autocomplete="off"
+              placeholder="Type a whole number" aria-label="n"/>
+            <button type="submit" class="primary" id="lab-go">Check</button>
+            <button type="button" id="lab-stop" disabled hidden>Stop</button>
+          </div>
+        </form>
         <div class="lab-progress" id="lab-bar"><i></i></div>
-        <div id="lab-wheel" class="lab-tools"></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
-      </section>
-      <section class="prime-lab lab-neighbors" aria-label="Next and previous prime">
-        <h3 class="lab-subhead">Next / previous prime</h3>
-        <p class="lab-hint">The k-th prime strictly above or below n. Any positive k. Composites are rejected before a full proof. Stop whenever you want.</p>
-        <div class="row">
-          <label class="lab-kwrap" for="lab-k">k
-            <input id="lab-k" type="text" inputmode="numeric" value="1"
-              aria-label="k-th neighbor"/>
-          </label>
-          <button type="button" id="lab-prev">Previous prime</button>
-          <button type="button" id="lab-next">Next prime</button>
-        </div>
-        <div class="lab-out" id="lab-nb-out" aria-live="polite"></div>
-      </section>
-      <section class="prime-lab lab-compare" aria-label="Compare two numbers">
-        <h3 class="lab-subhead">Compare with another number</h3>
-        <p class="lab-hint">Type a second number. The card compares length, last digit, and which one sits closer to a square. No proof is run for the second number.</p>
-        <div class="row">
-          <input id="lab-m" type="text" inputmode="numeric" autocomplete="off"
-            placeholder="Second number" aria-label="Second number"/>
-        </div>
-        <div id="lab-compare" class="lab-tools"></div>
+        <details class="lab-fold">
+          <summary>Random number</summary>
+          <div class="lab-fold-body">
+            <div class="row lab-rand">
+              <label class="lab-kwrap" for="lab-rand-digits">digits
+                <input id="lab-rand-digits" type="number" min="1" max="150" value="20"
+                  aria-label="Digits in the random number"/>
+              </label>
+              <label class="lab-any"><input id="lab-rand-any" type="checkbox"/> any length, from 1 digit up to 10^149</label>
+            </div>
+            <div class="row">
+              <button type="button" id="lab-random">Random n</button>
+              <button type="button" id="lab-random-prime">Random prime</button>
+            </div>
+          </div>
+        </details>
+        <details class="lab-fold">
+          <summary>Next / previous prime</summary>
+          <div class="lab-fold-body lab-neighbors">
+            <p class="lab-hint">The k-th prime strictly above or below n. Any positive k. Stop ends the search.</p>
+            <div class="row">
+              <label class="lab-kwrap" for="lab-k">k
+                <input id="lab-k" type="text" inputmode="numeric" value="1"
+                  aria-label="k-th neighbor"/>
+              </label>
+              <button type="button" id="lab-prev">Previous prime</button>
+              <button type="button" id="lab-next">Next prime</button>
+            </div>
+            <div class="lab-out" id="lab-nb-out" aria-live="polite"></div>
+          </div>
+        </details>
+        <details class="lab-fold">
+          <summary>Compare with another number</summary>
+          <div class="lab-fold-body lab-compare">
+            <p class="lab-hint">Type a second number. The card compares length, last digit, and which one sits closer to a square. No proof is run for the second number.</p>
+            <div class="row">
+              <input id="lab-m" type="text" inputmode="numeric" autocomplete="off"
+                placeholder="Second number" aria-label="Second number"/>
+            </div>
+            <div id="lab-compare" class="lab-tools"></div>
+          </div>
+        </details>
+        <details class="lab-fold" id="lab-watch">
+          <summary>Watch the proof</summary>
+          <div class="lab-fold-body">
+            ${stageMarkup()}
+          </div>
+        </details>
+        <details class="lab-fold">
+          <summary>Shape of this number</summary>
+          <div class="lab-fold-body">
+            <div id="lab-wheel" class="lab-tools"></div>
+          </div>
+        </details>
       </section>`;
 
     const input = $("#lab-n", root);
@@ -715,7 +734,9 @@
 
     function showPhase(phase) {
       if (!stage) return;
-      stage.removeAttribute("hidden");
+      const watch = $("#lab-watch", root);
+      if (watch && watch.open) stage.removeAttribute("hidden");
+      else stage.setAttribute("hidden", "");
       stage.querySelectorAll(".lab-viz").forEach(function (el) {
         const on = el.getAttribute("data-phase") === phase;
         if (on) el.removeAttribute("hidden");
@@ -1043,14 +1064,20 @@
       return phase;
     }
 
+    function prettyMs(ms) {
+      const n = Number(ms);
+      if (!isFinite(n)) return "—";
+      if (n >= 1000) return (n / 1000).toFixed(2) + " s";
+      return n.toFixed(0) + " ms";
+    }
+
     function renderBusy(state) {
       out.className = "lab-out show busy";
-      out.innerHTML = `<p class="verdict">Checking…</p>
-        <dl><dt>n</dt><dd>${escapeHtml(state.n)}</dd>
-        <dt>digits</dt><dd>${String(state.n).length}</dd>
-        <dt>⌊√n⌋</dt><dd>${state.isqrt}</dd>
-        <dt>stage</dt><dd>${escapeHtml(state.stage || "—")}</dd>
-        <dt>step</dt><dd>${escapeHtml(state.i || "—")}</dd></dl>`;
+      const line = state.stage || "Starting";
+      out.innerHTML =
+        '<p class="verdict">Checking</p><p class="verdict-line">' +
+        escapeHtml(line) +
+        "</p>";
     }
 
     function portraitChips(n) {
@@ -1094,25 +1121,34 @@
     function renderCert(state) {
       lastCert = state;
       const verdict = state.prime ? "Prime" : "Composite";
+      const line = state.prime
+        ? "Proved in " + prettyMs(state.ms) + "."
+        : "Divisible by " + fmt(state.factor) + ".";
       out.className = "lab-out show cert " + (state.prime ? "yes" : "no");
       out.innerHTML = `<article class="cert-card">
-        <p class="cert-kicker">${state.prime ? "proved prime" : "proved composite"}</p>
         <p class="verdict">${verdict}</p>
-        ${portraitChips(BigInt(state.n))}
-        <dl>
-          <dt>n</dt><dd>${escapeHtml(state.n)}</dd>
-          <dt>path</dt><dd>${escapeHtml(state.path)}</dd>
-          <dt>⌊√n⌋</dt><dd>${fmt(state.isqrt)}</dd>
-          ${factorRows(state)}
-          <dt>time</dt><dd>${Number(state.ms).toFixed(2)} ms</dd>
-          <dt>note</dt><dd>${escapeHtml(state.note || "")}</dd>
-        </dl>
-        <p class="cert-doctrine">${escapeHtml(DOCTRINE)}</p>
-        <div class="cert-actions">
-          <button type="button" id="lab-copy">Copy</button>
-          <button type="button" id="lab-svg">Download SVG</button>
-        </div>
-        <div class="proof-replay" id="proof-replay"></div>
+        <p class="verdict-line">${escapeHtml(line)}</p>
+        <details class="lab-fold cert-more">
+          <summary>About this number</summary>
+          <div class="lab-fold-body">
+            <p class="cert-kicker">${state.prime ? "proved prime" : "proved composite"}</p>
+            ${portraitChips(BigInt(state.n))}
+            <dl>
+              <dt>n</dt><dd>${escapeHtml(state.n)}</dd>
+              <dt>path</dt><dd>${escapeHtml(state.path)}</dd>
+              <dt>⌊√n⌋</dt><dd>${fmt(state.isqrt)}</dd>
+              ${factorRows(state)}
+              <dt>time</dt><dd>${Number(state.ms).toFixed(2)} ms</dd>
+              <dt>note</dt><dd>${escapeHtml(state.note || "")}</dd>
+            </dl>
+            <p class="cert-doctrine">${escapeHtml(DOCTRINE)}</p>
+            <div class="cert-actions">
+              <button type="button" id="lab-copy">Copy</button>
+              <button type="button" id="lab-svg">Download SVG</button>
+            </div>
+            <div class="proof-replay" id="proof-replay"></div>
+          </div>
+        </details>
       </article>`;
       const steps = replayMarkup(state);
       const replay = $("#proof-replay", out);
@@ -1178,6 +1214,7 @@
       const randPrimeBtnIdle = $("#lab-random-prime", root);
       if (randPrimeBtnIdle) randPrimeBtnIdle.disabled = false;
       stop.disabled = true;
+      stop.hidden = true;
       bar.classList.remove("show");
       hideStage();
       killWorker();
@@ -1478,6 +1515,7 @@
       const randPrimeBtnBusy = $("#lab-random-prime", root);
       if (randPrimeBtnBusy) randPrimeBtnBusy.disabled = true;
       stop.disabled = false;
+      stop.hidden = false;
       bar.classList.add("show");
       barFill.style.width = "0%";
       showPhase(kind === "check" ? "precheck" : "precheck");
@@ -1485,7 +1523,7 @@
         n: n.toString(),
         isqrt: fmt(limit),
         i: "starting",
-        stage: kind === "check" ? "precheck" : kind === "randomPrime" ? "random prime" : kind === "nextPrime" ? "next prime" : "previous prime",
+        stage: kind === "check" ? "Starting the proof" : kind === "randomPrime" ? "Looking for a prime" : kind === "nextPrime" ? "Next prime" : "Previous prime",
       };
       if (kind === "check" || kind === "randomPrime") renderBusy(busyState);
       else if (nbOut) {
@@ -1583,17 +1621,12 @@
             renderNeighbor(res);
           } else if (res.prime === null) {
             const title =
-              res.path === "inconclusive" ? "Inconclusive here" : "No decision";
+              res.path === "inconclusive" ? "Inconclusive" : "No decision";
             renderSimple(
               "busy",
               title,
-              `<dl><dt>n</dt><dd>${escapeHtml(shown)}</dd>
-              <dt>digits</dt><dd>${shown.length}</dd>
-              <dt>path</dt><dd>${escapeHtml(res.path || "")}</dd>
-              <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
-              <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
-              <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">This tab did not finish a proof. The Python library may still settle it. From 800 bits that library uses a cyclotomic proof.</p>`
+              `<p class="verdict-line">${escapeHtml(res.note || "This tab did not finish a proof.")}</p>
+              <p class="lab-hint">The Python library may still settle it. From 800 bits that library uses a cyclotomic proof. Time ${Number(res.ms).toFixed(2)} ms.</p>`
             );
           } else {
             renderCert({
@@ -1632,9 +1665,19 @@
       updateDigits();
     }
 
-    go.addEventListener("click", function () {
-      run("check");
-    });
+    const ask = $("#lab-ask", root);
+    if (ask) {
+      ask.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        run("check");
+      });
+    }
+    const watch = $("#lab-watch", root);
+    if (watch) {
+      watch.addEventListener("toggle", function () {
+        if (!watch.open) hideStage();
+      });
+    }
     if (nextBtn) {
       nextBtn.addEventListener("click", function () {
         run("nextPrime");
@@ -1662,9 +1705,6 @@
         run("randomPrime");
       });
     }
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") run("check");
-    });
     updateDigits();
     stop.addEventListener("click", function () {
       if (worker) {

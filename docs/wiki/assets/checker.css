@@ -1,11 +1,10 @@
 .prime-lab {
-  margin: 1.35rem 0 1.8rem;
-  padding: 1.1rem 1.15rem 1.2rem;
-  border: 1px dashed rgba(27, 36, 55, 0.22);
-  background:
-    linear-gradient(transparent 31px, rgba(27, 36, 55, 0.05) 32px) 0 0 / 100% 32px,
-    linear-gradient(90deg, transparent 31px, rgba(27, 36, 55, 0.05) 32px) 0 0 / 32px 100%,
-    #fffdf7;
+  --accent: #b42318;
+  --forest: #047857;
+  margin: 0.4rem 0 1.4rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 .prime-lab .lab-label {
   display: block;
@@ -53,21 +52,31 @@
   flex: 0 0 auto;
   text-align: center;
 }
+.prime-lab .lab-ask { margin: 0; }
+.prime-lab .lab-ask-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
 .prime-lab .row {
   display: flex;
   gap: 0.5rem;
-  align-items: stretch;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
 }
 .prime-lab input[type="text"] {
   flex: 1 1 auto;
   min-width: 0;
   font-family: var(--mono);
-  font-size: 1.05rem;
-  padding: 0.7rem 0.75rem;
-  border: 1px solid rgba(27, 36, 55, 0.28);
+  font-size: 1.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #d7dde5;
   background: #fff;
   color: var(--ink);
-  border-radius: 2px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 .prime-lab input[type="text"]:focus {
   outline: 2px solid rgba(196, 92, 44, 0.35);
@@ -75,17 +84,21 @@
 }
 .prime-lab button {
   font-family: var(--sans);
-  font-size: 0.84rem;
-  padding: 0 0.95rem;
-  border-radius: 2px;
-  border: 1px solid var(--ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0 1.05rem;
+  border-radius: 12px;
+  border: 1px solid #d7dde5;
   background: #fff;
   color: var(--ink);
   cursor: pointer;
 }
 .prime-lab button.primary {
-  background: var(--ink);
-  color: #f4efe4;
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+  padding: 0 1.35rem;
+  min-width: 6.5rem;
 }
 .prime-lab button:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .prime-lab button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -533,20 +546,56 @@
 @media (max-width: 640px) {
   .compare-grid { grid-template-columns: 1fr; }
 }
+.lab-fold {
+  margin-top: 0.55rem;
+  border-top: 1px solid #e7ebf0;
+}
+.lab-fold > summary {
+  cursor: pointer;
+  padding: 0.72rem 0.15rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+  list-style: none;
+}
+.lab-fold > summary::-webkit-details-marker { display: none; }
+.lab-fold > summary::before {
+  content: "";
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-right: 0.55rem;
+  border-right: 2px solid #94a3b8;
+  border-bottom: 2px solid #94a3b8;
+  transform: rotate(-45deg) translateY(-0.1rem);
+}
+.lab-fold[open] > summary::before {
+  transform: rotate(45deg) translateY(-0.1rem);
+}
+.lab-fold-body { padding: 0.15rem 0 0.85rem 1rem; }
 .lab-out {
-  margin-top: 0.85rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid rgba(27, 36, 55, 0.12);
-  font-family: var(--mono);
-  font-size: 0.86rem;
+  margin-top: 1.15rem;
+  padding: 0;
+  border: 0;
+  font-family: var(--sans);
+  font-size: 0.95rem;
   display: none;
 }
 .lab-out.show { display: block; }
 .lab-out .verdict {
-  font-family: var(--serif);
-  font-size: 1.65rem;
-  font-style: italic;
-  margin: 0 0 0.45rem;
+  font-family: var(--sans);
+  font-size: clamp(2.4rem, 6vw, 3.4rem);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin: 0.2rem 0 0.35rem;
+}
+.verdict-line {
+  margin: 0 0 0.8rem;
+  font-size: 1.05rem;
+  color: var(--muted, #64748b);
+  overflow-wrap: anywhere;
 }
 .lab-out.yes .verdict { color: var(--forest); }
 .lab-out.no .verdict { color: var(--accent); }
@@ -574,6 +623,7 @@
 }
 @media (max-width: 640px) {
   .prime-lab .row { flex-wrap: wrap; }
-  .prime-lab input[type="text"] { flex: 1 1 100%; }
+  .prime-lab .lab-ask-row input[type="text"] { flex: 1 1 100%; }
+  .prime-lab .lab-ask-row button { flex: 1 1 auto; min-height: 2.75rem; }
   .lab-out dl { grid-template-columns: 1fr; }
 }

@@ -1,13 +1,13 @@
 # Check a number
 
-Type a natural number. This page either finishes a proof or shows a factor.
+Type a whole number. This page finishes a proof, or shows a factor.
 
-> [!NOTE]
-> The lab in this tab is an exhibit. The Python library is the same idea with a faster native core. A miss here is inconclusive; `is_prime` may still settle it.
+<div id="prime-lab-root"></div>
 
 <!-- acta-specimen -->
 
-<div id="prime-lab-root"></div>
+> [!NOTE]
+> The check above runs in this tab. The Python library is the same idea with a faster native core. A miss here is inconclusive; `is_prime` may still settle it.
 
 ## What “prime” means here
 
