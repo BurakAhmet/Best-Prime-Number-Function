@@ -111,9 +111,9 @@
       "digital root = " + face.digitalRoot,
       "n mod 30 = " + face.mod30,
       "30-wheel residue = " + (face.wheelCoprime ? "coprime to 30" : "shares a factor with 30"),
-      "above 10^(digits-1) = " + face.aboveLowerPower,
-      "until next power of 10 = " + face.untilNextPower,
-      "above the square below = " + face.aboveSquare,
+      "n minus the previous power of 10 = " + face.aboveLowerPower,
+      "next power of 10 minus n = " + face.untilNextPower,
+      "n minus the square just below it = " + face.aboveSquare,
       "floor(sqrt(n)) = " + state.isqrt.toString(),
       "verdict = " + (state.prime ? "prime" : "composite"),
       "path = " + state.path,
@@ -153,7 +153,7 @@
       ["last digit", face.lastDigit],
       ["digit sum", String(face.digitSum)],
       ["n mod 30", face.mod30],
-      ["above square", face.aboveSquare],
+      ["n − ⌊√n⌋²", face.aboveSquare],
       ["⌊√n⌋", fmt(state.isqrt)],
       ["path", state.path],
     ];
@@ -980,11 +980,11 @@
         ["bits", String(face.bits)],
         ["last digit", face.lastDigit],
         ["digit sum", String(face.digitSum)],
-        ["digital root", String(face.digitalRoot)],
-        ["n mod 30", face.mod30 + (face.wheelCoprime ? " · coprime" : " · shares 2, 3, or 5")],
-        ["above 10^(d−1)", fmt(face.aboveLowerPower)],
-        ["to next 10^d", fmt(face.untilNextPower)],
-        ["above □", fmt(face.aboveSquare)],
+        ["repeated digit sum", String(face.digitalRoot)],
+        ["n mod 30", face.mod30 + (face.wheelCoprime ? " · not divisible by 2, 3, or 5" : " · divisible by 2, 3, or 5")],
+        ["n − 10^" + (face.digits - 1), fmt(face.aboveLowerPower)],
+        ["10^" + face.digits + " − n", fmt(face.untilNextPower)],
+        ["n − ⌊√n⌋²", fmt(face.aboveSquare)],
       ];
       return (
         '<p class="cert-band">' + escapeHtml(face.band) + "</p>" +
@@ -1000,7 +1000,11 @@
             );
           })
           .join("") +
-        "</ul>"
+        "</ul>" +
+        '<p class="lab-hint">n − 10^' + (face.digits - 1) +
+        " is how far this number sits above the previous power of ten. 10^" +
+        face.digits +
+        " − n is how far it sits below the next one. n − ⌊√n⌋² is how far it sits above the greatest square that does not exceed it. That value is 0 when n itself is a square.</p>"
       );
     }
 

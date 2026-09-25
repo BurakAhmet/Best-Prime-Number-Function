@@ -61,6 +61,8 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "lab-stage" in ui
     assert 'data-phase="neighbor"' in ui
     assert "p − n" in ui
+    assert "previous power of ten" in ui
+    assert "greatest square" in ui
     assert "numberPortrait" in ui
     assert "cert-facts" in ui
     assert "to 64" not in ui
@@ -118,6 +120,29 @@ def test_checker_worker_self_test():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_37_digit_prime_in_the_lab_is_under_two_seconds() -> None:
+    script = r"""
+const api = require('./docs/wiki/assets/checker-worker.js');
+const n = 10n ** 36n + 67n;
+const t0 = Date.now();
+const r = api.checkPrime(n);
+const dt = Date.now() - t0;
+if (r.prime !== true || dt >= 2000) {
+  console.error(dt, JSON.stringify(r));
+  process.exit(1);
+}
+console.log('37-digit', dt, r.path);
+"""
+    proc = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+
+
 def test_checker_worker_spsp_above_2_64_is_fast_composite() -> None:
     """71-bit strong pseudoprime must not fall through to a √n trial."""
     script = r"""

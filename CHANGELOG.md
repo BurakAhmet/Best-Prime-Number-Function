@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Performance
-- **37-digit primes no longer burn Brent curves out to \(2^{22}\).** For an 80-to-160-bit cofactor the split is elliptic-curve factoring at \(B_1=11000\) (16 curves). \(10^{36}+67\) drops from about 50 s to about 0.4 s.
+- **37-digit primes no longer burn Brent curves out to \(2^{22}\).** For an 80-to-160-bit cofactor the library uses elliptic-curve factoring at \(B_1=11000\). \(10^{36}+67\) drops from about 50 s to about 0.4 s. The in-browser lab uses the same two curves and finishes that number in under a second. The certificate spells out the power-of-ten gaps and the distance above the square below \(n\).
 
 ### Changed
 - **CLI default** is the 150-digit prime \(10^{149}+183\). The 147-bit specimen `100…00031` remains a BLS example.

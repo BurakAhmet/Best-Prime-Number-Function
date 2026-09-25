@@ -603,11 +603,55 @@
     return r;
   }
 
+  function ecmAffineSigma(n, sigma, B1) {
+    if (n < 4n || (n & 1n) === 0n) return null;
+    const s = BigInt(sigma);
+    const u = (s * s - 5n) % n;
+    const v = (4n * s) % n;
+    const x = (((u * u) % n) * u) % n;
+    const t = (v - u + n) % n;
+    let num = (((t * t) % n) * t) % n;
+    num = (num * ((3n * u + v) % n)) % n;
+    const den = (16n * x * v) % n;
+    const g0 = gcd(den, n);
+    if (g0 > 1n && g0 < n) return g0;
+    if (g0 === n) return null;
+    const inv = modInv(den, n);
+    if (inv === null) return null;
+    const A24 = (num * inv) % n;
+    let Px = x;
+    let Pz = 1n;
+    const primes = primesUpto(B1);
+    for (let j = 0; j < primes.length; j++) {
+      const p = primes[j];
+      if (p > B1) break;
+      const gz = gcd(Pz, n);
+      if (gz > 1n && gz < n) return gz;
+      if (Pz === 0n) return null;
+      const zInv = modInv(Pz, n);
+      if (zInv === null) return null;
+      Px = (Px * zInv) % n;
+      let pe = p;
+      while (pe <= Math.floor(B1 / p)) pe *= p;
+      const Q = montMul(BigInt(pe), Px, 1n, A24, n);
+      Px = Q[0];
+      Pz = Q[1];
+    }
+    const g = gcd(Pz, n);
+    return g > 1n && g < n ? g : null;
+  }
+
   function trySplitCofactor(c, onTick, shouldStop, knownComposite, effort) {
     const bits = bitLength(c);
     const quick = effort === "quick";
     // A composite this wide is a semiprime hunt. Try the other side of n±1
     // before paying for it. Medium cofactors still get a short Brent.
+    if (bits > 80 && bits <= 140) {
+      const early9 = ecmAffineSigma(c, 9, 11000);
+      if (early9 && early9 > 1n && early9 < c) return early9;
+      const early19 = ecmAffineSigma(c, 19, 11000);
+      if (early19 && early19 > 1n && early19 < c) return early19;
+    }
     if (quick && bits > 104) return null;
     const bound = knownComposite
       ? Math.max(FACTOR_TRIAL_BOUND, adaptiveTrialBound(c))
@@ -758,6 +802,9 @@
       return null;
     }
 
+    // 10^36+67: n+1's cofactor is 108 bits with a 55-bit prime factor.
+    // Brent out to 2^20 is the ~4 s the tab used to spend. ECM at
+    // B1=11000, σ starting at 6, finds it on σ=9.
     f = runBrent();
     if (f && f > 1n && f < c) return f;
 
