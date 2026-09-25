@@ -3172,6 +3172,78 @@
     return done(true, "wheel-30", null, "no factor ≤ √n (exact trial)", limit, t0);
   }
 
+  function randomBelow(limit) {
+    if (limit <= 0n) return 0n;
+    let bits = 0;
+    let t = limit;
+    while (t > 0n) {
+      t >>= 1n;
+      bits++;
+    }
+    const bytes = Math.ceil(bits / 8);
+    const buf = new Uint8Array(bytes);
+    const excess = BigInt(bytes * 8 - bits);
+    for (;;) {
+      const c = typeof crypto !== "undefined" ? crypto : globalThis.crypto;
+      if (c && c.getRandomValues) c.getRandomValues(buf);
+      else require("crypto").webcrypto.getRandomValues(buf);
+      let x = 0n;
+      for (let i = 0; i < buf.length; i++) x = (x << 8n) | BigInt(buf[i]);
+      if (excess > 0n) x >>= excess;
+      if (x < limit) return x;
+    }
+  }
+
+  function randomPrime(spec, onTick, shouldStop) {
+    const any = spec && spec.any;
+    let d = any ? Number(randomBelow(149n)) + 1 : Number(spec && spec.digits);
+    if (!Number.isInteger(d) || d < 1) d = 1;
+    if (d > 149) d = 149;
+    const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+    const lo = d <= 1 ? 2n : 10n ** BigInt(d - 1);
+    const hi = d <= 1 ? 8n : lo * 10n;
+    let cand = d <= 1
+      ? [2n, 3n, 5n, 7n][Number(randomBelow(4n))]
+      : lo + randomBelow(lo * 9n);
+    if (d > 1 && (cand & 1n) === 0n) cand += 1n;
+    if (cand >= hi) cand = lo + 1n;
+    let wrapped = false;
+    let tried = 0;
+    while (cand < hi || !wrapped) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      if (cand >= hi) {
+        if (wrapped) break;
+        cand = (lo & 1n) === 0n ? lo + 1n : lo;
+        wrapped = true;
+        continue;
+      }
+      tried++;
+      emit(onTick, "neighbor", BigInt(tried), 0n, {
+        label: "proving a " + d + "-digit candidate",
+        candidate: cand.toString(),
+      });
+      if (!quickComposite(cand)) {
+        const proved = checkPrime(cand, onTick, shouldStop);
+        if (proved && proved.aborted) return proved;
+        if (proved && proved.prime) {
+          proved.n = cand.toString();
+          proved.note = "random prime with " + d + " digits, proved in this tab";
+          return proved;
+        }
+      }
+      cand += 2n;
+    }
+    return {
+      prime: false,
+      inconclusive: true,
+      path: "random-prime",
+      n: cand.toString(),
+      note: "no prime with " + d + " digits was proved before the band ended",
+      ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+      tried: tried,
+    };
+  }
+
   const api = {
     isqrt: isqrt,
     icbrt: icbrt,
@@ -3191,6 +3263,7 @@
     numberPortrait: numberPortrait,
     parseK: parseK,
     quickComposite: quickComposite,
+    randomPrime: randomPrime,
     ecmFactor: ecmFactor,
     umod64: umod64,
     nm1Primality: nm1Primality,
@@ -3220,12 +3293,17 @@
         stop = true;
         return;
       }
-      if (msg.cmd !== "check" && msg.cmd !== "nextPrime" && msg.cmd !== "prevPrime") {
+      if (
+        msg.cmd !== "check" &&
+        msg.cmd !== "nextPrime" &&
+        msg.cmd !== "prevPrime" &&
+        msg.cmd !== "randomPrime"
+      ) {
         return;
       }
       stop = false;
       try {
-        const n = BigInt(String(msg.n));
+        const n = msg.cmd === "randomPrime" ? 0n : BigInt(String(msg.n));
         const onTick = function (info, lim) {
           if (info && typeof info === "object") {
             g.postMessage({
@@ -3251,7 +3329,9 @@
         let res;
         if (msg.cmd === "nextPrime") res = nextPrime(n, msg.k, onTick, shouldStop);
         else if (msg.cmd === "prevPrime") res = prevPrime(n, msg.k, onTick, shouldStop);
-        else res = checkPrime(n, onTick, shouldStop);
+        else if (msg.cmd === "randomPrime") {
+          res = randomPrime({ any: msg.any, digits: msg.digits }, onTick, shouldStop);
+        } else res = checkPrime(n, onTick, shouldStop);
         if (res && res.aborted) {
           g.postMessage({ type: "aborted" });
           return;
@@ -3419,6 +3499,9 @@
     assert(face.mod30 === "7" && face.wheelCoprime === true, "97 mod 30");
     assert(parseK("0") === null && parseK("65") === 65n, "k has no upper bound");
     assert(quickComposite(2047n) === true, "2047 fails the Fermat screen");
+    const rp = randomPrime({ any: false, digits: 2 });
+    assert(rp.prime === true && rp.n.length === 2, "random 2-digit prime");
+    assert(checkPrime(BigInt(rp.n)).prime === true, "random prime rechecks");
     assert(nextPrime(100n, 1).value === "101", "next(100)=101");
     assert(nextPrime(100n, 65).value === "463", "next(100,65)=463");
     assert(nextPrime(14n, 100).ok === true, "k=100 has no cap");

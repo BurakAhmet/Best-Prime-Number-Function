@@ -68,6 +68,7 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "proof-replay" in ui
     assert "lab-compare" in ui
     assert "lab-random" in ui
+    assert "lab-random-prime" in ui
     assert "gap-k-val" in ui
     assert "wrap-num" in ui
     assert "untilNextPower" in ui

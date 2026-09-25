@@ -629,6 +629,7 @@
           <button type="button" class="primary" id="lab-go">Check</button>
           <button type="button" id="lab-stop" disabled>Stop</button>
           <button type="button" id="lab-random">Random n</button>
+          <button type="button" id="lab-random-prime">Random prime</button>
         </div>
         <div class="row lab-rand">
           <label class="lab-kwrap" for="lab-rand-digits">digits
@@ -1173,6 +1174,9 @@
       go.disabled = false;
       if (nextBtn) nextBtn.disabled = false;
       if (prevBtn) prevBtn.disabled = false;
+      if (randBtn) randBtn.disabled = false;
+      const randPrimeBtnIdle = $("#lab-random-prime", root);
+      if (randPrimeBtnIdle) randPrimeBtnIdle.disabled = false;
       stop.disabled = true;
       bar.classList.remove("show");
       hideStage();
@@ -1429,8 +1433,8 @@
 
     function run(kind) {
       kind = kind || "check";
-      if (kind !== "check") lastNeighborDir = kind;
-      const n = parseN(input.value);
+      if (kind !== "check" && kind !== "randomPrime") lastNeighborDir = kind;
+      const n = kind === "randomPrime" ? 0n : parseN(input.value);
       if (n === null) {
         hideStage();
         if (kind === "check") {
@@ -1470,6 +1474,9 @@
       go.disabled = true;
       if (nextBtn) nextBtn.disabled = true;
       if (prevBtn) prevBtn.disabled = true;
+      if (randBtn) randBtn.disabled = true;
+      const randPrimeBtnBusy = $("#lab-random-prime", root);
+      if (randPrimeBtnBusy) randPrimeBtnBusy.disabled = true;
       stop.disabled = false;
       bar.classList.add("show");
       barFill.style.width = "0%";
@@ -1478,9 +1485,9 @@
         n: n.toString(),
         isqrt: fmt(limit),
         i: "starting",
-        stage: kind === "check" ? "precheck" : kind === "nextPrime" ? "next prime" : "previous prime",
+        stage: kind === "check" ? "precheck" : kind === "randomPrime" ? "random prime" : kind === "nextPrime" ? "next prime" : "previous prime",
       };
-      if (kind === "check") renderBusy(busyState);
+      if (kind === "check" || kind === "randomPrime") renderBusy(busyState);
       else if (nbOut) {
         nbOut.className = "lab-out show busy";
         nbOut.innerHTML =
@@ -1513,7 +1520,7 @@
             barFill.style.width = Math.min(100, Math.max(0, pct)) + "%";
             applyPhase(msg);
             const stageTxt = phaseLabel(msg.phase || "wheel", msg.extra || {});
-            if (kind === "check") {
+            if (kind === "check" || kind === "randomPrime") {
               const phase = msg.phase || "wheel";
               const prev = proofLog[proofLog.length - 1];
               if (!prev || prev.phase !== phase) {
@@ -1521,9 +1528,12 @@
               } else {
                 prev.label = stageTxt;
               }
+              const liveN = msg.extra && msg.extra.candidate
+                ? String(msg.extra.candidate)
+                : n.toString();
               renderBusy({
-                n: n.toString(),
-                isqrt: fmt(isqrt(n)),
+                n: liveN,
+                isqrt: kind === "randomPrime" ? "—" : fmt(isqrt(n)),
                 stage: stageTxt,
                 i: fmt(i) + " / " + fmt(lim),
               });
@@ -1564,7 +1574,12 @@
           const res = msg.result;
           barFill.style.width = "100%";
           hideStage();
-          if (kind !== "check") {
+          if (kind === "randomPrime" && res.n) {
+            input.value = String(res.n);
+            updateDigits();
+          }
+          const shown = kind === "randomPrime" && res.n ? String(res.n) : n.toString();
+          if (kind !== "check" && kind !== "randomPrime") {
             renderNeighbor(res);
           } else if (res.prime === null) {
             const title =
@@ -1572,8 +1587,8 @@
             renderSimple(
               "busy",
               title,
-              `<dl><dt>n</dt><dd>${escapeHtml(n.toString())}</dd>
-              <dt>digits</dt><dd>${n.toString().length}</dd>
+              `<dl><dt>n</dt><dd>${escapeHtml(shown)}</dd>
+              <dt>digits</dt><dd>${shown.length}</dd>
               <dt>path</dt><dd>${escapeHtml(res.path || "")}</dd>
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
@@ -1583,7 +1598,7 @@
           } else {
             renderCert({
               prime: res.prime,
-              n: n.toString(),
+              n: shown,
               path: res.path,
               isqrt: BigInt(res.isqrt),
               factor: res.factor == null ? null : BigInt(res.factor),
@@ -1604,7 +1619,13 @@
         );
       };
 
-      worker.postMessage({ cmd: kind, n: n.toString(), k: k });
+      worker.postMessage({
+        cmd: kind,
+        n: n.toString(),
+        k: k,
+        digits: randDigits ? randDigits.value : "20",
+        any: !!(randAny && randAny.checked),
+      });
     }
 
     function updateDigitsAndMaybeRun(e) {
@@ -1633,6 +1654,12 @@
       randBtn.addEventListener("click", function () {
         input.value = randomN(randDigits, randAny).toString();
         updateDigits();
+      });
+    }
+    const randPrimeBtn = $("#lab-random-prime", root);
+    if (randPrimeBtn) {
+      randPrimeBtn.addEventListener("click", function () {
+        run("randomPrime");
       });
     }
     input.addEventListener("keydown", function (e) {
