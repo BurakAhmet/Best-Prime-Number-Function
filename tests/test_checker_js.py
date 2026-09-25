@@ -67,6 +67,9 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "gap-ruler" in ui
     assert "proof-replay" in ui
     assert "lab-compare" in ui
+    assert "lab-random" in ui
+    assert "gap-k-val" in ui
+    assert "wrap-num" in ui
     assert "untilNextPower" in ui
     assert "aboveLowerPower" in ui
     assert '"wide"' in ui
@@ -128,6 +131,39 @@ def test_checker_worker_self_test():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_random_n_stays_inside_1_to_10_149() -> None:
+    script = r"""
+const fs = require('fs');
+const src = fs.readFileSync('docs/wiki/assets/checker.js', 'utf8');
+const m = src.match(/function randomBelow[\s\S]*?\n  function workerUrl/);
+if (!m) { console.error('missing randomN'); process.exit(1); }
+eval(m[0].replace(/\n  function workerUrl$/, ''));
+const cap = 10n ** 149n;
+const any = { checked: true };
+for (let i = 0; i < 20; i++) {
+  const n = randomN(null, any);
+  if (n < 1n || n > cap) { console.error(String(n)); process.exit(1); }
+}
+const digits = { value: '3' };
+const none = { checked: false };
+for (let i = 0; i < 30; i++) {
+  const n = randomN(digits, none);
+  if (n < 100n || n > 999n) { console.error('digits', String(n)); process.exit(1); }
+}
+const top = randomN({ value: '149' }, none);
+if (top < 10n ** 148n || top >= cap) { console.error('149', String(top)); process.exit(1); }
+console.log('random ok');
+"""
+    proc = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+
+
 def test_37_digit_prime_in_the_lab_is_under_two_seconds() -> None:
     script = r"""
 const api = require('./docs/wiki/assets/checker-worker.js');

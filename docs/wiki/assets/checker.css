@@ -510,25 +510,18 @@
 .sq-block { fill: #245c3d; }
 .sq-rest { fill: #c45c2c; }
 .square-pic text { font-size: 8px; fill: #5c6778; }
-.gap-ruler-labels, .gap-ruler-track { display: flex; justify-content: space-between; gap: 0.4rem; }
-.gap-ruler-labels span, .gap-ruler figcaption, .square-pic figcaption, .residue-wheel figcaption {
-  overflow-wrap: anywhere;
-}
-.gap-ruler-track {
-  height: 8px;
-  margin: 0.35rem 0 0.5rem;
-  background: #e7e1d6;
-  border-radius: 99px;
-}
-.gap-ruler-track i {
+.gap-read p { margin: 0.2rem 0; }
+.gap-delta, .compare-col li, .compare-col b {
   display: block;
-  height: 100%;
-  width: 100%;
-  background: #245c3d;
-  border-radius: 99px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .gap-k, .proof-replay label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
+.gap-k output { font-family: var(--mono); font-size: 1rem; color: var(--ink, #1b2437); }
 .gap-k input, .proof-replay input { width: 100%; }
+.lab-rand { align-items: center; }
+.lab-any { font-family: var(--sans); font-size: 0.9rem; }
 .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 .compare-col {
   border: 1px solid rgba(27, 36, 55, 0.12);

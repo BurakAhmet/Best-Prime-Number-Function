@@ -80,6 +80,38 @@
     };
   }
 
+  function randomBelow(limit) {
+    if (limit <= 0n) return 0n;
+    let bits = 0;
+    let t = limit;
+    while (t > 0n) {
+      t >>= 1n;
+      bits++;
+    }
+    const bytes = Math.ceil(bits / 8);
+    const buf = new Uint8Array(bytes);
+    const excess = BigInt(bytes * 8 - bits);
+    const rng = globalThis.crypto || globalThis.msCrypto;
+    for (;;) {
+      rng.getRandomValues(buf);
+      let x = 0n;
+      for (let i = 0; i < buf.length; i++) x = (x << 8n) | BigInt(buf[i]);
+      if (excess > 0n) x >>= excess;
+      if (x < limit) return x;
+    }
+  }
+
+  function randomN(digitsInput, anyBox) {
+    const cap = 10n ** 149n;
+    if (anyBox && anyBox.checked) return randomBelow(cap) + 1n;
+    let d = Number(digitsInput && digitsInput.value != null ? digitsInput.value : 20);
+    if (!Number.isInteger(d) || d < 1) d = 1;
+    if (d > 149) d = 149;
+    if (d === 1) return randomBelow(9n) + 1n;
+    const lo = 10n ** BigInt(d - 1);
+    return lo + randomBelow(lo * 9n);
+  }
+
   function workerUrl() {
     const el = document.querySelector("script[src*='checker.js']");
     if (el && el.src) {
@@ -586,6 +618,14 @@
             placeholder="Enter a natural number" aria-label="n"/>
           <button type="button" class="primary" id="lab-go">Check</button>
           <button type="button" id="lab-stop" disabled>Stop</button>
+          <button type="button" id="lab-random">Random n</button>
+        </div>
+        <div class="row lab-rand">
+          <label class="lab-kwrap" for="lab-rand-digits">digits
+            <input id="lab-rand-digits" type="number" min="1" max="149" value="20"
+              aria-label="Digits in the random number"/>
+          </label>
+          <label class="lab-any"><input id="lab-rand-any" type="checkbox"/> any size from 1 to 10^149</label>
         </div>
         <p class="lab-hint">Proves the number in this tab, or prints a factor.
           Below 256 bits it uses both sides of n±1. From 256 bits it uses an elliptic-curve proof.
@@ -1244,7 +1284,9 @@
         "<li>" + face.digits + " digits</li>" +
         "<li>" + face.bits + " bits</li>" +
         "<li>last digit " + escapeHtml(face.lastDigit) + "</li>" +
-        "<li>above a square by " + escapeHtml(fmt(face.aboveSquare)) + "</li>" +
+        '<li class="wrap-num"><span>above a square by</span><b>' +
+        escapeHtml(fmt(face.aboveSquare)) +
+        "</b></li>" +
         "</ul></article>"
       );
     }
@@ -1306,6 +1348,8 @@
         if (drag) {
           drag.addEventListener("input", function () {
             if (kInput) kInput.value = drag.value;
+            const shown = $("#gap-k-val", nbOut);
+            if (shown) shown.textContent = drag.value;
           });
           drag.addEventListener("change", function () {
             if (kInput) kInput.value = drag.value;
@@ -1338,20 +1382,20 @@
       if (kNum >= 1 && kNum <= 20000) {
         const maxK = Math.max(12, kNum + 4);
         slider =
-          '<label class="gap-k">Drag k<input id="gap-k" type="range" min="1" max="' +
+          '<label class="gap-k">k <output id="gap-k-val">' +
+          kNum +
+          '</output><input id="gap-k" type="range" min="1" max="' +
           maxK +
           '" value="' +
           kNum +
           '"></label>';
       }
       return (
-        '<figure class="gap-ruler" aria-label="Gap from n to the neighbor prime">' +
-        '<div class="gap-ruler-labels"><span>n</span><span>p − n = ' +
-        escapeHtml(delta) +
-        '</span><span>p</span></div>' +
-        '<div class="gap-ruler-track" aria-hidden="true"><i></i></div>' +
+        '<div class="gap-ruler"><div class="gap-read"><p>p − n</p><p class="gap-delta">' +
+        escapeHtml(fmt(delta)) +
+        "</p></div>" +
         slider +
-        "<figcaption>The line runs from n to the k-th prime. Releasing the slider searches again with that k.</figcaption></figure>"
+        '<p class="lab-hint">p − n is the signed distance from n to that prime, written in full and wrapped. The slider sets k. The number beside k is the value it will search. Release the slider to run that search.</p></div>'
       );
     }
 
@@ -1572,6 +1616,15 @@
     }
     input.addEventListener("input", updateDigitsAndMaybeRun);
     if (compareInput) compareInput.addEventListener("input", paintCompare);
+    const randBtn = $("#lab-random", root);
+    const randDigits = $("#lab-rand-digits", root);
+    const randAny = $("#lab-rand-any", root);
+    if (randBtn) {
+      randBtn.addEventListener("click", function () {
+        input.value = randomN(randDigits, randAny).toString();
+        updateDigits();
+      });
+    }
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") run("check");
     });
