@@ -49,6 +49,6 @@ This library keeps a stricter contract: same $n$, any machine, serial or paralle
 
 The **interactive lab** (30-wheel orrery, daily specimen, downloadable trial certificate) stays at the [Pages root](https://burakahmet.github.io/Best-Prime-Number-Function/). It is an in-browser exhibit, not this library. This guide is the library documentation.
 
-**1.13.0** proves the documented bands (BLS / FastECPP) with matching certificates. A general 10k-digit prime in 10 s is the north-star and is not claimed. See the [FAQ](faq.md).
+**1.14.0** proves the documented bands (BLS / FastECPP) with matching certificates. A general 10k-digit prime in 10 s is the north-star and is not claimed. See the [FAQ](faq.md).
 
 **Source:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function) · package `best-prime-number-function` · import `best_prime`

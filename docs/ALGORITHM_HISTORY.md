@@ -4,7 +4,7 @@
 
 | | |
 |--|--|
-| **Current package version** | **1.13.0** (FastECPP certificates, CLI progress, bounded factors) |
+| **Current package version** | **1.14.0** (cold CLI skips a needless `wheel_core` load on hard 64-bit BLS) |
 | **Primary metric** | End-to-end CLI **`TIME`** (import → answer), not warm hot-loop only |
 | **Secondary metric** | In-process `is_prime()` after engines are warm (`benchmarks/compare_speed.py`) |
 | **Correctness model** | Fully **deterministic** for all natural numbers (see restrictions) |
@@ -848,6 +848,30 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+## Era — 1.14.0 (2026-09-25): do not dlopen the core for a Python proof
+
+**Problem.** A cold `python -m best_prime` of M61 or the largest prime below $2^{64}$ spent most of its ~3 ms inside `import ctypes` and `dlopen(wheel_core.so)`. Two callers loaded that library even when combined BLS had already finished: `cubic_complete_ready` (to learn that the pure-Python cubic budget was already enough) and the CLI thread line. Proving a 128-bit cofactor also imported `primality_ecpp` only to store a certificate witness the boolean check never reads.
+
+**Change.** The cubic-budget answer returns before `_c_lehman_ready`. Odd prime powers at bounds ≤ $50\,000$, for integers up to 80 bits, come from a gap-compressed table of primes ≤ 49999 (chunked gcd), and only while the core is still closed. A ≤96-bit Fermat-composite leftover above that bound is split with deterministic Brent ($c = 1, 2, 3$) until the core is open; then the existing C table runs. The witness stash lives in `child_rec.py`.
+
+**Same machine, 12 threads, best of three fresh processes (HEAD → 1.14.0).**
+
+| Case | e2e before | e2e after |
+|------|----------:|----------:|
+| M61 | ~3.1 ms | **~1.9 ms** |
+| largest $<2^{64}$ | ~3.2 ms | **~2.2 ms** |
+| near $2^{63}$ | ~3.1 ms | **~2.7 ms** |
+| CLI default (147-bit) | ~5.1 ms | **~4.7 ms** |
+| $10^9+7$ / 12-digit | ~3 ms | same class |
+
+| | |
+|--|--|
+| **Advantages** | Hard 64-bit proofs that only peel small factors never pay for libgomp |
+| **Disadvantages** | A bound above $50\,000$ on a wide integer still opens the core. Brent is only the stand-in while the core is closed |
+| **Failures / lessons** | Replacing the 1e6 C peel with Brent on the 147-bit default made that CLI slower (~6 ms). Use Brent only while the core is closed, and keep the C table for integers above 80 bits |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:
@@ -923,4 +947,4 @@ Recorded so agents and humans do not “rediscover” them:
 
 ---
 
-*Last updated for package **1.13.0** (147-bit `DEFAULT_N` unchanged). Extend forward; do not delete past eras.*
+*Last updated for package **1.14.0** (147-bit `DEFAULT_N` unchanged). Extend forward; do not delete past eras.*

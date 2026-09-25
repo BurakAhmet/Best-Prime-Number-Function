@@ -2,7 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.14.0] — 2026-09-25
+
+### Performance
+- **Cold CLI on hard 64-bit primes no longer loads the native core just to discover it is not needed.** `cubic_complete_ready` answers from the pure-Python budget before dlopen. Cofactor trial up to 80 bits and bounds ≤ $50\,000$ uses an embedded prime-product table. A ≤96-bit leftover above that bound is split with deterministic Brent while `wheel_core` is still closed. Boolean BLS no longer imports the ECPP module to stash a witness. Same machine, 12 threads, best of three fresh processes: M61 ~3.1 ms → **~1.9 ms**, largest prime $<2^{64}$ ~3.2 ms → **~2.2 ms**, near $2^{63}$ ~3.1 ms → **~2.7 ms**, 147-bit default ~5.1 ms → **~4.7 ms**. Mid-size wheel trial stays in the same few milliseconds.
+
+### Changed
+- Package version **1.14.0**. `DEFAULT_N` unchanged.
+- The Pages home and the lab hints are a short description of the check. The in-browser proofs are the same.
 
 ### Removed
 - **Kronecker AKS** is no longer in the library. It was not on any size band. A miss is still `UnsettledPrimalityError`. The unused affine ECM curve constructor is gone; factoring stays on Montgomery ECM, and ECPP point search stays on the Jacobian scalar multiply.

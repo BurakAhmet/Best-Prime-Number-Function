@@ -125,6 +125,19 @@ def _load_c_core():
     _c_core = lib
     return _c_core
 
+
+def _configured_threads(parallel: bool) -> int:
+    """OpenMP width for the CLI line. Do not dlopen the core just to print it."""
+    if not parallel:
+        return 1
+    if _c_core_checked and _c_core:
+        return _thread_count or 1
+    nt = os.environ.get("OMP_NUM_THREADS") or os.environ.get("NUMBA_NUM_THREADS")
+    if nt:
+        return max(1, int(nt))
+    return os.cpu_count() or 1
+
+
 def _numpy():
     global _np
     if _np is None:
@@ -1191,10 +1204,7 @@ def _main_simple(argv: list[str]) -> int:
         else:
             factor = lehman_factor(n, parallel=parallel)
             prime = factor is None
-        threads = _thread_count if parallel and _thread_count else 1
-        # Ensure OpenMP thread count is visible even when nm1 never loads the .so.
-        if parallel and _load_c_core():
-            threads = _thread_count
+        threads = _configured_threads(parallel)
         _print_result(str(n) if positional else arg, prime, threads, factor)
         return 0 if prime else 1
 
@@ -1215,17 +1225,7 @@ def _main_simple(argv: list[str]) -> int:
             _print_result(str(n) if positional else arg, None, 1, unsettled=True)
             return 3
         # u128 OpenMP path sets _thread_count in _load_c_core.
-        threads = (
-            _thread_count
-            if (
-                parallel
-                and n.bit_length() <= 128
-                and math.isqrt(n) <= _MAX_FULL_TRIAL_ISQRT
-                and _load_c_core()
-                and hasattr(_c_core, "is_prime_u128_core")
-            )
-            else 1
-        )
+        threads = _configured_threads(parallel) if n.bit_length() <= 128 else 1
 
     if not prime:
         if n.bit_length() >= 256:

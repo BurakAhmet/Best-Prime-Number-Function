@@ -505,34 +505,17 @@
           <button type="button" class="primary" id="lab-go">Check</button>
           <button type="button" id="lab-stop" disabled>Stop</button>
         </div>
-        <p class="lab-hint">Deterministic lab in this tab (not the OpenMP C core).
-          One engine per band, matching the Python library:
-          <strong>class-number-1 ECPP, then in-tab FastECPP H_D</strong> when <em>n</em> has 256 or more bits
-          (Montgomery ECM; no BLS fallback), else <strong>combined BLS only</strong>
-          (both doors of n±1: quick pass, then a long search only if neither side proves).
-          Then exact 30-wheel trial if practical.
-          Factoring uses trial / Brent / p−1 / <strong>ECM</strong>.
-          <strong>No digit-length limit.</strong> A 100-digit number is in scope here
-          (prime or composite), and so is any longer decimal: nothing rejects the input
-          for being too wide. Smooth <em>n</em>±1 is typically sub-second. The 100-digit
-          prime 10^99+289 and the 131-digit CM-friendly prime 10^130+1113 prove in this tab.
-          A 1000-digit proof is the Python cyclotomic engine (<code>is_prime</code>), about
-          six minutes for 10^999+7; this tab does not run that engine.
-          General 132–150 digit primes use in-tab computed H_D FastECPP.
-          A Fermat composite is reported as composite even when its factor is large;
-          the factor hunt itself stays on a short clock. Stop anytime.
-          A proof miss is <strong>inconclusive</strong> here (Python may still prove it).</p>
+        <p class="lab-hint">Proves the number in this tab, or prints a factor.
+          Below 256 bits it uses both sides of n±1. From 256 bits it uses an elliptic-curve proof.
+          There is no digit limit. Stop anytime.
+          A miss is <strong>inconclusive</strong> here; the Python library may still prove it.</p>
         ${stageMarkup()}
         <div class="lab-progress" id="lab-bar"><i></i></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
       </section>
       <section class="prime-lab lab-neighbors" aria-label="Next and previous prime">
         <h3 class="lab-subhead">Next / previous prime</h3>
-        <p class="lab-hint">Uses the same <em>n</em> above. Finds the
-          <em>k</em>-th prime strictly greater or strictly less than <em>n</em>
-          (default <em>k</em> = 1), with the same deterministic engines. Composites
-          are skipped by a small-prime filter, then Check. No candidate-count
-          or time cap — Stop whenever you want.</p>
+        <p class="lab-hint">The k-th prime strictly above or below n. Same proofs as Check. Stop whenever you want.</p>
         <div class="row">
           <label class="lab-kwrap" for="lab-k">k
             <input id="lab-k" type="text" inputmode="numeric" value="1"
@@ -1196,7 +1179,7 @@
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
               <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">There is no maximum digit length. 100-digit numbers use class-number-1 then computed-H_D FastECPP on ≥256-bit <em>n</em> in this tab. From 800 bits the Python library uses a cyclotomic Jacobi-sum proof instead (about six minutes for a 1000-digit prime). 10^99+289, 10^131+63 and 10^149+183 are in scope here. A Fermat failure is composite even if the factor was not isolated. A proof miss is inconclusive here; Python may still prove it, else UnsettledPrimalityError (AKS is not a product-path fallback).</p>`
+              <p class="lab-hint">This tab did not finish a proof. The Python library may still settle it. From 800 bits that library uses a cyclotomic proof.</p>`
             );
           } else {
             renderCert({

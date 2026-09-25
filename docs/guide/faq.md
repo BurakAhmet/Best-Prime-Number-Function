@@ -49,7 +49,7 @@ No. AKS is **not** a product-path fallback. At $\ge 512$ bits a miss is
 `UnsettledPrimalityError` (CLI `RESULT: unsettled`, exit 3). Hard 64-bit
 primes stay on OpenMP / BLS. Huge primes use FastECPP or stay unsettled.
 
-## What does 1.13.0 actually prove?
+## What does 1.14.0 actually prove?
 
 Exact `is_prime` on the documented bands: BLS below 256 bits, FastECPP
 from 256 through 40 000 bits. Certificates match that ladder and
