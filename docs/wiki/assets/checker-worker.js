@@ -349,6 +349,53 @@
     return b;
   }
 
+  function numberPortrait(n) {
+    const s = n < 0n ? "0" : n.toString();
+    const digits = s.length;
+    const bits = bitLength(n);
+    let digitSum = 0;
+    for (let i = 0; i < s.length; i++) digitSum += s.charCodeAt(i) - 48;
+    let root = digitSum;
+    while (root > 9) {
+      let acc = 0;
+      const t = String(root);
+      for (let i = 0; i < t.length; i++) acc += t.charCodeAt(i) - 48;
+      root = acc;
+    }
+    const mod30 = n >= 0n ? n % 30n : 0n;
+    const wheel =
+      n === 2n ||
+      n === 3n ||
+      n === 5n ||
+      mod30 === 1n ||
+      mod30 === 7n ||
+      mod30 === 11n ||
+      mod30 === 13n ||
+      mod30 === 17n ||
+      mod30 === 19n ||
+      mod30 === 23n ||
+      mod30 === 29n;
+    const pow10 = digits <= 1 ? 1n : 10n ** BigInt(digits - 1);
+    const sq = n < 0n ? 0n : isqrt(n);
+    let band = "exact trial";
+    if (bits >= 800) band = "cyclotomic band in the library; this tab uses an elliptic-curve proof";
+    else if (bits >= 256) band = "elliptic-curve proof";
+    else if (n >= (1n << 64n)) band = "combined BLS";
+    return {
+      digits: digits,
+      bits: bits,
+      lastDigit: s.slice(-1),
+      digitSum: digitSum,
+      digitalRoot: n === 0n ? 0 : root,
+      mod30: mod30.toString(),
+      wheelCoprime: wheel,
+      aboveLowerPower: (n - pow10).toString(),
+      untilNextPower: (pow10 * 10n - n).toString(),
+      aboveSquare: (n - sq * sq).toString(),
+      band: band,
+    };
+  }
+
   function done(prime, path, factor, note, limit, t0) {
     return {
       prime: prime,
@@ -2924,6 +2971,7 @@
       k: kk,
       direction: "next",
       value: last.p.toString(),
+      delta: (last.p - n).toString(),
       path: last.path,
       tried: tried,
       ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
@@ -3002,6 +3050,7 @@
       k: kk,
       direction: "prev",
       value: last.p.toString(),
+      delta: (last.p - n).toString(),
       path: last.path,
       tried: tried,
       ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
@@ -3092,6 +3141,9 @@
     checkPrime: checkPrime,
     nextPrime: nextPrime,
     prevPrime: prevPrime,
+    numberPortrait: numberPortrait,
+    parseK: parseK,
+    quickComposite: quickComposite,
     ecmFactor: ecmFactor,
     umod64: umod64,
     nm1Primality: nm1Primality,
@@ -3311,6 +3363,15 @@
     assert(nextPrime(2n, 1).value === "3", "next(2)=3");
     assert(nextPrime(14n, 1).value === "17", "next(14)=17");
     assert(nextPrime(14n, 3).value === "23", "next(14,3)=23");
+    assert(nextPrime(14n, 1).delta === "3", "next(14) gap");
+    assert(prevPrime(14n, 1).delta === "-1", "prev(14) gap");
+    const face = numberPortrait(97n);
+    assert(face.bits === 7 && face.digits === 2 && face.lastDigit === "7", "portrait 97");
+    assert(face.digitSum === 16 && face.digitalRoot === 7, "digit sum 97");
+    assert(face.aboveSquare === "16", "97 is 16 above 9^2");
+    assert(face.mod30 === "7" && face.wheelCoprime === true, "97 mod 30");
+    assert(parseK("0") === null && parseK("65") === 65n, "k has no upper bound");
+    assert(quickComposite(2047n) === true, "2047 fails the Fermat screen");
     assert(nextPrime(100n, 1).value === "101", "next(100)=101");
     assert(nextPrime(100n, 65).value === "463", "next(100,65)=463");
     assert(nextPrime(14n, 100).ok === true, "k=100 has no cap");

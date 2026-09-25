@@ -30,6 +30,56 @@
     return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
+  function bitLength(n) {
+    if (n <= 0n) return 0;
+    let b = 0;
+    let x = n;
+    while (x > 0n) {
+      x >>= 1n;
+      b++;
+    }
+    return b;
+  }
+
+  function numberPortrait(n) {
+    const s = n.toString();
+    const digits = s.length;
+    const bits = bitLength(n);
+    let digitSum = 0;
+    for (let i = 0; i < s.length; i++) digitSum += s.charCodeAt(i) - 48;
+    let root = digitSum;
+    while (root > 9) {
+      let acc = 0;
+      const t = String(root);
+      for (let i = 0; i < t.length; i++) acc += t.charCodeAt(i) - 48;
+      root = acc;
+    }
+    const mod30 = n % 30n;
+    const wheel =
+      n === 2n || n === 3n || n === 5n ||
+      mod30 === 1n || mod30 === 7n || mod30 === 11n || mod30 === 13n ||
+      mod30 === 17n || mod30 === 19n || mod30 === 23n || mod30 === 29n;
+    const pow10 = digits <= 1 ? 1n : 10n ** BigInt(digits - 1);
+    const sq = isqrt(n);
+    let band = "exact trial";
+    if (bits >= 800) band = "cyclotomic band in the library; this tab uses an elliptic-curve proof";
+    else if (bits >= 256) band = "elliptic-curve proof";
+    else if (n >= TWO64) band = "combined BLS";
+    return {
+      digits: digits,
+      bits: bits,
+      lastDigit: s.slice(-1),
+      digitSum: digitSum,
+      digitalRoot: n === 0n ? 0 : root,
+      mod30: mod30.toString(),
+      wheelCoprime: wheel,
+      aboveLowerPower: (n - pow10).toString(),
+      untilNextPower: (pow10 * 10n - n).toString(),
+      aboveSquare: (n - sq * sq).toString(),
+      band: band,
+    };
+  }
+
   function workerUrl() {
     const el = document.querySelector("script[src*='checker.js']");
     if (el && el.src) {
@@ -47,12 +97,23 @@
   }
 
   function certificateText(state) {
+    const face = numberPortrait(BigInt(state.n));
     const lines = [
       "DETERMINISTIC PRIMORUM RECORD",
       "Best-Prime-Number-Function",
       "",
       "n = " + state.n,
-      "digits = " + String(state.n).length,
+      "digits = " + face.digits,
+      "bits = " + face.bits,
+      "band = " + face.band,
+      "last digit = " + face.lastDigit,
+      "digit sum = " + face.digitSum,
+      "digital root = " + face.digitalRoot,
+      "n mod 30 = " + face.mod30,
+      "30-wheel residue = " + (face.wheelCoprime ? "coprime to 30" : "shares a factor with 30"),
+      "above 10^(digits-1) = " + face.aboveLowerPower,
+      "until next power of 10 = " + face.untilNextPower,
+      "above the square below = " + face.aboveSquare,
       "floor(sqrt(n)) = " + state.isqrt.toString(),
       "verdict = " + (state.prime ? "prime" : "composite"),
       "path = " + state.path,
@@ -83,9 +144,16 @@
   function certificateSvg(state) {
     const verdict = state.prime ? "Prime" : "Composite";
     const ink = state.prime ? "#245c3d" : "#c45c2c";
+    const face = numberPortrait(BigInt(state.n));
     const rows = [
       ["n", state.n],
-      ["digits", String(state.n).length],
+      ["digits", String(face.digits)],
+      ["bits", String(face.bits)],
+      ["band", face.band],
+      ["last digit", face.lastDigit],
+      ["digit sum", String(face.digitSum)],
+      ["n mod 30", face.mod30],
+      ["above square", face.aboveSquare],
       ["⌊√n⌋", fmt(state.isqrt)],
       ["path", state.path],
     ];
@@ -905,16 +973,47 @@
         <dt>step</dt><dd>${escapeHtml(state.i || "—")}</dd></dl>`;
     }
 
+    function portraitChips(n) {
+      const face = numberPortrait(n);
+      const chips = [
+        ["digits", String(face.digits)],
+        ["bits", String(face.bits)],
+        ["last digit", face.lastDigit],
+        ["digit sum", String(face.digitSum)],
+        ["digital root", String(face.digitalRoot)],
+        ["n mod 30", face.mod30 + (face.wheelCoprime ? " · coprime" : " · shares 2, 3, or 5")],
+        ["above 10^(d−1)", fmt(face.aboveLowerPower)],
+        ["to next 10^d", fmt(face.untilNextPower)],
+        ["above □", fmt(face.aboveSquare)],
+      ];
+      return (
+        '<p class="cert-band">' + escapeHtml(face.band) + "</p>" +
+        '<ul class="cert-facts">' +
+        chips
+          .map(function (pair) {
+            return (
+              "<li><span>" +
+              escapeHtml(pair[0]) +
+              "</span><b>" +
+              escapeHtml(pair[1]) +
+              "</b></li>"
+            );
+          })
+          .join("") +
+        "</ul>"
+      );
+    }
+
     function renderCert(state) {
       lastCert = state;
       const verdict = state.prime ? "Prime" : "Composite";
       out.className = "lab-out show cert " + (state.prime ? "yes" : "no");
       out.innerHTML = `<article class="cert-card">
-        <p class="cert-kicker">${state.prime ? "the curtain falls · a proof" : "the curtain falls · a factor"}</p>
+        <p class="cert-kicker">${state.prime ? "proved prime" : "proved composite"}</p>
         <p class="verdict">${verdict}</p>
+        ${portraitChips(BigInt(state.n))}
         <dl>
           <dt>n</dt><dd>${escapeHtml(state.n)}</dd>
-          <dt>digits</dt><dd>${state.n.length}</dd>
           <dt>path</dt><dd>${escapeHtml(state.path)}</dd>
           <dt>⌊√n⌋</dt><dd>${fmt(state.isqrt)}</dd>
           ${factorRows(state)}
@@ -1006,6 +1105,9 @@
           "</dd>" +
           "<dt>result digits</dt><dd>" +
           escapeHtml(String(res.value.length)) +
+          "</dd>" +
+          "<dt>p − n</dt><dd>" +
+          escapeHtml(String(res.delta != null ? res.delta : (BigInt(res.value) - BigInt(res.n)).toString())) +
           "</dd>" +
           "<dt>path</dt><dd>" +
           escapeHtml(res.path || "") +

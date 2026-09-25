@@ -141,6 +141,18 @@ class TestEdgeCases:
     def test_k_default_is_one(self):
         assert next_prime(14, 1) == next_prime(14)
 
+    def test_gap_is_prime_minus_n(self):
+        assert next_prime(14) - 14 == 3
+        assert next_prime(100, 65) == 463
+        assert next_prime(100, 65) - 100 == 363
+        from best_prime.prev_prime import prev_prime
+
+        assert 14 - prev_prime(14) == 1
+
+    def test_fermat_liar_is_not_returned_as_prime(self):
+        # 25326001 passes Miller–Rabin bases 2, 3, and 5, and is composite.
+        assert next_prime(25_326_000) == 25_326_023
+
     @pytest.mark.parametrize("bad", [0, -1, -17])
     def test_k_non_positive_raises(self, bad):
         with pytest.raises(ValueError):

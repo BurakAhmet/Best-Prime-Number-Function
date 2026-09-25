@@ -432,6 +432,39 @@
   background:
     radial-gradient(circle at 92% 12%, rgba(196, 92, 44, 0.12), transparent 28%);
 }
+.cert-band {
+  margin: 0.15rem 0 0.55rem;
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  color: var(--forest);
+}
+.cert-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+.cert-facts li {
+  min-width: 7.5rem;
+  padding: 0.35rem 0.55rem 0.4rem;
+  border: 1px solid rgba(27, 36, 55, 0.12);
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.45);
+}
+.cert-facts span {
+  display: block;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cert-facts b {
+  font-weight: 650;
+  font-size: 0.92rem;
+}
 .cert-kicker {
   margin: 0 0 0.2rem;
   font-size: 0.72rem;

@@ -58,18 +58,18 @@ def test_lab_assets_allow_near_2_63_prime():
     assert 'data-phase="ecpp"' in ui
     assert "Combined Theorem 1" in ui
     assert "checker-worker.js" in ui
-    assert "lab-orrery" in ui
     assert "lab-stage" in ui
-    assert "lab-theatre-kicker" in ui
-    assert "lab-theatre-act" in ui
     assert 'data-phase="neighbor"' in ui
-    assert 'data-phase="ecm"' in ui
-    assert "viz-ecm-path" in ui
-    assert "getPointAtLength" in ui
-    assert "Math.sin(t * Math.PI)" not in ui
-    assert "prefers-reduced-motion" in (ROOT / "docs" / "wiki" / "assets" / "checker.css").read_text(
-        encoding="utf-8"
-    )
+    assert "p − n" in ui
+    assert "numberPortrait" in ui
+    assert "cert-facts" in ui
+    assert "to 64" not in ui
+    assert "quickComposite" in src
+    assert "numberPortrait" in src
+    assert "delta:" in src
+    css = (ROOT / "docs" / "wiki" / "assets" / "checker.css").read_text(encoding="utf-8")
+    assert "prefers-reduced-motion" in css
+    assert ".cert-facts" in css
     assert "factorRows" in ui
     assert "Download SVG" in ui
     assert "WHEEL30" in ui
@@ -211,7 +211,15 @@ def test_checker_worker_next_prev_prime() -> None:
         "if(!n.ok||n.value!=='17'||!p.ok||p.value!=='13'){"
         "  console.error(JSON.stringify({n,p})); process.exit(1);"
         "}"
-        "console.log('neighbors OK', n.value, p.value);"
+        "if(n.delta!=='3'||p.delta!=='-1'){console.error('delta',n.delta,p.delta);process.exit(1);}"
+        "const k=api.nextPrime(100n,65);"
+        "if(!k.ok||k.value!=='463'||k.delta!=='363'){console.error(JSON.stringify(k));process.exit(1);}"
+        "if(api.parseK('0')!==null||api.parseK('999')!==999n){process.exit(1);}"
+        "const face=api.numberPortrait(97n);"
+        "if(face.bits!==7||face.digitSum!==16||face.aboveSquare!=='16'||face.mod30!=='7'){"
+        "  console.error(JSON.stringify(face)); process.exit(1);}"
+        "if(api.quickComposite(2047n)!==true||api.quickComposite(97n)!==false){process.exit(1);}"
+        "console.log('neighbors OK', n.value, p.value, k.delta);"
     )
     r = subprocess.run(
         ["node", "-e", script],
