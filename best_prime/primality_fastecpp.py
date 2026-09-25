@@ -126,7 +126,7 @@ def _prove_q_fast(
         return True
     if q <= 1 or q >= n:
         return None
-    from .primality_ecpp import _set_child_rec
+    from .child_rec import _set_child_rec
     from .primality_nm1 import _prove_strictly_smaller
     from .progress import emit
 

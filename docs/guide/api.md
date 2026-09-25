@@ -21,7 +21,7 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 
 | Name | Meaning | Example |
 |------|---------|---------|
-| `__version__` | Installed package version | `"1.13.0"` |
+| `__version__` | Installed package version | `"1.14.0"` |
 | `DEFAULT_N` | CLI default / 147-bit hard-path yardstick | `100000000000000000000000000000000000000000031` |
 | `PRIME_COUNT_MAX_N` | **Hard ceiling** for `prime_count` | $2^{64}-1$ |
 | `NEXT_PRIME_SIEVE_ISQRT_MAX` | Interval-sieve cap for next/prev | $2\cdot10^6$ |

@@ -357,11 +357,11 @@ main.page {
 }
 main.page, main.page p, main.page li { color: var(--ink); }
 .is-home main.page > h1:first-child {
-  font-size: clamp(2.2rem, 5vw, 3.2rem);
-  line-height: 1.08;
-  max-width: 16ch;
+  font-size: clamp(1.85rem, 4vw, 2.45rem);
+  line-height: 1.15;
+  max-width: 22ch;
   font-weight: 600;
-  margin: 0 0 0.9rem;
+  margin: 0 0 0.6rem;
 }
 main.page > h1:first-child { margin-top: 0; }
 h1, h2, h3, h4 {

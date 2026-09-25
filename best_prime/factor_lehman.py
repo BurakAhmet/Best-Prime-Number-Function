@@ -133,9 +133,14 @@ def cubic_complete_ready(n: int) -> bool:
     cub = _ceil_icbrt(n)
     if n < (1 << 64) and math.isqrt(n) < U64_CUBIC_ISQRT_MIN:
         return False
-    if _c_lehman_ready() and _fits_c_lehman(n, cub):
+    # The multiprecision budget is already a complete cubic proof.
+    # Loading wheel_core just to answer True costs more than the BLS
+    # check on a cold ``python -m best_prime`` (ctypes + libgomp).
+    if cub <= LEHMAN_COMPLETE_CUB_MAX_MP:
         return True
-    return cub <= LEHMAN_COMPLETE_CUB_MAX_MP
+    if _fits_c_lehman(n, cub) and _c_lehman_ready():
+        return True
+    return False
 
 
 def _fits_c_lehman(n: int, cub: int) -> bool:

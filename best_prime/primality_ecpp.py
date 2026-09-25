@@ -66,30 +66,16 @@ def fermat_bases_for_bits(bits: int) -> tuple[int, ...]:
 
 Result = Optional[bool]
 
+from .child_rec import _set_child_rec, _take_child_rec
+
 _proving: set[int] = set()
 # Nested ECPP must not clobber the outer witness payload.
 _cert_stack: list[dict] = []
-# Last downrun witness, tagged by q so a nested prove cannot leak.
-_last_child: tuple[int, dict] | None = None
 
 
 def _note(**kwargs: object) -> None:
     if _cert_stack:
         _cert_stack[-1].update(kwargs)
-
-
-def _set_child_rec(q: int, rec: dict | None) -> None:
-    global _last_child
-    _last_child = None if rec is None else (int(q), rec)
-
-
-def _take_child_rec(q: int) -> dict | None:
-    global _last_child
-    if _last_child is None or _last_child[0] != int(q):
-        return None
-    rec = _last_child[1]
-    _last_child = None
-    return rec
 
 
 def _note_curve(q: int, **kwargs: object) -> None:

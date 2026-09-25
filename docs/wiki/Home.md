@@ -1,82 +1,45 @@
-# Best-Prime-Number-Function Wiki
+# Check a number
 
-**Fully deterministic** primality testing for natural numbers — one engine per size band (stdlib / OpenMP C / Numba / **BLS** below 256 bits / **FastECPP** at 256+ bits / **cyclotomic APR-CL** from 800 bits). AKS is not in the library.
+Type a natural number. This page either finishes a proof or shows a factor.
 
-> [!WARNING]
-> **This entire project (code, tests, docs, and wiki) was created and designed by an AI agent**. Treat it as AI-generated work: review code and results before production or research-critical use. Human oversight is recommended.
-
-## Interactive lab
-
-This page is an in-browser **exhibit**, not the Python library. Today’s CI specimen sits above the bench. Type any $n$ for a **deterministic** check in this tab (not the OpenMP C core). **One engine per band**, matching the Python library: **class-number-1 ECPP, then in-tab FastECPP $H_D$** when $n$ has $256+$ bits (Montgomery ECM; Jacobian mul; no BLS after a miss), else **combined BLS only** (n−1 Pocklington, Lucas n+1, Combined Theorem 1 — $n < \max(F^{2}G/2,\,FG^{2}/2)$). Then exact 30-wheel trial if practical. The input shows its **digit count** as you type. Below the checker, **next / previous prime** walks candidates with the same engines (optional $k$-th neighbor; Stop to abort). Factoring uses trial / Brent / $p-1$ / **Montgomery ECM**. Composites print a **factor**. There is **no digit-length limit**. A 100-digit number (for example the prime $10^{99}+289$) is checked in this tab. A **1000-digit** number is proved by the Python cyclotomic engine (`is_prime`, Jacobi sums): $10^{999}+7$ is prime in about six minutes on a 12-core machine, which is the library path from 800 bits up. The tab itself keeps FastECPP and does not run that engine. The 131-digit CM-friendly prime $10^{130}+1113$ proves in-tab via $D=-19$. General **132–150 digit** primes (for example $10^{131}+63$ and $10^{149}+183$) prove via in-tab computed-$H_D$ FastECPP. A proof miss is **inconclusive** here; Python may still prove it, else `UnsettledPrimalityError` (AKS is not a product-path fallback). Results are downloadable certificates.
+> [!NOTE]
+> The lab in this tab is an exhibit. The Python library is the same idea with a faster native core. A miss here is inconclusive; `is_prime` may still settle it.
 
 <!-- acta-specimen -->
 
 <div id="prime-lab-root"></div>
 
----
+## What “prime” means here
 
-## What this project is
+`is_prime` returns true only when a proof finishes, and false only when compositeness is proved. Otherwise it raises `UnsettledPrimalityError`. It does not answer “probably.”
 
-| | |
-|--|--|
-| **Library** | `is_prime`, `next_prime` / `prev_prime`, `nth_prime`, `prime_count`, `primes` / `primerange`, `prime_factors` / `factorint`, `totient` / `primorial` / `divisors`, `is_prime_power` / `is_perfect_power` |
-| **Fast path** | Mid-size $n \lt 2^{64}$ ($\lfloor\sqrt{n}\rfloor < 10^{7}$): OpenMP C precomputed-prime / segmented trial when `wheel_core.so` is built; else tiered **30030** / **9699690** wheel (stdlib / Numba) |
-| **Hard path** | Larger 64-bit $n$, and $n \ge 2^{64}$ inside the cubic budget: **combined BLS**. Odd factors of $n\pm 1$ come from that same prime table ($\le 2^{20}$). Near $2^{63}$ ~3 ms e2e; 147-bit CLI default ~5 ms. Cubic C only when $n\pm 1$ is hostile. |
-| **Huge path** | bits $<256$: **BLS only** (147-bit CLI default `u128_nm1`, same peel). bits $\ge 256$: **FastECPP** (class-number-1 inside that walk) until 800 bits, then **cyclotomic APR-CL**. A miss raises `UnsettledPrimalityError`. AKS is not in the library. |
-| **Not used** | Stochastic Miller–Rabin, prime sieving libraries as the engine |
+| Size | Proof |
+|------|--------|
+| Small, and most 64-bit values | Trial division up to the square root |
+| Harder 64-bit, and up to 256 bits | Combined BLS on $n-1$ and $n+1$, then a cubic search if those will not factor |
+| 256 bits up to 800 bits | Elliptic-curve proof (FastECPP) |
+| 800 bits and wider | Cyclotomic proof, then FastECPP if that modulus is no longer enough |
 
-**Repository:** [BurakAhmet/Best-Prime-Number-Function](https://github.com/BurakAhmet/Best-Prime-Number-Function)
+Stochastic Miller–Rabin and external prime libraries are not the engine. AKS is not in the library.
 
-Keep this wiki aligned with the root [README](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/README.md) (`scripts/check_wiki_sync.py` in CI).
+On this machine a hard 64-bit check is about 2 ms end to end, and the 147-bit default is about 5 ms.
 
----
-
-## Wiki map
-
-| Page | Description |
-|------|-------------|
-| **[Home](Home)** | This overview |
-| **[Library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)** | Standalone MkDocs site (install, API, CLI, engines) at `/guide/` |
-| **[Library reference](Library)** | Every public function, with examples (wiki copy) |
-| **[Project restrictions](Project-restrictions)** | Non-negotiable rules for humans **and agents** |
-| **[Algorithm overview](Algorithm-overview)** | Wheel trial (u64/u128); BLS below 256 bits; FastECPP at 256+ bits |
-| **[n−1 / BLS](https://burakahmet.github.io/Best-Prime-Number-Function/guide/nm1-proof/)** | Combined Theorem 1 when $n\pm 1$ factors (beats cubic) |
-| **[ECPP](https://burakahmet.github.io/Best-Prime-Number-Function/guide/ecpp-proof/)** | Deterministic Atkin–Morain; general 100-digit = FastECPP (computed $H_D$) |
-| **[Cubic search](https://burakahmet.github.io/Best-Prime-Number-Function/guide/cubic-search/)** | Two-band $O(n^{1/3})$ fallback / `factorint` splitter |
-| **[Algorithm history](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md)** | Performance eras, opts, tradeoffs, failures to avoid |
-| **[CI and automation](CI-and-automation)** | Tests, determinism, e2e performance, issue/PR agents |
-| **[Agent briefing](Agent-briefing)** | Instructions for coding / triage agents |
-| **[Contributing](Contributing)** | How to contribute safely |
-| **[Benchmarks](Benchmarks)** | E2E CLI `TIME` vs in-process hot loop |
-| **[Hall of fame](Hall-of-fame)** | Notable 64-bit primes + prime-of-the-day log |
-
-**Source of truth in git:** [`docs/wiki/`](https://github.com/BurakAhmet/Best-Prime-Number-Function/tree/main/docs/wiki).
-
-**Also published as Pages:** [burakahmet.github.io/Best-Prime-Number-Function](https://burakahmet.github.io/Best-Prime-Number-Function/) (exhibit) · [library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/)
-
----
-
-## Quick start
-
-Install and first calls live in the [README](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/README.md) and the [library guide](https://burakahmet.github.io/Best-Prime-Number-Function/guide/).
+## Try it from the shell
 
 ```bash
 pip install best-prime-number-function
 is-prime 1000000007
 ```
 
-Dispatch: [Algorithm overview](Algorithm-overview) · [engines](https://burakahmet.github.io/Best-Prime-Number-Function/guide/engines/).
+With no argument, `is-prime` checks the 147-bit default. The install guide, the function list, and the proof write-ups are in the [library guide](guide/).
 
----
+## Pages
 
-## Status checks you should care about
-
-| Workflow | Role |
-|----------|------|
-| **CI** | Build `.so`, tests, wiki sync, **e2e** perf vs previous commit, C-path assert on Linux |
-| **Determinism** | Gate after repeated serial/parallel trials (PR: 3.12 only; main: multi-version) |
-| **Issue agent** | Auto-answers + briefs restrictions |
-| **PR agent** | Briefs agents; auto-approves *same-repo* PRs only |
-| **Prime of the day** | Daily challenge + hall-of-fame log (`path` + e2e ms) |
-
-Fork PRs are **not** auto-approved. Prefer requiring green **CI** + **Determinism** before merge.
+| | |
+|--|--|
+| [Library guide](guide/) | Install, API, CLI, engines |
+| [Library reference](Library) | Every public function |
+| [Algorithm overview](Algorithm-overview) | Which proof runs |
+| [Restrictions](Project-restrictions) | What the project will not do |
+| [Benchmarks](Benchmarks) | End-to-end CLI time |
+| [Hall of fame](Hall-of-fame) | Specimen primes |
