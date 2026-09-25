@@ -100,6 +100,16 @@ class TestBlsPrimality:
         assert is_prime(n) is True
         assert time.perf_counter() - t < 2.0
 
+    def test_54_digit_prime_splits_above_160_bits(self):
+        # 178 bits. n−1 leaves a 172-bit cofactor; the ≤160 ECM schedule
+        # never ran, so BLS returned unsettled after ~30s of Lehman.
+        import time
+
+        n = 337918279897593366562217396203250951407486188355507619
+        t = time.perf_counter()
+        assert is_prime(n) is True
+        assert time.perf_counter() - t < 5.0
+
     def test_existing_nm1_still_true(self):
         assert nm1_primality(SMOOTH_NM1_PRIME) is True
         assert nm1_primality(M61) is True

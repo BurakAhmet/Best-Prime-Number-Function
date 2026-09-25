@@ -172,6 +172,29 @@ console.log('random ok');
     assert proc.returncode == 0, proc.stderr or proc.stdout
 
 
+def test_54_digit_prime_in_the_lab_is_under_eight_seconds() -> None:
+    script = r"""
+const api = require('./docs/wiki/assets/checker-worker.js');
+const n = 337918279897593366562217396203250951407486188355507619n;
+const t0 = Date.now();
+const r = api.checkPrime(n);
+const dt = Date.now() - t0;
+if (r.prime !== true || dt >= 8000) {
+  console.error(dt, JSON.stringify(r));
+  process.exit(1);
+}
+console.log('54-digit', dt, r.path);
+"""
+    proc = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+
+
 def test_37_digit_prime_in_the_lab_is_under_two_seconds() -> None:
     script = r"""
 const api = require('./docs/wiki/assets/checker-worker.js');

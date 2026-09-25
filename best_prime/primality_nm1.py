@@ -694,6 +694,15 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
                 return f
         return None
 
+    # A 178-bit prime can leave a 172-bit cofactor. B1=8000 with eight
+    # curves misses the 48-bit factor that B1=11000 finds near σ=12.
+    # Stay above the ≤160 Lehman search: 2_000 steps on a 130-bit miss
+    # costs about half a minute and does not finish the proof.
+    if 160 < bits <= 200:
+        f = ecm_factor(c, max_ms=4_000, B1=11_000, max_curves=16)
+        if f is not None and 1 < f < c:
+            return f
+
     if bits <= 96:
         for cv in range(1, 5):
             g = _brent(c, cv, max_r=1 << 18)

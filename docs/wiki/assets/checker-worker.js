@@ -646,13 +646,27 @@
     const quick = effort === "quick";
     // A composite this wide is a semiprime hunt. Try the other side of n±1
     // before paying for it. Medium cofactors still get a short Brent.
+    // σ=9 and σ=19 settle the 37-digit prime. σ=6 settles a 25-bit factor
+    // of the 54-digit prime's inner cofactor; σ=12 settles its 48-bit one.
+    // A quick pass that only tried 9 and 19, then gave up above 104 bits,
+    // never saw σ=6 and fell into a 60s curve hunt.
     if (bits > 80 && bits <= 140) {
-      const early9 = ecmAffineSigma(c, 9, 11000);
-      if (early9 && early9 > 1n && early9 < c) return early9;
-      const early19 = ecmAffineSigma(c, 19, 11000);
-      if (early19 && early19 > 1n && early19 < c) return early19;
+      for (let si = 0; si < 4; si++) {
+        const s = [9, 19, 6, 12][si];
+        const g = ecmAffineSigma(c, s, 11000);
+        if (g && g > 1n && g < c) return g;
+      }
     }
-    if (quick && bits > 104) return null;
+    if (!quick && bits > 140 && bits <= 200) {
+      for (let s = 6; s <= 21; s++) {
+        const g = ecmAffineSigma(c, s, 11000);
+        if (g && g > 1n && g < c) return g;
+      }
+    }
+    // Above 80 bits a miss here is a semiprime hunt. Try the other side of
+    // n±1 before Brent. 80–104 used to keep a short Brent on the quick pass;
+    // six curves at 2^18 on a 95-bit cofactor missed and blocked that side.
+    if (quick && bits > 80) return null;
     const bound = knownComposite
       ? Math.max(FACTOR_TRIAL_BOUND, adaptiveTrialBound(c))
       : adaptiveTrialBound(c);
@@ -1049,9 +1063,11 @@
       const t = trialIsPrimeCofactor(c, lim, onTick, shouldStop);
       return t === true;
     }
-    // Prefer n−1 (often cheaper than walking √c) before a long cofactor trial.
+    // n−1 alone misses primes whose factored part sits on n+1. The 54-digit
+    // specimen's 124-bit cofactor is one of those: n−1 leaves a 95-bit
+    // composite, n+1 splits at σ=6. Both sides, quick pass first.
     if (depth < 6) {
-      const r = nm1Primality(c, depth + 1, onTick, shouldStop);
+      const r = blsPrimality(c, depth + 1, onTick, shouldStop);
       if (r.prime === true) return true;
       if (r.prime === false) return false;
     }
