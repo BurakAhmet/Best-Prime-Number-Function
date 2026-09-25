@@ -31,7 +31,8 @@ End-to-end CLI `TIME` on a dev machine (`compare_e2e.py`, best of several runs; 
 | $10^9+7$ | 1000000007 | ~2–3 ms |
 | 12-digit prime | 999999999989 | ~2–4 ms |
 | Near $2^{63}$ | 9223372036854775783 | ~3 ms |
-| CLI default (147-bit n−1) | 100000000000000000000000000000000000000000031 | ~5 ms |
+| 147-bit n−1 specimen | 100000000000000000000000000000000000000000031 | ~5 ms |
+| CLI default (150 digits) | 10^149+183 | ~7 s |
 | Largest prime $<2^{64}$ | 18446744073709551557 | ~3 ms |
 | Mersenne M61 | $2^{61}-1$ | ~3 ms |
 

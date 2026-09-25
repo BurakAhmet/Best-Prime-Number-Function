@@ -14,7 +14,6 @@ from best_prime.primality_nm1 import (
     nm1_primality,
 )
 from tests.numbers import (
-    DEFAULT_CLI_N,
     M61,
     NP1_SMOOTH_PRIME,
     NP1_SMOOTH_SMALL,
@@ -94,7 +93,9 @@ class TestBlsPrimality:
     def test_existing_nm1_still_true(self):
         assert nm1_primality(SMOOTH_NM1_PRIME) is True
         assert nm1_primality(M61) is True
-        assert nm1_primality(DEFAULT_CLI_N) is True
+        from tests.numbers import N_147
+
+        assert nm1_primality(N_147) is True
         assert bls_primality(SMOOTH_NM1_PRIME) is True
         assert bls_primality(M61) is True
 

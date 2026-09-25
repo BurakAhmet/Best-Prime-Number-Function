@@ -91,7 +91,7 @@ class TestTrialSplitOdd:
             P_GT_2_20 * P_LE_2_20,
             NEAR_2_63_PRIME - 1,
             LARGEST_PRIME_LT_2_64 - 1,
-            DEFAULT_N - 1,
+            100_000_000_000_000_000_000_000_000_000_000_000_000_000_031 - 1,
             (1 << 140) - 1,
             145612264166821,  # 48-bit cofactor of the near-2^63 prime
         ]
@@ -170,7 +170,7 @@ class TestCSerialParallelAgree:
         from tests.numbers import DEFAULT_CLI_N
 
         assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 147
+        assert DEFAULT_N == 10**149 + 183
 
 
 class TestCU128Path:

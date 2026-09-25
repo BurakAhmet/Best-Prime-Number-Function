@@ -22,7 +22,7 @@ Type a natural number. This page either finishes a proof or shows a factor.
 
 Stochastic Miller–Rabin and external prime libraries are not the engine. AKS is not in the library.
 
-On this machine a hard 64-bit check is about 2 ms end to end, and the 147-bit default is about 5 ms.
+On this machine a hard 64-bit check is about 2 ms end to end. With no argument, `is-prime` checks the 150-digit prime $10^{149}+183$.
 
 ## Try it from the shell
 
@@ -31,7 +31,7 @@ pip install best-prime-number-function
 is-prime 1000000007
 ```
 
-With no argument, `is-prime` checks the 147-bit default. The install guide, the function list, and the proof write-ups are in the [library guide](guide/).
+The install guide, the function list, and the proof write-ups are in the [library guide](guide/).
 
 ## Pages
 

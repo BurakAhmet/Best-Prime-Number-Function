@@ -41,9 +41,10 @@ WHEEL_MOD = 9_699_690
 WHEEL_NW = 1_658_880
 _WHEEL_START_I = 23
 _SMALL_LIMIT = 10_000
-# CLI default / hard yardstick: 147-bit prime (n−1 Pocklington path).
-# Largest prime < 2^64 stays a documented 64-bit specimen.
-DEFAULT_N = 100_000_000_000_000_000_000_000_000_000_000_000_000_000_031
+# CLI default: the 150-digit prime 10**149 + 183 (FastECPP).
+# The 147-bit n−1 specimen stays in tests/numbers.py. Largest prime < 2^64
+# stays a documented 64-bit specimen.
+DEFAULT_N = 10**149 + 183
 # Stdlib wheel wins end-to-end TIME up to this n (avoids NumPy/Numba import).
 _PURE_WHEEL_MAX_N = 4_000_000_000_000  # isqrt <= 2_000_000
 _PARALLEL_LIMIT = 50_000

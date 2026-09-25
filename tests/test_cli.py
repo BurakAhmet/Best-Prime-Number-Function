@@ -104,15 +104,15 @@ class TestCliExitCodes:
 
 
 class TestCliDefault:
-    def test_package_default_is_147bit_hard_yardstick(self):
+    def test_package_default_is_150_digit(self):
         assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 147
-        assert DEFAULT_N > (1 << 64)
+        assert DEFAULT_N == 10**149 + 183
+        assert len(str(DEFAULT_N)) == 150
 
     def test_source_default_string_matches(self):
         src = IMPL.read_text(encoding="utf-8")
         assert "DEFAULT_N" in src
-        assert "100_000_000_000_000_000_000_000_000_000_000_000_000_000_031" in src or str(DEFAULT_CLI_N) in src
+        assert "10**149 + 183" in src
 
     @pytest.mark.slow
     def test_no_args_checks_default_147bit_prime(self):

@@ -17,7 +17,7 @@ is_prime(n)
     └─ n ≥ 2⁶⁴
          ├─ cubic budget (4·k·n fits in 128 bits)
          │              → BLS n±1, else lehman_factor_u128
-         ├─ bits < 256  → BLS (CLI default: 147-bit n−1); else u128 trial if complete
+         ├─ bits < 256  → BLS (147-bit specimen); else u128 trial if complete
          └─ bits ≥ 256  → FastECPP only (h=1 inside it). Miss → UnsettledPrimalityError
                           (no BLS / transcribed-ECPP / AKS fallback)
 ```
@@ -78,7 +78,7 @@ flowchart TD
 
 One engine per band. No BLS → ECPP → FastECPP → AKS chain.
 
-1. **bits $< 256$:** combined BLS only (the 147-bit CLI default is `u128_nm1`). If BLS misses and $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ on a 128-bit $n$: OpenMP **`is_prime_u128_core`**. Else `UnsettledPrimalityError`.
+1. **bits $< 256$:** combined BLS only (the 147-bit specimen `100…00031` is `u128_nm1`). If BLS misses and $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ on a 128-bit $n$: OpenMP **`is_prime_u128_core`**. Else `UnsettledPrimalityError`. The CLI default $10^{149}+183$ is in the FastECPP band.
 2. **bits $\ge 256$:** **FastECPP only** ([guide](ecpp-proof.md)) — class-number-1 $D$ first, then computed $H_D$, path `bigint_fastecpp`. A Fermat miss is a composite proof. No BLS peel, no second transcribed-ECPP pass, no AKS. Cap 15 s above ~1000 digits, then unsettled. `primality_certificate` emits the same FastECPP witness (`kind='ecpp'`) and `verify_certificate` checks it without searching.
 
 Inspect the live path with [`lab(n)`](api.md).

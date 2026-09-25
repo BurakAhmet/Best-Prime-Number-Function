@@ -7,8 +7,10 @@ from __future__ import annotations
 
 # Largest prime strictly less than 2^64 (hard 64-bit specimen, not CLI default).
 LARGEST_PRIME_LT_2_64 = 18_446_744_073_709_551_557
-# CLI default: 147-bit prime; n−1 factors → Pocklington (u128_nm1).
-DEFAULT_CLI_N = 100_000_000_000_000_000_000_000_000_000_000_000_000_000_031
+# CLI default: 150-digit prime 10**149 + 183.
+DEFAULT_CLI_N = 10**149 + 183
+# Former CLI default: 147-bit prime; n−1 factors → Pocklington (u128_nm1).
+N_147 = 100_000_000_000_000_000_000_000_000_000_000_000_000_000_031
 # Smooth n−1 specimen used by the n−1 Pocklington path tests (former default).
 SMOOTH_NM1_PRIME = 600_000_000_000_000_000_001
 NEAR_2_63_PRIME = 9_223_372_036_854_775_783
@@ -62,7 +64,7 @@ LARGE_PRIMES_FAST = [
     999_999_999_999_999_989,
 ]
 
-LARGE_PRIMES_SLOW = [M61, NEAR_2_63_PRIME, LARGEST_PRIME_LT_2_64, DEFAULT_CLI_N]
+LARGE_PRIMES_SLOW = [M61, NEAR_2_63_PRIME, LARGEST_PRIME_LT_2_64, N_147]
 
 LARGE_COMPOSITES = [
     (1 << 63) - 1,

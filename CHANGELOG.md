@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **CLI default** is the 150-digit prime \(10^{149}+183\). The 147-bit specimen `100…00031` remains a BLS example.
+- **`next_prime`** rejects a large Fermat survivor with a strong Lucas test before a full proof. The Pages neighbor search does the same with a prime sieve and a Fermat filter, and **k has no upper limit**.
+
 ### Performance
 - **150-digit FastECPP no longer builds the primorial by folding one prime at a time.** `product_tree.primorial` multiplies the primes in a product tree. On this machine the 150-digit prime \(10^{149}+183\) drops from about 40 s to about 7.2 s end to end. The witness is unchanged.
 

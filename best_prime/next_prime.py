@@ -200,8 +200,71 @@ def _fermat_composite_fast(c: int) -> bool:
     return False
 
 
+def _lucas_uv(n: int, P: int, Q: int, k: int) -> tuple[int, int, int]:
+    """(U_k, V_k, Q^k) mod n. Deterministic doubling."""
+    if k == 0:
+        return 0, 2 % n, 1
+    D = P * P - 4 * Q
+    U, V = 1, P % n
+    Qk = Q % n
+    for bit in bin(k)[3:]:
+        U = (U * V) % n
+        V = (V * V - 2 * Qk) % n
+        Qk = (Qk * Qk) % n
+        if bit == "1":
+            Un = (P * U + V) % n
+            Vn = (P * V + D * U) % n
+            if Un & 1:
+                Un += n
+            if Vn & 1:
+                Vn += n
+            U, V = Un >> 1, Vn >> 1
+            Qk = (Qk * Q) % n
+    return U, V, Qk
+
+
+def _strong_lucas_composite(n: int) -> bool:
+    """True when the strong Selfridge Lucas test proves n composite.
+
+    A false result is not a primality proof. Primes always return False.
+    """
+    if n < 2 or n % 2 == 0:
+        return n != 2
+    from .primality_ecpp import _jacobi
+
+    for abs_d in range(5, 80, 2):
+        D = -abs_d if abs_d & 2 else abs_d
+        j = _jacobi(D, n)
+        if j == 0 and D % n:
+            return True
+        if j != -1:
+            continue
+        Q = (1 - D) // 4
+        s = 0
+        odd = n + 1
+        while odd % 2 == 0:
+            odd //= 2
+            s += 1
+        U, V, Qk = _lucas_uv(n, 1, Q, odd)
+        if U == 0 or V == 0:
+            return False
+        for _ in range(s - 1):
+            V = (V * V - 2 * Qk) % n
+            if V == 0:
+                return False
+            Qk = (Qk * Qk) % n
+        return True
+    return False
+
+
 def _prove_prime_candidate(c: int, parallel: bool) -> bool:
-    """``is_prime`` for a sieve/Fermat survivor. Surface unsettled clearly."""
+    """``is_prime`` for a sieve/Fermat survivor. Surface unsettled clearly.
+
+    Above 96 bits a strong Lucas failure is already a compositeness proof,
+    so a Fermat liar does not pay for a full elliptic-curve proof.
+    """
+    if c.bit_length() >= 96 and _strong_lucas_composite(c):
+        return False
     try:
         return is_prime(c, parallel=parallel)
     except UnsettledPrimalityError as exc:

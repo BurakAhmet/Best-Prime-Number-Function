@@ -133,7 +133,7 @@ is_prime(18446744073709551557)  # largest prime under 2^64
 is_prime(2305843009213693951)   # M61 = 2^61 − 1
 ```
 
-`is-prime` with no argument checks the 147-bit default `100000000000000000000000000000000000000000031` and prints end-to-end `TIME`. Exit 0 = prime, 1 = not prime, 2 = bad input, 3 = unsettled.
+`is-prime` with no argument checks the 150-digit prime `10**149 + 183` and prints end-to-end `TIME`. Exit 0 = prime, 1 = not prime, 2 = bad input, 3 = unsettled.
 
 | Also in the library | |
 |---|---|
@@ -154,4 +154,4 @@ is_prime(2305843009213693951)   # M61 = 2^61 − 1
 | [Restrictions](https://burakahmet.github.io/Best-Prime-Number-Function/guide/restrictions/) | The rules, including the Miller–Rabin counterexample |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to change the code without breaking the contract |
 
-Primary metric: end-to-end CLI `TIME`. `DEFAULT_N` stays the 147-bit prime above.
+Primary metric: end-to-end CLI `TIME`. `DEFAULT_N` is the 150-digit prime `10**149 + 183`. The 147-bit specimen `100000000000000000000000000000000000000000031` remains a BLS example.

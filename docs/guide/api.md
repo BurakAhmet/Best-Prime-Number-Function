@@ -22,15 +22,15 @@ The same catalogue is kept in the exhibit wiki as [`docs/wiki/Library.md`](https
 | Name | Meaning | Example |
 |------|---------|---------|
 | `__version__` | Installed package version | `"1.14.0"` |
-| `DEFAULT_N` | CLI default / 147-bit hard-path yardstick | `100000000000000000000000000000000000000000031` |
+| `DEFAULT_N` | CLI default, the 150-digit prime $10^{149}+183$ | `10**149 + 183` |
 | `PRIME_COUNT_MAX_N` | **Hard ceiling** for `prime_count` | $2^{64}-1$ |
 | `NEXT_PRIME_SIEVE_ISQRT_MAX` | Interval-sieve cap for next/prev | $2\cdot10^6$ |
 | `TOTIENT_RANGE_MAX` | Max $n$ for `totient_range` | $2\cdot10^{7}$ |
 
 ```python
 from best_prime import DEFAULT_N, PRIME_COUNT_MAX_N, __version__
-assert DEFAULT_N == 100000000000000000000000000000000000000000031
-assert is_prime(DEFAULT_N)  # n−1 Pocklington on the 147-bit CLI default
+assert DEFAULT_N == 10**149 + 183
+assert is_prime(100000000000000000000000000000000000000000031)  # 147-bit n−1 example
 ```
 
 ---

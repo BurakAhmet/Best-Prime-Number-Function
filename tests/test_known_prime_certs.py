@@ -13,7 +13,7 @@ from best_prime import is_prime, primality_certificate, verify_certificate
 from best_prime.primality_ecpp import gk_min_q
 from best_prime.primality_fastecpp import fastecpp_search
 from tests.numbers import (
-    DEFAULT_CLI_N,
+    N_147,
     P40_H1_FRIENDLY,
     P100_DIGIT,
     P131_DIGIT,
@@ -21,7 +21,7 @@ from tests.numbers import (
     USER_C123_FACTOR,
 )
 
-FIXED_PRIMES = (2, 3, 17, 101, P40_H1_FRIENDLY, DEFAULT_CLI_N)
+FIXED_PRIMES = (2, 3, 17, 101, P40_H1_FRIENDLY, N_147)
 
 
 class TestFixedPrimeList:

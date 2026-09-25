@@ -4,7 +4,7 @@ After `pip install`, the same programs as `python -m best_prime` / `python -m be
 
 ```bash
 is-prime 97
-is-prime 100000000000000000000000000000000000000000031
+is-prime
 best-prime --lab 1000000007    # alias of is-prime
 is-prime --serial 10**9+7      # force single-threaded engines
 is-prime --progress --max-ms 15000 10**99+289
@@ -27,7 +27,7 @@ is-prime-power 8               # yes (exit 0)
 is-perfect-power 36            # yes (exit 0)
 ```
 
-`is-prime` with no argument defaults to the 147-bit prime `100000000000000000000000000000000000000000031` (n−1 Pocklington when $n-1$ factors; OpenMP cubic only if n−1 is hostile and `4kn` fits in 128 bits). The largest prime $<2^{64}$ (`18446744073709551557`) remains a documented 64-bit specimen. `next-prime` **requires** `n`.
+`is-prime` with no argument defaults to the 150-digit prime $10^{149}+183$. The 147-bit specimen `100000000000000000000000000000000000000000031` remains an n−1 example, and the largest prime $<2^{64}$ (`18446744073709551557`) remains a 64-bit specimen. `next-prime` **requires** `n`.
 
 On a TTY (or `BEST_PRIME_PROGRESS=1`) long proofs print stages on stderr: Fermat, usable $D$, prove $q$, factor hunt. A successful FastECPP / ECPP proof also prints `CM_TREE:` (`digits/D/h` for each downrun). That is why two similar-size primes can invert on wall-clock. `--max-ms` / `BEST_PRIME_MAX_MS` aborts as `RESULT: unsettled` (exit 3). A composite verdict is printed as soon as Fermat / FastECPP rejects; factoring is a bounded extra and does not block it. `prime-factors --max-ms` (default 30 s when $n$ has more than 512 bits) is the same idea for complete factorization.
 
@@ -45,6 +45,8 @@ On a TTY (or `BEST_PRIME_PROGRESS=1`) long proofs print stages on stderr: Fermat
 ## What `TIME` means
 
 `TIME` on the CLI is **end-to-end** (import + tables/native load + check), not a warm hot-loop. That is the [primary performance metric](performance.md).
+
+The block below is the 147-bit specimen, not the no-argument default.
 
 ```text
 TEST:    100000000000000000000000000000000000000000031 (45 chars)

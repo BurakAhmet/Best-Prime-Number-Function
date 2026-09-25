@@ -2838,12 +2838,27 @@
     return trialBig(n, limit, t0, onTick, shouldStop);
   }
 
-  const NEIGHBOR_MAX_K = 64;
-
   function parseK(raw) {
-    const k = Number(raw);
-    if (!Number.isInteger(k) || k < 1 || k > NEIGHBOR_MAX_K) return null;
-    return k;
+    const s = String(raw == null ? "1" : raw).trim();
+    if (!/^\d+$/.test(s)) return null;
+    const digits = s.replace(/^0+/, "");
+    if (!digits) return null;
+    return BigInt(digits);
+  }
+
+  /** One-sided compositeness screen. A false result is not a primality proof. */
+  function quickComposite(n) {
+    if (n < 2n) return true;
+    if (n === 2n || n === 3n) return false;
+    if ((n & 1n) === 0n) return true;
+    const primes = primesUpto(10007);
+    for (let i = 0; i < primes.length; i++) {
+      const p = BigInt(primes[i]);
+      if (n === p) return false;
+      if (n % p === 0n) return true;
+      if (p * p > n) return false;
+    }
+    return fermatSaysComposite(n);
   }
 
   function smallComposite(n) {
@@ -2862,13 +2877,13 @@
   function nextPrime(n, k, onTick, shouldStop) {
     const kk = parseK(k == null ? 1 : k);
     if (kk == null) {
-      return { ok: false, error: "k must be an integer from 1 to " + NEIGHBOR_MAX_K };
+      return { ok: false, error: "k must be a positive integer" };
     }
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
     const found = [];
     let cand = n < 2n ? 2n : n + 1n;
     let tried = 0;
-    while (found.length < kk) {
+    while (BigInt(found.length) < kk) {
       if (shouldStop && shouldStop()) return { aborted: true };
       if (cand > 3n && (cand & 1n) === 0n) cand += 1n;
       tried++;
@@ -2877,7 +2892,7 @@
         candidate: cand.toString(),
         found: String(found.length),
       });
-      if (!smallComposite(cand)) {
+      if (!quickComposite(cand)) {
         const r = checkPrime(cand, onTick, shouldStop);
         if (r && r.aborted) return { aborted: true };
         if (r && r.prime === true) {
@@ -2913,16 +2928,16 @@
       tried: tried,
       ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
       note:
-        kk === 1
+        kk === 1n
           ? "least prime strictly greater than n (same engines as Check)"
-          : kk + "-th prime strictly greater than n",
+          : kk.toString() + "-th prime strictly greater than n",
     };
   }
 
   function prevPrime(n, k, onTick, shouldStop) {
     const kk = parseK(k == null ? 1 : k);
     if (kk == null) {
-      return { ok: false, error: "k must be an integer from 1 to " + NEIGHBOR_MAX_K };
+      return { ok: false, error: "k must be a positive integer" };
     }
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
     if (n <= 2n) {
@@ -2934,7 +2949,7 @@
     const found = [];
     let cand = n - 1n;
     let tried = 0;
-    while (found.length < kk) {
+    while (BigInt(found.length) < kk) {
       if (shouldStop && shouldStop()) return { aborted: true };
       if (cand < 2n) {
         return {
@@ -2943,7 +2958,7 @@
             "only " +
             found.length +
             " prime(s) strictly less than n; cannot take the " +
-            kk +
+            kk.toString() +
             "-th previous",
         };
       }
@@ -2954,7 +2969,7 @@
         candidate: cand.toString(),
         found: String(found.length),
       });
-      if (!smallComposite(cand)) {
+      if (!quickComposite(cand)) {
         const r = checkPrime(cand, onTick, shouldStop);
         if (r && r.aborted) return { aborted: true };
         if (r && r.prime === true) {
@@ -2991,9 +3006,9 @@
       tried: tried,
       ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
       note:
-        kk === 1
+        kk === 1n
           ? "greatest prime strictly less than n (same engines as Check)"
-          : kk + "-th prime strictly less than n",
+          : kk.toString() + "-th prime strictly less than n",
     };
   }
 
@@ -3297,6 +3312,8 @@
     assert(nextPrime(14n, 1).value === "17", "next(14)=17");
     assert(nextPrime(14n, 3).value === "23", "next(14,3)=23");
     assert(nextPrime(100n, 1).value === "101", "next(100)=101");
+    assert(nextPrime(100n, 65).value === "463", "next(100,65)=463");
+    assert(nextPrime(14n, 100).ok === true, "k=100 has no cap");
     assert(prevPrime(14n, 1).value === "13", "prev(14)=13");
     assert(prevPrime(14n, 2).value === "11", "prev(14,2)=11");
     assert(prevPrime(3n, 1).value === "2", "prev(3)=2");

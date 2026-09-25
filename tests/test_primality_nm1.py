@@ -6,10 +6,9 @@ import math
 
 import pytest
 
-from best_prime.is_prime import DEFAULT_N, is_prime, lab
+from best_prime.is_prime import is_prime, lab
 from best_prime.primality_nm1 import _bls_cubic_ok, nm1_primality, nm1_ready
 from tests.numbers import (
-    DEFAULT_CLI_N,
     LARGEST_PRIME_LT_2_64,
     MR_LIAR,
     NEAR_2_63_PRIME,
@@ -43,14 +42,15 @@ class TestNm1Primality:
         assert is_prime(SMOOTH_NM1_PRIME) is True
         assert lab(SMOOTH_NM1_PRIME)["path"] == "u128_nm1"
 
-    def test_default_n_pocklington(self):
-        # Current CLI default: 147-bit; n−1 = 2·5·13·q (q 140-bit prime) → Pocklington.
-        assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 147
-        assert nm1_ready(DEFAULT_N)
-        assert nm1_primality(DEFAULT_N) is True
-        assert is_prime(DEFAULT_N) is True
-        assert lab(DEFAULT_N)["path"] == "u128_nm1"
+    def test_147bit_specimen_pocklington(self):
+        # Former CLI default: n−1 = 2·5·13·q (q 140-bit prime) → Pocklington.
+        from tests.numbers import N_147
+
+        assert N_147.bit_length() == 147
+        assert nm1_ready(N_147)
+        assert nm1_primality(N_147) is True
+        assert is_prime(N_147) is True
+        assert lab(N_147)["path"] == "u128_nm1"
 
     def test_m61(self):
         assert nm1_primality(M61) is True

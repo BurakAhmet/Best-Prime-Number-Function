@@ -318,11 +318,11 @@ class TestLarge64Bit:
         assert len(str(n)) == 10000
         assert is_prime(n) is False
 
-    def test_default_n_is_147bit_u128_yardstick(self):
+    def test_default_n_is_150_digit_prime(self):
         assert DEFAULT_N == DEFAULT_CLI_N
-        assert DEFAULT_N.bit_length() == 147
-        assert DEFAULT_N > (1 << 64)
-        assert DEFAULT_N in LARGE_PRIMES_SLOW
+        assert DEFAULT_N == 10**149 + 183
+        assert len(str(DEFAULT_N)) == 150
+        assert DEFAULT_N.bit_length() == 495
 
     def test_two_pow_63_minus_one_composite(self):
         assert is_prime(MERSENNE_COMPOSITE) is False

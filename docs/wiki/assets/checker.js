@@ -515,7 +515,7 @@
       </section>
       <section class="prime-lab lab-neighbors" aria-label="Next and previous prime">
         <h3 class="lab-subhead">Next / previous prime</h3>
-        <p class="lab-hint">The k-th prime strictly above or below n. Same proofs as Check. Stop whenever you want.</p>
+        <p class="lab-hint">The k-th prime strictly above or below n. Any positive k. Composites are rejected before a full proof. Stop whenever you want.</p>
         <div class="row">
           <label class="lab-kwrap" for="lab-k">k
             <input id="lab-k" type="text" inputmode="numeric" value="1"
@@ -979,9 +979,9 @@
     function parseK() {
       const s = String(kInput ? kInput.value : "1").trim() || "1";
       if (!/^\d+$/.test(s)) return null;
-      const k = Number(s);
-      if (!Number.isInteger(k) || k < 1 || k > 64) return null;
-      return k;
+      const digits = s.replace(/^0+/, "");
+      if (!digits) return null;
+      return digits;
     }
 
     function renderNeighbor(res) {
@@ -1057,7 +1057,7 @@
           if (nbOut) {
             nbOut.className = "lab-out show no";
             nbOut.innerHTML =
-              '<p class="verdict">Invalid k</p><p>k must be an integer from 1 to 64.</p>';
+              '<p class="verdict">Invalid k</p><p>k must be a positive integer. There is no upper limit; Stop ends a long search.</p>';
           }
           return;
         }
