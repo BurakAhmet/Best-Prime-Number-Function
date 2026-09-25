@@ -669,9 +669,31 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
     if bits > 3_500:
         return None
 
-    # A few short Brent curves catch a small prime factor. Running every
-    # curve out to 2^22 before trying the other side of n±1 is what made
-    # a 48-bit factor cost tens of seconds.
+    # A 55-bit factor of a ~110-bit cofactor (37-digit primes) is not a
+    # Brent problem: curves out to 2^16 still miss and cost seconds, and
+    # a 50_000-step Lehman search after that costs ~20 s. ECM at B1=5000
+    # finds that factor. Brent stays the tool only through 96 bits.
+    if 80 < bits <= 160:
+        # B1=5000 finds factors near 40 bits. A 55-bit factor of the
+        # 37-digit prime's n+1 cofactor needs B1=11000; the 2^22 Brent
+        # search that used to run first took about five seconds.
+        f = ecm_factor(c, max_ms=_ecm_max_ms(bits), B1=11_000, max_curves=16)
+        if f is not None and 1 < f < c:
+            return f
+        f = _pollard_p1(c, B1=min(_p1_b1(bits), 50_000))
+        if f is not None:
+            return f
+        f = lehman_factor(c, k_max=2_000, parallel=parallel)
+        if f is not None and 1 < f < c:
+            return f
+        if SIQS_MIN_BITS <= bits <= SIQS_MAX_BITS:
+            from .factor_siqs import siqs_factor
+
+            f = siqs_factor(c, max_ms=_siqs_max_ms(bits))
+            if f is not None and 1 < f < c:
+                return f
+        return None
+
     if bits <= 96:
         for cv in range(1, 5):
             g = _brent(c, cv, max_r=1 << 18)
@@ -683,10 +705,11 @@ def _try_split_cofactor(c: int, *, parallel: bool) -> int | None:
         if f is not None:
             return f
 
-    for cv in range(1, _brent_curve_count(bits) + 1):
-        g = _brent(c, cv)
-        if 1 < g < c:
-            return g
+    if bits <= 96:
+        for cv in range(1, _brent_curve_count(bits) + 1):
+            g = _brent(c, cv)
+            if 1 < g < c:
+                return g
 
     if bits <= 160:
         f = _pollard_p1(c, B1=_p1_b1(bits))

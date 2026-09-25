@@ -90,6 +90,16 @@ class TestBlsPrimality:
         for n in (91, 121, 221, SEMIPRIME_1E9):
             assert bls_primality(n) is False
 
+    def test_37_digit_prime_factors_by_ecm_not_long_brent(self):
+        # 10**36+67. n+1 leaves a 108-bit cofactor whose least prime factor
+        # is 55 bits. Brent out to 2^22 missed for eight curves (~5 s each).
+        import time
+
+        n = 10**36 + 67
+        t = time.perf_counter()
+        assert is_prime(n) is True
+        assert time.perf_counter() - t < 2.0
+
     def test_existing_nm1_still_true(self):
         assert nm1_primality(SMOOTH_NM1_PRIME) is True
         assert nm1_primality(M61) is True
