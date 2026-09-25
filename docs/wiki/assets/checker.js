@@ -101,15 +101,25 @@
     }
   }
 
-  function randomN(digitsInput, anyBox) {
-    const cap = 10n ** 149n;
-    if (anyBox && anyBox.checked) return randomBelow(cap) + 1n;
-    let d = Number(digitsInput && digitsInput.value != null ? digitsInput.value : 20);
-    if (!Number.isInteger(d) || d < 1) d = 1;
-    if (d > 149) d = 149;
-    if (d === 1) return randomBelow(9n) + 1n;
+  function randomWithDigits(d) {
+    if (d <= 1) return randomBelow(9n) + 1n;
+    // 10^149 is the only 150-digit value allowed.
+    if (d >= 150) return 10n ** 149n;
     const lo = 10n ** BigInt(d - 1);
     return lo + randomBelow(lo * 9n);
+  }
+
+  function randomN(digitsInput, anyBox) {
+    // "Any size" picks the length first, uniformly from 1 digit through
+    // 10^149. A uniform integer in 1..10^149 is a 149-digit number about
+    // 90% of the time, so that draw never looks small.
+    if (anyBox && anyBox.checked) {
+      return randomWithDigits(Number(randomBelow(150n)) + 1);
+    }
+    let d = Number(digitsInput && digitsInput.value != null ? digitsInput.value : 20);
+    if (!Number.isInteger(d) || d < 1) d = 1;
+    if (d > 150) d = 150;
+    return randomWithDigits(d);
   }
 
   function workerUrl() {
@@ -622,10 +632,10 @@
         </div>
         <div class="row lab-rand">
           <label class="lab-kwrap" for="lab-rand-digits">digits
-            <input id="lab-rand-digits" type="number" min="1" max="149" value="20"
+            <input id="lab-rand-digits" type="number" min="1" max="150" value="20"
               aria-label="Digits in the random number"/>
           </label>
-          <label class="lab-any"><input id="lab-rand-any" type="checkbox"/> any size from 1 to 10^149</label>
+          <label class="lab-any"><input id="lab-rand-any" type="checkbox"/> any length, from 1 digit up to 10^149</label>
         </div>
         <p class="lab-hint">Proves the number in this tab, or prints a factor.
           Below 256 bits it uses both sides of n±1. From 256 bits it uses an elliptic-curve proof.

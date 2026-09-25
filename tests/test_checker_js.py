@@ -140,10 +140,16 @@ if (!m) { console.error('missing randomN'); process.exit(1); }
 eval(m[0].replace(/\n  function workerUrl$/, ''));
 const cap = 10n ** 149n;
 const any = { checked: true };
-for (let i = 0; i < 20; i++) {
+let sawShort = false;
+let sawLong = false;
+for (let i = 0; i < 400; i++) {
   const n = randomN(null, any);
+  const len = n.toString().length;
   if (n < 1n || n > cap) { console.error(String(n)); process.exit(1); }
+  if (len <= 20) sawShort = true;
+  if (len >= 100) sawLong = true;
 }
+if (!sawShort || !sawLong) { console.error('lengths', sawShort, sawLong); process.exit(1); }
 const digits = { value: '3' };
 const none = { checked: false };
 for (let i = 0; i < 30; i++) {
@@ -152,6 +158,7 @@ for (let i = 0; i < 30; i++) {
 }
 const top = randomN({ value: '149' }, none);
 if (top < 10n ** 148n || top >= cap) { console.error('149', String(top)); process.exit(1); }
+if (randomN({ value: '150' }, none) !== cap) { console.error('150'); process.exit(1); }
 console.log('random ok');
 """
     proc = subprocess.run(
