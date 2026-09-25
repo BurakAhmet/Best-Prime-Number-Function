@@ -62,6 +62,9 @@ def test_lab_assets_allow_near_2_63_prime():
     assert 'data-phase="neighbor"' in ui
     assert "p − n" in ui
     assert "previous power of ten" in ui
+    assert "untilNextPower" in ui
+    assert "aboveLowerPower" in ui
+    assert '"wide"' in ui
     assert "greatest square" in ui
     assert "numberPortrait" in ui
     assert "cert-facts" in ui

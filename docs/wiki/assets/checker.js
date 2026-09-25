@@ -153,7 +153,10 @@
       ["last digit", face.lastDigit],
       ["digit sum", String(face.digitSum)],
       ["n mod 30", face.mod30],
-      ["n − ⌊√n⌋²", face.aboveSquare],
+      ["repeated digit sum", String(face.digitalRoot)],
+      ["n − 10^" + (face.digits - 1), face.aboveLowerPower],
+      ["10^" + face.digits + " − n", face.untilNextPower],
+      ["n − floor(sqrt(n))^2", face.aboveSquare],
       ["⌊√n⌋", fmt(state.isqrt)],
       ["path", state.path],
     ];
@@ -169,21 +172,32 @@
     }
     rows.push(["time", Number(state.ms).toFixed(2) + " ms"]);
     if (state.note) rows.push(["note", state.note]);
-    const rowH = 28;
-    const blockH = rows.length * rowH;
+    const rowH = 22;
+    const chunks = [];
+    rows.forEach(function (pair) {
+      const parts = [];
+      const raw = String(pair[1]);
+      const width = 46;
+      for (let i = 0; i < raw.length; i += width) parts.push(raw.slice(i, i + width));
+      if (!parts.length) parts.push("");
+      parts.forEach(function (part, idx) {
+        chunks.push([idx === 0 ? pair[0] : "", part]);
+      });
+    });
+    const blockH = chunks.length * rowH;
     const h = 220 + blockH;
     let y = 168;
-    const dl = rows
+    const dl = chunks
       .map(function (pair) {
         const line =
           '<text x="56" y="' +
           y +
-          '" font-size="13" fill="#5c6778" font-family="ui-monospace, monospace">' +
-          xmlEscape(pair[0].toUpperCase()) +
+          '" font-size="12" fill="#5c6778" font-family="ui-monospace, monospace">' +
+          xmlEscape(pair[0]) +
           '</text>' +
-          '<text x="150" y="' +
+          '<text x="250" y="' +
           y +
-          '" font-size="15" fill="#1b2437" font-family="ui-monospace, monospace">' +
+          '" font-size="13" fill="#1b2437" font-family="ui-monospace, monospace">' +
           xmlEscape(pair[1]) +
           "</text>";
         y += rowH;
@@ -982,9 +996,9 @@
         ["digit sum", String(face.digitSum)],
         ["repeated digit sum", String(face.digitalRoot)],
         ["n mod 30", face.mod30 + (face.wheelCoprime ? " · not divisible by 2, 3, or 5" : " · divisible by 2, 3, or 5")],
-        ["n − 10^" + (face.digits - 1), fmt(face.aboveLowerPower)],
-        ["10^" + face.digits + " − n", fmt(face.untilNextPower)],
-        ["n − ⌊√n⌋²", fmt(face.aboveSquare)],
+        ["n − 10^" + (face.digits - 1), fmt(face.aboveLowerPower), true],
+        ["10^" + face.digits + " − n", fmt(face.untilNextPower), true],
+        ["n − ⌊√n⌋²", fmt(face.aboveSquare), true],
       ];
       return (
         '<p class="cert-band">' + escapeHtml(face.band) + "</p>" +
@@ -992,7 +1006,9 @@
         chips
           .map(function (pair) {
             return (
-              "<li><span>" +
+              '<li class="' +
+              (pair[2] ? "wide" : "") +
+              '"><span>' +
               escapeHtml(pair[0]) +
               "</span><b>" +
               escapeHtml(pair[1]) +
