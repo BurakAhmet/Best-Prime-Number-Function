@@ -593,6 +593,7 @@
           A miss is <strong>inconclusive</strong> here; the Python library may still prove it.</p>
         ${stageMarkup()}
         <div class="lab-progress" id="lab-bar"><i></i></div>
+        <div id="lab-wheel" class="lab-tools"></div>
         <div class="lab-out" id="lab-out" aria-live="polite"></div>
       </section>
       <section class="prime-lab lab-neighbors" aria-label="Next and previous prime">
@@ -607,6 +608,15 @@
           <button type="button" id="lab-next">Next prime</button>
         </div>
         <div class="lab-out" id="lab-nb-out" aria-live="polite"></div>
+      </section>
+      <section class="prime-lab lab-compare" aria-label="Compare two numbers">
+        <h3 class="lab-subhead">Compare with another number</h3>
+        <p class="lab-hint">Type a second number. The card compares length, last digit, and which one sits closer to a square. No proof is run for the second number.</p>
+        <div class="row">
+          <input id="lab-m" type="text" inputmode="numeric" autocomplete="off"
+            placeholder="Second number" aria-label="Second number"/>
+        </div>
+        <div id="lab-compare" class="lab-tools"></div>
       </section>`;
 
     const input = $("#lab-n", root);
@@ -618,6 +628,9 @@
     const kInput = $("#lab-k", root);
     const out = $("#lab-out", root);
     const nbOut = $("#lab-nb-out", root);
+    const wheelHost = $("#lab-wheel", root);
+    const compareHost = $("#lab-compare", root);
+    const compareInput = $("#lab-m", root);
     const bar = $("#lab-bar", root);
     const barFill = $("i", bar);
     const stage = $("#lab-stage", root);
@@ -627,6 +640,8 @@
 
     let worker = null;
     let lastCert = null;
+    let proofLog = [];
+    let lastNeighborDir = "nextPrime";
 
     function killWorker() {
       if (worker) {
@@ -1020,7 +1035,8 @@
         '<p class="lab-hint">n − 10^' + (face.digits - 1) +
         " is how far this number sits above the previous power of ten. 10^" +
         face.digits +
-        " − n is how far it sits below the next one. n − ⌊√n⌋² is how far it sits above the greatest square that does not exceed it. That value is 0 when n itself is a square.</p>"
+        " − n is how far it sits below the next one. n − ⌊√n⌋² is how far it sits above the greatest square that does not exceed it. That value is 0 when n itself is a square.</p>" +
+        squarePicture(n)
       );
     }
 
@@ -1045,7 +1061,29 @@
           <button type="button" id="lab-copy">Copy</button>
           <button type="button" id="lab-svg">Download SVG</button>
         </div>
+        <div class="proof-replay" id="proof-replay"></div>
       </article>`;
+      const steps = replayMarkup(state);
+      const replay = $("#proof-replay", out);
+      if (replay) {
+        replay.innerHTML =
+          '<label>Proof replay<input id="replay-range" type="range" min="0" max="' +
+          (steps.length - 1) +
+          '" value="' +
+          (steps.length - 1) +
+          '"></label><p id="replay-line"></p>';
+        const range = $("#replay-range", replay);
+        const line = $("#replay-line", replay);
+        const show = function () {
+          const idx = Number(range.value);
+          const step = steps[idx] || steps[0];
+          line.textContent =
+            "Step " + (idx + 1) + " of " + steps.length + ": " + step.title +
+            (step.detail ? " — " + step.detail : "");
+        };
+        range.addEventListener("input", show);
+        show();
+      }
       const copyBtn = $("#lab-copy", out);
       const svgBtn = $("#lab-svg", out);
       copyBtn.addEventListener("click", function () {
@@ -1091,8 +1129,130 @@
       killWorker();
     }
 
+    function unitRatio(num, den) {
+      if (den <= 0n) return 0;
+      if (num >= den) return 1;
+      let a = num;
+      let b = den;
+      while (b > 1000000n) {
+        a >>= 1n;
+        b >>= 1n;
+      }
+      if (b === 0n) return 0;
+      return Number(a) / Number(b);
+    }
+
+    function residueWheel(n) {
+      const mod = n == null ? null : n % 30n;
+      let cells = "";
+      for (let i = 0; i < 30; i++) {
+        const ang = (i / 30) * Math.PI * 2 - Math.PI / 2;
+        const cx = (80 + Math.cos(ang) * 58).toFixed(1);
+        const cy = (80 + Math.sin(ang) * 58).toFixed(1);
+        const blocked = i % 2 === 0 || i % 3 === 0 || i % 5 === 0;
+        const on = mod !== null && mod === BigInt(i);
+        cells +=
+          '<g class="wheel-cell' +
+          (blocked ? " blocked" : " open") +
+          (on ? " on" : "") +
+          '"><circle cx="' +
+          cx +
+          '" cy="' +
+          cy +
+          '" r="8"/><text x="' +
+          cx +
+          '" y="' +
+          (Number(cy) + 3).toFixed(1) +
+          '" text-anchor="middle">' +
+          i +
+          "</text></g>";
+      }
+      const note =
+        mod == null
+          ? "Type a number. The lit cell is n mod 30."
+          : "n mod 30 = " +
+            mod.toString() +
+            (mod === 0n || mod % 2n === 0n || mod % 3n === 0n || mod % 5n === 0n
+              ? ". Dim cells are divisible by 2, 3, or 5, so only 2, 3, and 5 themselves can be prime there."
+              : ". This residue is not divisible by 2, 3, or 5, so a prime is still possible.");
+      return (
+        '<figure class="residue-wheel" aria-label="Residue wheel mod 30"><svg viewBox="0 0 160 160" role="img">' +
+        cells +
+        '</svg><figcaption>' +
+        escapeHtml(note) +
+        "</figcaption></figure>"
+      );
+    }
+
+    function squarePicture(n) {
+      const sq = isqrt(n);
+      const side = sq === 0n ? 1n : sq;
+      const leftover = n - sq * sq;
+      const ratio = unitRatio(leftover, side * 2n);
+      const bar = Math.max(2, Math.round(56 * ratio));
+      return (
+        '<figure class="square-pic" aria-label="Distance above the square below n">' +
+        '<svg viewBox="0 0 140 78" role="img">' +
+        '<rect class="sq-block" x="8" y="10" width="56" height="56"/>' +
+        '<rect class="sq-rest" x="70" y="10" width="' +
+        bar +
+        '" height="56"/>' +
+        '<text x="8" y="76">⌊√n⌋²</text><text x="70" y="76">leftover</text>' +
+        "</svg>" +
+        "<figcaption>The square is the greatest square that does not exceed n. The bar is the leftover n − ⌊√n⌋², scaled against the widest possible gap, 2⌊√n⌋.</figcaption></figure>"
+      );
+    }
+
+    function paintWheel() {
+      if (!wheelHost) return;
+      wheelHost.innerHTML = residueWheel(parseN(input.value));
+    }
+
+    function paintCompare() {
+      if (!compareHost) return;
+      const a = parseN(input.value);
+      const b = compareInput ? parseN(compareInput.value) : null;
+      if (a == null || b == null) {
+        compareHost.innerHTML =
+          '<p class="lab-hint">Enter both numbers to compare them.</p>';
+        return;
+      }
+      const fa = numberPortrait(a);
+      const fb = numberPortrait(b);
+      const closer =
+        BigInt(fa.aboveSquare) === BigInt(fb.aboveSquare)
+          ? "They sit equally far above a square."
+          : BigInt(fa.aboveSquare) < BigInt(fb.aboveSquare)
+            ? "n is closer to a square."
+            : "The second number is closer to a square.";
+      compareHost.innerHTML =
+        '<div class="compare-grid">' +
+        compareCol("n", fa) +
+        compareCol("second", fb) +
+        '</div><p class="lab-hint">' +
+        (fa.digits === fb.digits ? "Same number of digits. " : "Different number of digits. ") +
+        (fa.lastDigit === fb.lastDigit ? "Same last digit. " : "Different last digits. ") +
+        closer +
+        "</p>";
+    }
+
+    function compareCol(title, face) {
+      return (
+        '<article class="compare-col"><h4>' +
+        escapeHtml(title) +
+        "</h4><ul>" +
+        "<li>" + face.digits + " digits</li>" +
+        "<li>" + face.bits + " bits</li>" +
+        "<li>last digit " + escapeHtml(face.lastDigit) + "</li>" +
+        "<li>above a square by " + escapeHtml(fmt(face.aboveSquare)) + "</li>" +
+        "</ul></article>"
+      );
+    }
+
     function updateDigits() {
       if (digits) digits.textContent = formatDigitCount(input.value);
+      paintWheel();
+      paintCompare();
     }
 
     function parseK() {
@@ -1140,7 +1300,18 @@
           " ms</dd>" +
           "<dt>note</dt><dd>" +
           escapeHtml(res.note || "") +
-          "</dd></dl>";
+          "</dd></dl>" +
+          gapRuler(res);
+        const drag = $("#gap-k", nbOut);
+        if (drag) {
+          drag.addEventListener("input", function () {
+            if (kInput) kInput.value = drag.value;
+          });
+          drag.addEventListener("change", function () {
+            if (kInput) kInput.value = drag.value;
+            run(lastNeighborDir);
+          });
+        }
         return;
       }
       nbOut.className = "lab-out show " + (res.inconclusive ? "busy" : "no");
@@ -1159,8 +1330,52 @@
         "</dd></dl>";
     }
 
+    function gapRuler(res) {
+      const delta = String(res.delta != null ? res.delta : "");
+      const kStr = String(res.k == null ? "1" : res.k);
+      const kNum = /^\d{1,5}$/.test(kStr) ? Number(kStr) : 0;
+      let slider = "";
+      if (kNum >= 1 && kNum <= 20000) {
+        const maxK = Math.max(12, kNum + 4);
+        slider =
+          '<label class="gap-k">Drag k<input id="gap-k" type="range" min="1" max="' +
+          maxK +
+          '" value="' +
+          kNum +
+          '"></label>';
+      }
+      return (
+        '<figure class="gap-ruler" aria-label="Gap from n to the neighbor prime">' +
+        '<div class="gap-ruler-labels"><span>n</span><span>p − n = ' +
+        escapeHtml(delta) +
+        '</span><span>p</span></div>' +
+        '<div class="gap-ruler-track" aria-hidden="true"><i></i></div>' +
+        slider +
+        "<figcaption>The line runs from n to the k-th prime. Releasing the slider searches again with that k.</figcaption></figure>"
+      );
+    }
+
+    function replayMarkup(state) {
+      const steps = [{ title: "The number", detail: state.n.length + " digits, " + numberPortrait(BigInt(state.n)).bits + " bits" }];
+      const seen = {};
+      proofLog.forEach(function (ev) {
+        if (!ev || seen[ev.phase]) return;
+        seen[ev.phase] = true;
+        steps.push({ title: ev.label || ev.phase, detail: "" });
+      });
+      if (state.factor != null) {
+        steps.push({ title: "A factor", detail: state.factor.toString() });
+      }
+      steps.push({
+        title: state.prime ? "Proved prime" : "Proved composite",
+        detail: state.path || "",
+      });
+      return steps;
+    }
+
     function run(kind) {
       kind = kind || "check";
+      if (kind !== "check") lastNeighborDir = kind;
       const n = parseN(input.value);
       if (n === null) {
         hideStage();
@@ -1195,6 +1410,7 @@
       }
 
       const limit = isqrt(n);
+      if (kind === "check") proofLog = [];
 
       killWorker();
       go.disabled = true;
@@ -1244,6 +1460,13 @@
             applyPhase(msg);
             const stageTxt = phaseLabel(msg.phase || "wheel", msg.extra || {});
             if (kind === "check") {
+              const phase = msg.phase || "wheel";
+              const prev = proofLog[proofLog.length - 1];
+              if (!prev || prev.phase !== phase) {
+                proofLog.push({ phase: phase, label: stageTxt });
+              } else {
+                prev.label = stageTxt;
+              }
               renderBusy({
                 n: n.toString(),
                 isqrt: fmt(isqrt(n)),
@@ -1348,6 +1571,7 @@
       });
     }
     input.addEventListener("input", updateDigitsAndMaybeRun);
+    if (compareInput) compareInput.addEventListener("input", paintCompare);
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") run("check");
     });
