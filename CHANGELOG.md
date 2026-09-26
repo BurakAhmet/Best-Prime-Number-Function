@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 - **37-digit primes no longer burn Brent curves out to \(2^{22}\).** For an 80-to-160-bit cofactor the library uses elliptic-curve factoring at \(B_1=11000\). \(10^{36}+67\) drops from about 50 s to about 0.4 s. The in-browser lab uses the same two curves and finishes that number in under a second. The certificate spells out the power-of-ten gaps and the distance above the square below \(n\).
 
 ### Changed
+- Auto-optimize **`tile-32k`** (`tile_bytes=32768, tile_p_max=4096, parallel_seg_min=10000000`): hard-path geomean **6.3%** faster on the Optimize runner. Rejected this round: `tile-8k`, `tile-64k`, `pmax-128`, `pmax-192`, `pmax-384`, `pmax-512`, `par-5e6`, `par-2e7`, `tile-32k-p384`.
 - **CLI default** is the 150-digit prime \(10^{149}+183\). The 147-bit specimen `100…00031` remains a BLS example.
 - **`next_prime`** rejects a large Fermat survivor with a strong Lucas test before a full proof. The Pages neighbor search does the same with a prime sieve and a Fermat filter, and **k has no upper limit**.
 

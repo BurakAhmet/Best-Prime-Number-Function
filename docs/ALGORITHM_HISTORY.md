@@ -888,6 +888,11 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+
+### Auto-optimize catalog
+
+Optimize workflow accepted **`tile-32k`** (tile_bytes=32768, tile_p_max=4096, parallel_seg_min=10000000). Hard-path geomean 6.3% vs previous defaults on the Actions runner. Source of truth remains `scripts/generate_wheel_core_c.py` (compile-time `-DTILE_*` overrides used only during the hunt).
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:
