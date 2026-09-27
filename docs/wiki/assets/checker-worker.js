@@ -2807,8 +2807,10 @@
       w.onmessage = function (ev) {
         const msg = ev.data || {};
         if (msg.progress) {
+          const scan = msg.stage === "scan";
           emit(onTick, "cyclotomic", BigInt(msg.k || 0), BigInt(msg.total || 1), {
-            label: "cyclotomic proof",
+            label: scan ? "residue scan" : "Jacobi sums",
+            stage: scan ? "scan" : "tests",
           });
           return;
         }
