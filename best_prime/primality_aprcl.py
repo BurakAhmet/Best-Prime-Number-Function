@@ -148,8 +148,27 @@ def _reduce_sum(acc_len_r: list[int], phi: list[int], n: int) -> list[int]:
     return _mod_phi(acc_len_r, phi, n)
 
 
+def _c_jacobi(q: int, r: int, which: int) -> list[int] | None:
+    lib = _lib()
+    if lib is None or q > 0xFFFFFFFF or r > 0xFFFFFFFF:
+        return None
+    import ctypes
+
+    out = (ctypes.c_longlong * r)()
+    try:
+        rc = lib.aprcl_jacobi_sum(q, r, which, out)
+    except Exception:
+        return None
+    if rc != 0:
+        return None
+    return [int(out[i]) for i in range(r)]
+
+
 def _jacobi_sum(q: int, r: int) -> list[int]:
     """``j(χ,χ)`` in the power basis of ``ζ_r``, integer coefficients."""
+    got = _c_jacobi(q, r, 1)
+    if got is not None:
+        return got
     g = _primitive_root(q)
     ind = [0] * q
     x = 1
@@ -168,6 +187,9 @@ def _jacobi_sum(q: int, r: int) -> list[int]:
 
 def _jacobi_sum_chi2(q: int, r: int) -> list[int]:
     """``j(χ, χ^2)`` for a character of order ``r``."""
+    got = _c_jacobi(q, r, 2)
+    if got is not None:
+        return got
     g = _primitive_root(q)
     ind = [0] * q
     x = 1
@@ -205,37 +227,46 @@ def _zeta_power(m: int, phi: list[int], n: int) -> list[int]:
     return _mod_phi(raw, phi, n)
 
 
-def _in_cyclic_subgroup(elem: list[int], r: int, phi: list[int], n: int) -> bool:
+def _in_cyclic_subgroup(elem: list[int], r: int, phi: list[int], n: int) -> int:
+    """Exponent ``m`` with ``elem = ζ^m``, or ``-1``."""
     for m in range(r):
         if _zeta_power(m, phi, n) == elem:
-            return True
-    return False
+            return m
+    return -1
 
 
-def _product_test(n: int, r: int, base: list[int], idxs: list[int]) -> bool:
+def _product_test(n: int, r: int, base: list[int], idxs: list[int]) -> int:
+    """Jacobi product of Theorem 3.2, via one large exponentiation.
+
+    ``floor(n i / r) = (n // r) * i + ((n % r) * i) // r``, so
+    ``∏ σ_{i^{-1}}(J^{floor(n i / r)}) = s1^{n // r} * α`` where the
+    exponents that build ``s1`` and ``α`` are smaller than ``r``.
+    Cohen–Lenstra, as in Schoof §3.
+    """
     phi = _phi_poly(r)
     base = _mod_phi(base, phi, n)
-    # One square chain, then each Galois conjugate is an assembly.
-    squares = []
-    b = base
-    bits = max(n.bit_length() + 1, 2)
-    for _ in range(bits):
-        squares.append(b)
-        b = _ring_mul(b, b, phi, n)
     one = [0] * (len(phi) - 1)
     one[0] = 1
-    acc = one
+    cached: dict[int, list[int]] = {}
+
+    def image(i: int) -> list[int]:
+        inv = pow(i, -1, r)
+        hit = cached.get(inv)
+        if hit is None:
+            hit = _galois(base, inv, phi, n)
+            cached[inv] = hit
+        return hit
+
+    q, tmod = divmod(n, r)
+    s1 = one
+    alpha = one
     for i in idxs:
-        e = (n * i) // r
-        t = one
-        bit = 0
-        while e:
-            if e & 1:
-                t = _ring_mul(t, squares[bit], phi, n)
-            e >>= 1
-            bit += 1
-        t = _galois(t, pow(i, -1, r), phi, n)
-        acc = _ring_mul(acc, t, phi, n)
+        g = image(i)
+        s1 = _ring_mul(s1, _ring_pow(g, i, phi, n), phi, n)
+        e = (tmod * i) // r
+        if e:
+            alpha = _ring_mul(alpha, _ring_pow(g, e, phi, n), phi, n)
+    acc = _ring_mul(_ring_pow(s1, q, phi, n), alpha, phi, n)
     return _in_cyclic_subgroup(acc, r, phi, n)
 
 
@@ -290,6 +321,22 @@ def _lib():
             ctypes.POINTER(ctypes.c_uint),
             ctypes.c_int,
         ]
+        lib.aprcl_residue_divides.restype = ctypes.c_int
+        lib.aprcl_residue_divides.argtypes = [
+            ctypes.POINTER(ctypes.c_uint64),
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_uint64),
+            ctypes.c_size_t,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+        ]
+        lib.aprcl_jacobi_sum.restype = ctypes.c_int
+        lib.aprcl_jacobi_sum.argtypes = [
+            ctypes.c_ulong,
+            ctypes.c_uint,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_longlong),
+        ]
         _LIB = lib
         return _LIB
     return None
@@ -327,9 +374,15 @@ def _c_product(n: int, r: int, base: list[int], idxs: list[int]) -> int:
         return -1
 
 
-def _one_test(n: int, q: int, r: int, packed: tuple[int, ...]) -> bool:
+def _one_test(n: int, q: int, r: int, packed: tuple[int, ...]) -> tuple[bool, int, int]:
+    """Return ``(identity holds, prime of r, exponent of the root of unity)``.
+
+    The exponent is ``-1`` when the helper did not report it. A failed identity
+    has exponent ``-1`` as well.
+    """
+    prime = _factor(r)[0][0]
     j = [c % n for c in packed]
-    if r >= 8 and _factor(r)[0][0] == 2 and n % 8 in (1, 3):
+    if r >= 8 and prime == 2 and n % 8 in (1, 3):
         both_raw = [0] * (2 * r)
         j2 = [c % n for c in _jacobi_sum_chi2(q, r)]
         for i, ca in enumerate(j):
@@ -339,40 +392,71 @@ def _one_test(n: int, q: int, r: int, packed: tuple[int, ...]) -> bool:
         base, idxs = both_raw, _two_idxs(r, n)
     else:
         base, idxs = j, _coprime_idxs(r)
-    if n.bit_length() >= 512:
-        reduced = _mod_phi(base, _phi_poly(r), n)
-        got = _c_product(n, r, reduced, idxs)
-        if got >= 0:
-            return got == 1
-    return _product_test(n, r, base, idxs)
+    reduced = _mod_phi(base, _phi_poly(r), n)
+    got = _c_product(n, r, reduced, idxs)
+    if got >= 0:
+        if got == 0:
+            return False, prime, -1
+        return True, prime, got - 1
+    h = _product_test(n, r, base, idxs)
+    return h >= 0, prime, h
 
 
-def _tests_ok(n: int, tests: tuple[tuple[int, int, tuple[int, ...]], ...]) -> bool:
+def _lp_hit(n: int, q: int, prime: int, h: int) -> bool:
+    """Proposition 3.3: the root of unity generates the l-part."""
+    if h < 0 or h % prime == 0:
+        return False
+    if prime == 2:
+        return pow(q, (n - 1) // 2, n) == n - 1
+    return True
+
+
+def _tests_ok(n: int, tests: tuple[tuple[int, int, tuple[int, ...]], ...]) -> set[int] | None:
+    """Primes ``l`` whose first condition was witnessed, or None if composite."""
+    satisfied: set[int] = set()
+
+    def absorb(row: tuple[bool, int, int], q: int) -> bool:
+        ok, prime, h = row
+        if not ok:
+            return False
+        if _lp_hit(n, q, prime, h):
+            satisfied.add(prime)
+        return True
+
     if n.bit_length() < 1024 or len(tests) < 32:
         for q, r, packed in tests:
-            if not _one_test(n, q, r, packed):
-                return False
-        return True
+            if not absorb(_one_test(n, q, r, packed), q):
+                return None
+        return satisfied
     import os
-    from concurrent.futures import ProcessPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor
 
+    # The ring arithmetic is in the GMP helper, which releases the GIL.
     workers = min(os.cpu_count() or 1, 12, len(tests))
     chunks: list[list[tuple[int, int, tuple[int, ...]]]] = [[] for _ in range(workers)]
-    for i, test in enumerate(tests):
+    # Spread expensive prime-power degrees across workers.
+    ordered = sorted(tests, key=lambda t: t[1], reverse=True)
+    for i, test in enumerate(ordered):
         chunks[i % workers].append(test)
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         futs = [pool.submit(_chunk_ok, n, tuple(ch)) for ch in chunks if ch]
         for fut in futs:
-            if not fut.result():
-                return False
-    return True
+            got = fut.result()
+            if got is None:
+                return None
+            satisfied.update(got)
+    return satisfied
 
 
-def _chunk_ok(n: int, tests: tuple[tuple[int, int, tuple[int, ...]], ...]) -> bool:
+def _chunk_ok(n: int, tests: tuple[tuple[int, int, tuple[int, ...]], ...]) -> set[int] | None:
+    satisfied: set[int] = set()
     for q, r, packed in tests:
-        if not _one_test(n, q, r, packed):
-            return False
-    return True
+        ok, prime, h = _one_test(n, q, r, packed)
+        if not ok:
+            return None
+        if _lp_hit(n, q, prime, h):
+            satisfied.add(prime)
+    return satisfied
 
 
 def _scan_chunk(n: int, s: int, root: int, base: int, start: int, count: int) -> bool:
@@ -383,6 +467,96 @@ def _scan_chunk(n: int, s: int, root: int, base: int, start: int, count: int) ->
         if 1 < acc <= root and n % acc == 0:
             return True
     return False
+
+
+def _c_scan(n: int, s: int, start: int, count: int) -> int:
+    """1 if a residue divides ``n``, 0 if not, -1 if the helper is absent."""
+    lib = _lib()
+    if lib is None or count <= 0:
+        return -1
+    import ctypes
+    from array import array
+
+    def limbs(value: int) -> array:
+        width = max((value.bit_length() + 63) // 64, 1)
+        return array("Q", value.to_bytes(width * 8, "little"))
+
+    mod = limbs(n)
+    sm = limbs(s)
+    try:
+        return int(
+            lib.aprcl_residue_divides(
+                (ctypes.c_uint64 * len(mod)).from_buffer(mod),
+                len(mod),
+                (ctypes.c_uint64 * len(sm)).from_buffer(sm),
+                len(sm),
+                start,
+                count,
+            )
+        )
+    except Exception:
+        return -1
+
+
+def _residues_divide(n: int, s: int, root: int, base: int, span: int) -> bool:
+    """True when some ``n^k mod s`` for ``k = 1..span`` is a proper divisor."""
+    import os
+    from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+
+    workers = min(os.cpu_count() or 1, 12)
+    chunk = (span + workers - 1) // workers
+    jobs = []
+    for i in range(workers):
+        start = i * chunk
+        if start >= span:
+            break
+        jobs.append((start, min(chunk, span - start)))
+    if _lib() is not None and jobs:
+        with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+            got = list(pool.map(lambda job: _c_scan(n, s, job[0], job[1]), jobs))
+        if all(v >= 0 for v in got):
+            return any(v == 1 for v in got)
+    with ProcessPoolExecutor(max_workers=len(jobs)) as pool:
+        futs = [
+            pool.submit(_scan_chunk, n, s, root, base, start, count)
+            for start, count in jobs
+        ]
+        for fut in futs:
+            if fut.result():
+                return True
+    return False
+
+
+def _witness_prime(n: int, prime: int, satisfied: set[int]) -> bool | None:
+    """Hunt one more prime q ≡ 1 (mod ``prime``) that witnesses Proposition 3.3.
+
+    False: a proper factor of ``n`` turned up. None: no witness in the bound.
+    """
+    tried = 0
+    i = 1
+    while tried < 48 and i < 2_000_000:
+        q = prime * i + 1
+        i += 1
+        if not _is_prime_small(q) or math.gcd(n, q) != 1:
+            if q > 1 and n % q == 0:
+                return False
+            continue
+        k = 0
+        qq = q - 1
+        while qq % prime == 0:
+            qq //= prime
+            k += 1
+        r = prime**k
+        if r >= 40:
+            continue
+        tried += 1
+        ok, got_p, h = _one_test(n, q, r, tuple(_jacobi_sum(q, r)))
+        if not ok:
+            return False
+        if _lp_hit(n, q, got_p, h):
+            satisfied.add(prime)
+            return True
+    return None
 
 
 def aprcl_primality(n: int) -> bool | None:
@@ -408,37 +582,22 @@ def aprcl_primality(n: int) -> bool | None:
     if g > 1:
         return False
     # First condition of Theorem 3.2 is free when n^{l-1} ≢ 1 (mod l^2).
-    # The Jacobi identity is still required for every (q, r).
-    if not _tests_ok(n, tests):
+    # Otherwise some Jacobi root of unity must generate the l-part
+    # (Schoof, Proposition 3.3). A missing witness is not a proof.
+    satisfied = _tests_ok(n, tests)
+    if satisfied is None:
         return False
+    for prime, _e in _factor(R):
+        if prime >= 3 and pow(n, prime - 1, prime * prime) != 1:
+            satisfied.add(prime)
+        elif prime not in satisfied:
+            witness = _witness_prime(n, prime, satisfied)
+            if witness is False:
+                return False
+            if witness is None:
+                return None
     # Every prime divisor p ≤ √n equals n^k mod s for some k = 1..R-1.
     base = n % s
-    if n.bit_length() < 1024:
-        acc = 1 % s
-        for _k in range(1, R):
-            acc = (acc * base) % s
-            if 1 < acc <= root and n % acc == 0:
-                return False
-        return True
-    import os
-    from concurrent.futures import ProcessPoolExecutor
-
-    workers = min(os.cpu_count() or 1, 12)
-    span = R - 1
-    chunk = (span + workers - 1) // workers
-    jobs = []
-    for i in range(workers):
-        start = i * chunk
-        if start >= span:
-            break
-        count = min(chunk, span - start)
-        jobs.append((start, count))
-    with ProcessPoolExecutor(max_workers=len(jobs)) as pool:
-        futs = [
-            pool.submit(_scan_chunk, n, s, root, base, start, count)
-            for start, count in jobs
-        ]
-        for fut in futs:
-            if fut.result():
-                return False
+    if _residues_divide(n, s, root, base, R - 1):
+        return False
     return True

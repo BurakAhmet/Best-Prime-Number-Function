@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Performance
+- **1000-digit cyclotomic proofs do one large exponentiation per Jacobi sum, not one per Galois conjugate.** Cohen–Lenstra: \(\lfloor ni/r\rfloor = (n//r)\,i + ((n \bmod r)\,i)//r\), so the product in Schoof’s Theorem 3.2 is \(s_1^{n//r}\cdot\alpha\) with the short exponents below \(r\). The GMP helper also builds Jacobi sums and scans the \(R\) residues. On this 12-thread machine \(10^{999}+7\) drops from about six minutes to **about 50 s**. \(10^{99}+289\) drops from about 15 s to under a second. Odd primes \(l\mid R\) with \(n^{l-1}\equiv 1\pmod{l^2}\) now need a root-of-unity witness (Proposition 3.3) before the proof is accepted.
 - **37-digit primes no longer burn Brent curves out to \(2^{22}\).** For an 80-to-160-bit cofactor the library uses elliptic-curve factoring at \(B_1=11000\). \(10^{36}+67\) drops from about 50 s to about 0.4 s. The in-browser lab uses the same two curves and finishes that number in under a second. The certificate spells out the power-of-ten gaps and the distance above the square below \(n\).
 
 ### Changed

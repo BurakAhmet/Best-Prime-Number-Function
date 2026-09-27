@@ -26,6 +26,10 @@ extern void __gmpz_mul_ui(mpz_t, const mpz_t, unsigned long);
 extern unsigned long __gmpz_fdiv_q_ui(mpz_t, const mpz_t, unsigned long);
 extern size_t __gmpz_sizeinbase(const mpz_t, int);
 extern int __gmpz_tstbit(const mpz_t, mp_bitcnt_t);
+extern void __gmpz_sqrt(mpz_t, const mpz_t);
+extern void __gmpz_powm_ui(mpz_t, const mpz_t, unsigned long, const mpz_t);
+extern int __gmpz_divisible_p(const mpz_t, const mpz_t);
+extern int __gmpz_cmp_ui(const mpz_t, unsigned long);
 
 #define mpz_init __gmpz_init
 #define mpz_clear __gmpz_clear
@@ -41,6 +45,10 @@ extern int __gmpz_tstbit(const mpz_t, mp_bitcnt_t);
 #define mpz_fdiv_q_ui __gmpz_fdiv_q_ui
 #define mpz_sizeinbase __gmpz_sizeinbase
 #define mpz_tstbit __gmpz_tstbit
+#define mpz_sqrt __gmpz_sqrt
+#define mpz_powm_ui __gmpz_powm_ui
+#define mpz_divisible_p __gmpz_divisible_p
+#define mpz_cmp_ui __gmpz_cmp_ui
 
 #define APR_MAX 40
 
@@ -124,12 +132,13 @@ static void pmul(mpz_t *dst, mpz_t *a, mpz_t *b, int deg, mpz_t *phi, const mpz_
     }
 }
 
+/* Exponent m with elem = zeta^m, or -1 when elem is not a power of zeta. */
 static int is_power(mpz_t *elem, int deg, unsigned r, mpz_t *phi, const mpz_t n, mpz_t scratch) {
     mpz_t raw[APR_MAX * 2];
     for (int i = 0; i < APR_MAX * 2; i++) {
         mpz_init(raw[i]);
     }
-    int found = 0;
+    int found = -1;
     for (unsigned m = 0; m < r; m++) {
         for (int i = 0; i < APR_MAX * 2; i++) {
             mpz_set_ui(raw[i], 0);
@@ -148,7 +157,7 @@ static int is_power(mpz_t *elem, int deg, unsigned r, mpz_t *phi, const mpz_t n,
             }
         }
         if (same) {
-            found = 1;
+            found = (int)m;
             break;
         }
     }
@@ -197,47 +206,39 @@ int aprcl_product_ok(const uint64_t *mod_limbs, size_t nlimbs, unsigned r,
     }
     reduce(base, deg, phi, deg, n, scratch);
 
-    unsigned long bits = mpz_sizeinbase(n, 2);
-    mpz_t *squares = malloc(sizeof(mpz_t) * bits * (size_t)deg);
-    if (!squares) {
-        return -1;
+    /* floor(n*i/r) = (n//r)*i + ((n%r)*i)//r, so the Galois product is
+       s1^(n//r) * alpha with exponents < r. One large exponentiation. */
+    mpz_t s1[APR_MAX], alpha[APR_MAX], img[APR_MAX], powered[APR_MAX];
+    mpz_t exponent;
+    for (int i = 0; i < APR_MAX; i++) {
+        mpz_init(s1[i]);
+        mpz_init(alpha[i]);
+        mpz_init(img[i]);
+        mpz_init(powered[i]);
     }
-    for (unsigned long b = 0; b < bits; b++) {
-        for (int i = 0; i < deg; i++) {
-            mpz_init(squares[(b * (size_t)deg) + (size_t)i]);
+    mpz_init(exponent);
+    mpz_set_ui(s1[0], 1);
+    mpz_set_ui(alpha[0], 1);
+    for (int i = 1; i < deg; i++) {
+        mpz_set_ui(s1[i], 0);
+        mpz_set_ui(alpha[i], 0);
+    }
+    unsigned long nmod = mpz_fdiv_q_ui(exponent, n, r);
+
+    int ok = 1;
+    int glen_cap = deg * (int)r + 2;
+    mpz_t *gal = malloc(sizeof(mpz_t) * (size_t)glen_cap);
+    if (!gal) {
+        ok = -1;
+    } else {
+        for (int i = 0; i < glen_cap; i++) {
+            mpz_init(gal[i]);
         }
     }
-    for (int i = 0; i < deg; i++) {
-        mpz_set(squares[i], base[i]);
-    }
-    for (unsigned long b = 1; b < bits; b++) {
-        pmul(&squares[b * (size_t)deg], &squares[(b - 1) * (size_t)deg],
-             &squares[(b - 1) * (size_t)deg], deg, phi, n, raw, scratch);
-    }
-
-    mpz_t exponent;
-    mpz_init(exponent);
-    mpz_set_ui(acc[0], 1);
-    for (int i = 1; i < deg; i++) {
-        mpz_set_ui(acc[i], 0);
-    }
-    int ok = 1;
     for (int k = 0; k < nidx && ok == 1; k++) {
         unsigned idx = idxs[k];
         if (idx == 0 || idx >= r) {
             continue;
-        }
-        mpz_set_ui(cur[0], 1);
-        for (int i = 1; i < deg; i++) {
-            mpz_set_ui(cur[i], 0);
-        }
-        mpz_mul_ui(exponent, n, idx);
-        mpz_fdiv_q_ui(exponent, exponent, r);
-        unsigned long eb = mpz_sizeinbase(exponent, 2);
-        for (unsigned long bit = 0; bit < eb && bit < bits; bit++) {
-            if (mpz_tstbit(exponent, bit)) {
-                pmul(cur, cur, &squares[bit * (size_t)deg], deg, phi, n, raw, scratch);
-            }
         }
         unsigned inv = 0;
         for (unsigned v = 1; v < r; v++) {
@@ -246,43 +247,157 @@ int aprcl_product_ok(const uint64_t *mod_limbs, size_t nlimbs, unsigned r,
                 break;
             }
         }
-        int glen = deg * (int)inv + 1;
+        if (inv == 0) {
+            continue;
+        }
+        for (int i = 0; i < glen_cap; i++) {
+            mpz_set_ui(gal[i], 0);
+        }
+        for (int i = 0; i < deg; i++) {
+            mpz_set(gal[(size_t)i * inv], base[i]);
+        }
+        int glen = (deg - 1) * (int)inv + 1;
         if (glen < deg) {
             glen = deg;
         }
-        mpz_t *gal = malloc(sizeof(mpz_t) * (size_t)glen);
-        if (!gal) {
-            ok = -1;
-            break;
-        }
-        for (int i = 0; i < glen; i++) {
-            mpz_init(gal[i]);
-        }
-        for (int i = 0; i < deg; i++) {
-            mpz_set(gal[(size_t)i * inv], cur[i]);
-        }
         reduce(gal, glen, phi, deg, n, scratch);
         for (int i = 0; i < deg; i++) {
-            mpz_set(cur[i], gal[i]);
-            mpz_clear(gal[i]);
+            mpz_set(img[i], gal[i]);
         }
-        for (int i = deg; i < glen; i++) {
+        /* img^idx, idx < r. */
+        mpz_set_ui(powered[0], 1);
+        for (int i = 1; i < deg; i++) {
+            mpz_set_ui(powered[i], 0);
+        }
+        mpz_set_ui(cur[0], 1);
+        for (int i = 1; i < deg; i++) {
+            mpz_set_ui(cur[i], 0);
+        }
+        for (int i = 0; i < deg; i++) {
+            mpz_set(cur[i], img[i]);
+        }
+        {
+            unsigned e = idx;
+            int first = 1;
+            mpz_set_ui(powered[0], 1);
+            for (int i = 1; i < deg; i++) {
+                mpz_set_ui(powered[i], 0);
+            }
+            while (e) {
+                if (e & 1u) {
+                    pmul(powered, powered, cur, deg, phi, n, raw, scratch);
+                }
+                e >>= 1;
+                if (e) {
+                    pmul(cur, cur, cur, deg, phi, n, raw, scratch);
+                }
+                first = 0;
+            }
+            (void)first;
+        }
+        pmul(s1, s1, powered, deg, phi, n, raw, scratch);
+        unsigned long small = (nmod * idx) / r;
+        if (small) {
+            for (int i = 0; i < deg; i++) {
+                mpz_set(cur[i], img[i]);
+            }
+            mpz_set_ui(powered[0], 1);
+            for (int i = 1; i < deg; i++) {
+                mpz_set_ui(powered[i], 0);
+            }
+            unsigned e = (unsigned)small;
+            while (e) {
+                if (e & 1u) {
+                    pmul(powered, powered, cur, deg, phi, n, raw, scratch);
+                }
+                e >>= 1;
+                if (e) {
+                    pmul(cur, cur, cur, deg, phi, n, raw, scratch);
+                }
+            }
+            pmul(alpha, alpha, powered, deg, phi, n, raw, scratch);
+        }
+    }
+    if (ok == 1) {
+        /* acc = s1^exponent * alpha, exponent = n//r. Window 4. */
+        mpz_t table[16][APR_MAX];
+        for (int t = 0; t < 16; t++) {
+            for (int i = 0; i < deg; i++) {
+                mpz_init(table[t][i]);
+            }
+        }
+        mpz_set_ui(table[0][0], 1);
+        for (int i = 1; i < deg; i++) {
+            mpz_set_ui(table[0][i], 0);
+        }
+        for (int i = 0; i < deg; i++) {
+            mpz_set(table[1][i], s1[i]);
+        }
+        for (int t = 2; t < 16; t++) {
+            pmul(table[t], table[t - 1], s1, deg, phi, n, raw, scratch);
+        }
+        mpz_set_ui(acc[0], 1);
+        for (int i = 1; i < deg; i++) {
+            mpz_set_ui(acc[i], 0);
+        }
+        unsigned long bits = mpz_sizeinbase(exponent, 2);
+        int started = 0;
+        if (mpz_zero(exponent)) {
+            started = 1;
+        }
+        for (long bit = (long)bits - 1; bit >= 0;) {
+            int nb = 4;
+            if (bit + 1 < nb) {
+                nb = (int)bit + 1;
+            }
+            unsigned w = 0;
+            for (int s = 0; s < nb; s++) {
+                w = (w << 1) | (unsigned)mpz_tstbit(exponent, (mp_bitcnt_t)(bit - s));
+            }
+            if (!started) {
+                if (w == 0) {
+                    bit -= nb;
+                    continue;
+                }
+                for (int i = 0; i < deg; i++) {
+                    mpz_set(acc[i], table[w][i]);
+                }
+                started = 1;
+                bit -= nb;
+                continue;
+            }
+            for (int s = 0; s < nb; s++) {
+                pmul(acc, acc, acc, deg, phi, n, raw, scratch);
+            }
+            if (w) {
+                pmul(acc, acc, table[w], deg, phi, n, raw, scratch);
+            }
+            bit -= nb;
+        }
+        pmul(acc, acc, alpha, deg, phi, n, raw, scratch);
+        {
+            int h = is_power(acc, deg, r, phi, n, scratch);
+            ok = h < 0 ? 0 : h + 1;
+        }
+        for (int t = 0; t < 16; t++) {
+            for (int i = 0; i < deg; i++) {
+                mpz_clear(table[t][i]);
+            }
+        }
+    }
+    if (gal) {
+        for (int i = 0; i < glen_cap; i++) {
             mpz_clear(gal[i]);
         }
         free(gal);
-        pmul(acc, acc, cur, deg, phi, n, raw, scratch);
     }
-    if (ok == 1) {
-        ok = is_power(acc, deg, r, phi, n, scratch);
-    }
-
     mpz_clear(exponent);
-    for (unsigned long b = 0; b < bits; b++) {
-        for (int i = 0; i < deg; i++) {
-            mpz_clear(squares[(b * (size_t)deg) + (size_t)i]);
-        }
+    for (int i = 0; i < APR_MAX; i++) {
+        mpz_clear(s1[i]);
+        mpz_clear(alpha[i]);
+        mpz_clear(img[i]);
+        mpz_clear(powered[i]);
     }
-    free(squares);
     for (int i = 0; i < APR_MAX; i++) {
         mpz_clear(base[i]);
         mpz_clear(acc[i]);
@@ -295,4 +410,113 @@ int aprcl_product_ok(const uint64_t *mod_limbs, size_t nlimbs, unsigned r,
     mpz_clear(scratch);
     mpz_clear(n);
     return ok;
+}
+
+/* True when some n^{start+j} mod s, j = 1..count, is a proper divisor of n. */
+int aprcl_residue_divides(const uint64_t *n_limbs, size_t nlimbs,
+                          const uint64_t *s_limbs, size_t slimbs,
+                          uint64_t start, uint64_t count) {
+    if (!n_limbs || !s_limbs || nlimbs == 0 || slimbs == 0 || count == 0) {
+        return -1;
+    }
+    mpz_t n, s, base, acc, root, tmp;
+    mpz_init(n);
+    mpz_init(s);
+    mpz_init(base);
+    mpz_init(acc);
+    mpz_init(root);
+    mpz_init(tmp);
+    mpz_import(n, nlimbs, -1, sizeof(uint64_t), 0, 0, n_limbs);
+    mpz_import(s, slimbs, -1, sizeof(uint64_t), 0, 0, s_limbs);
+    mpz_sqrt(root, n);
+    mpz_mod(base, n, s);
+    mpz_powm_ui(acc, base, start, s);
+    int hit = 0;
+    for (uint64_t j = 0; j < count; j++) {
+        mpz_mul(acc, acc, base);
+        mpz_mod(acc, acc, s);
+        if (mpz_cmp_ui(acc, 1) > 0 && mpz_cmp(acc, root) <= 0 && mpz_divisible_p(n, acc)) {
+            hit = 1;
+            break;
+        }
+    }
+    mpz_clear(tmp);
+    mpz_clear(root);
+    mpz_clear(acc);
+    mpz_clear(base);
+    mpz_clear(s);
+    mpz_clear(n);
+    return hit;
+}
+
+/* Smallest primitive root modulo an odd prime q, matching the Python search. */
+static unsigned long prim_root(unsigned long q) {
+    unsigned long n = q - 1;
+    unsigned long fac[64];
+    int nf = 0;
+    unsigned long x = n;
+    for (unsigned long d = 2; d * d <= x; d += (d == 2 ? 1 : 2)) {
+        if (x % d == 0) {
+            fac[nf++] = d;
+            while (x % d == 0) {
+                x /= d;
+            }
+        }
+    }
+    if (x > 1) {
+        fac[nf++] = x;
+    }
+    for (unsigned long g = 2;; g++) {
+        int ok = 1;
+        for (int i = 0; i < nf; i++) {
+            unsigned long e = n / fac[i];
+            unsigned long p = 1, base = g % q;
+            while (e) {
+                if (e & 1ul) {
+                    p = (p * base) % q;
+                }
+                base = (base * base) % q;
+                e >>= 1;
+            }
+            if (p == 1) {
+                ok = 0;
+                break;
+            }
+        }
+        if (ok) {
+            return g;
+        }
+    }
+}
+
+/* which = 1: j(chi, chi). which = 2: j(chi, chi^2). Coefficients in out[0..r). */
+int aprcl_jacobi_sum(unsigned long q, unsigned r, int which, long long *out) {
+    if (q < 3 || r < 1 || (q - 1) % r != 0 || !out || (which != 1 && which != 2)) {
+        return -1;
+    }
+    unsigned long *ind = calloc(q, sizeof(unsigned long));
+    if (!ind) {
+        return -1;
+    }
+    unsigned long g = prim_root(q);
+    unsigned long step = (q - 1) / r;
+    unsigned long x = 1;
+    for (unsigned long i = 0; i < q - 1; i++) {
+        ind[x] = (i * step) % r;
+        x = x * g % q;
+    }
+    for (unsigned i = 0; i < r; i++) {
+        out[i] = 0;
+    }
+    int mult = (which == 2) ? 2 : 1;
+    for (unsigned long t = 1; t < q; t++) {
+        unsigned long u = (q + 1 - t) % q;
+        if (u == 0) {
+            continue;
+        }
+        unsigned long slot = (ind[t] + (unsigned long)mult * ind[u]) % r;
+        out[slot] -= 1;
+    }
+    free(ind);
+    return 0;
 }
