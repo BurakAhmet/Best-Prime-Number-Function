@@ -132,35 +132,44 @@ def test_checker_worker_self_test():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
-def test_random_n_stays_inside_1_to_10_149() -> None:
+def test_random_n_has_no_digit_ceiling() -> None:
     script = r"""
 const fs = require('fs');
 const src = fs.readFileSync('docs/wiki/assets/checker.js', 'utf8');
-const m = src.match(/function randomBelow[\s\S]*?\n  function workerUrl/);
+const m = src.match(/function fillRandom[\s\S]*?\n  function workerUrl/);
 if (!m) { console.error('missing randomN'); process.exit(1); }
 eval(m[0].replace(/\n  function workerUrl$/, ''));
-const cap = 10n ** 149n;
+if (src.includes('max="150"') || src.includes('10^149')) {
+  console.error('digit ceiling still in the lab');
+  process.exit(1);
+}
 const any = { checked: true };
 let sawShort = false;
-let sawLong = false;
-for (let i = 0; i < 400; i++) {
+let sawPastOldCap = false;
+for (let i = 0; i < 80; i++) {
   const n = randomN(null, any);
   const len = n.toString().length;
-  if (n < 1n || n > cap) { console.error(String(n)); process.exit(1); }
+  if (n < 1n) { console.error(String(n)); process.exit(1); }
   if (len <= 20) sawShort = true;
-  if (len >= 100) sawLong = true;
+  if (len > 149) sawPastOldCap = true;
 }
-if (!sawShort || !sawLong) { console.error('lengths', sawShort, sawLong); process.exit(1); }
+if (!sawShort || !sawPastOldCap) {
+  console.error('any-length', sawShort, sawPastOldCap);
+  process.exit(1);
+}
 const digits = { value: '3' };
 const none = { checked: false };
-for (let i = 0; i < 30; i++) {
+for (let i = 0; i < 20; i++) {
   const n = randomN(digits, none);
   if (n < 100n || n > 999n) { console.error('digits', String(n)); process.exit(1); }
 }
-const top = randomN({ value: '149' }, none);
-if (top < 10n ** 148n || top >= cap) { console.error('149', String(top)); process.exit(1); }
-if (randomN({ value: '150' }, none) !== cap) { console.error('150'); process.exit(1); }
-console.log('random ok');
+const wide = randomN({ value: '1000' }, none);
+const w = wide.toString();
+if (w.length !== 1000) { console.error('1000-digit length', w.length); process.exit(1); }
+if (w[0] === '0') { console.error('leading zero'); process.exit(1); }
+const exact150 = randomN({ value: '150' }, none);
+if (exact150.toString().length !== 150) { console.error('150 clamped'); process.exit(1); }
+console.log('random ok', sawPastOldCap ? 'saw >149' : 'tail not hit in 80 draws');
 """
     proc = subprocess.run(
         ["node", "-e", script],

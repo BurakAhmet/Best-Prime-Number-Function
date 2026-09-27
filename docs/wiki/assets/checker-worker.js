@@ -3188,6 +3188,15 @@
     return done(true, "wheel-30", null, "no factor ≤ √n (exact trial)", limit, t0);
   }
 
+  function fillRandom(buf) {
+    const c = typeof crypto !== "undefined" ? crypto : globalThis.crypto;
+    const rng = c && c.getRandomValues ? c : require("crypto").webcrypto;
+    const chunk = 65536;
+    for (let off = 0; off < buf.length; off += chunk) {
+      rng.getRandomValues(buf.subarray(off, Math.min(buf.length, off + chunk)));
+    }
+  }
+
   function randomBelow(limit) {
     if (limit <= 0n) return 0n;
     let bits = 0;
@@ -3200,9 +3209,7 @@
     const buf = new Uint8Array(bytes);
     const excess = BigInt(bytes * 8 - bits);
     for (;;) {
-      const c = typeof crypto !== "undefined" ? crypto : globalThis.crypto;
-      if (c && c.getRandomValues) c.getRandomValues(buf);
-      else require("crypto").webcrypto.getRandomValues(buf);
+      fillRandom(buf);
       let x = 0n;
       for (let i = 0; i < buf.length; i++) x = (x << 8n) | BigInt(buf[i]);
       if (excess > 0n) x >>= excess;
@@ -3210,11 +3217,16 @@
     }
   }
 
+  function randomDigitLength() {
+    let d = 1;
+    while (randomBelow(1000n) < 995n) d += 1;
+    return d;
+  }
+
   function randomPrime(spec, onTick, shouldStop) {
     const any = spec && spec.any;
-    let d = any ? Number(randomBelow(149n)) + 1 : Number(spec && spec.digits);
+    let d = any ? randomDigitLength() : Number(spec && spec.digits);
     if (!Number.isInteger(d) || d < 1) d = 1;
-    if (d > 149) d = 149;
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
     const lo = d <= 1 ? 2n : 10n ** BigInt(d - 1);
     const hi = d <= 1 ? 8n : lo * 10n;
