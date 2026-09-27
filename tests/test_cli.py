@@ -97,7 +97,7 @@ class TestCliExitCodes:
         assert "not prime" in r.stdout
 
     def test_max_ms_unsettled_on_fastecpp_prime(self):
-        # P100 is in the FastECPP band. 1 ms cannot finish the CM walk.
+        # P100 is a cyclotomic proof. 1 ms cannot finish it.
         r = _run("--max-ms", "1", str(10**99 + 289), timeout=30.0)
         assert r.returncode == 3, r.stdout + r.stderr
         assert "RESULT:  unsettled" in r.stdout

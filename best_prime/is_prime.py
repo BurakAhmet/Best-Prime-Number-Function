@@ -765,9 +765,15 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
     # bits a friendly n±1 proof is still milliseconds, so BLS stays.
     # FastECPP remains the fallback once √n exceeds the cyclotomic modulus.
     if bits >= 256:
+        if deadline_hit():
+            _last_is_prime_big_path = "bigint_unsettled"
+            raise UnsettledPrimalityError(n)
         from .primality_aprcl import aprcl_primality
 
         decided = aprcl_primality(n)
+        if deadline_hit():
+            _last_is_prime_big_path = "bigint_unsettled"
+            raise UnsettledPrimalityError(n)
         if decided is True:
             _last_is_prime_big_path = "bigint_aprcl"
             return True

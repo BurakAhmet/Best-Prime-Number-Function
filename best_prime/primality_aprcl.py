@@ -374,12 +374,20 @@ def _c_product(n: int, r: int, base: list[int], idxs: list[int]) -> int:
         return -1
 
 
+class _BudgetExpired(Exception):
+    """The wall-clock cap elapsed during a cyclotomic proof."""
+
+
 def _one_test(n: int, q: int, r: int, packed: tuple[int, ...]) -> tuple[bool, int, int]:
     """Return ``(identity holds, prime of r, exponent of the root of unity)``.
 
     The exponent is ``-1`` when the helper did not report it. A failed identity
     has exponent ``-1`` as well.
     """
+    from .progress import deadline_hit
+
+    if deadline_hit():
+        raise _BudgetExpired
     prime = _factor(r)[0][0]
     j = [c % n for c in packed]
     if r >= 8 and prime == 2 and n % 8 in (1, 3):
@@ -584,7 +592,10 @@ def aprcl_primality(n: int) -> bool | None:
     # First condition of Theorem 3.2 is free when n^{l-1} ≢ 1 (mod l^2).
     # Otherwise some Jacobi root of unity must generate the l-part
     # (Schoof, Proposition 3.3). A missing witness is not a proof.
-    satisfied = _tests_ok(n, tests)
+    try:
+        satisfied = _tests_ok(n, tests)
+    except _BudgetExpired:
+        return None
     if satisfied is None:
         return False
     for prime, _e in _factor(R):
