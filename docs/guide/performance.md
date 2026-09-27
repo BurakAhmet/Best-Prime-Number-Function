@@ -17,7 +17,8 @@ Both in-process baselines are **deterministic** (no Miller–Rabin).
 | Hard 64-bit primes | n−1 `u64_nm1` (else cubic) | ~0.2 ms check, ~3 ms e2e (C peel of $n-1$) |
 | Up to about $10^{20}$ in cubic budget | n−1 `u128_nm1` (else cubic) | CLI default ~5 ms e2e / ~1 ms check |
 | Else practical $\sqrt{n}$ (≤128-bit) | OpenMP `u128_wheel_c` | Seconds, not AKS |
-| Huge primes, no small factors | FastECPP (`bigint_fastecpp`) | 100 digits in seconds, 200 digits ~1 min here; 10k-digit / 10 s not claimed |
+| 256–800 bits | FastECPP (`bigint_fastecpp`) | 100 digits in seconds; the 150-digit default is about 7 s |
+| 800 bits and wider, including 1000 digits | Cyclotomic APR-CL (`bigint_aprcl`) | $10^{999}+7$ about 50 s on 12 cores |
 
 Without `wheel_core.so`, the library still works via stdlib wheels and/or Numba; only the slowest 64-bit / multi-limb cases suffer most.
 
@@ -33,6 +34,7 @@ End-to-end CLI `TIME` on a dev machine (`compare_e2e.py`, best of several runs; 
 | Near $2^{63}$ | 9223372036854775783 | ~3 ms |
 | 147-bit n−1 specimen | 100000000000000000000000000000000000000000031 | ~5 ms |
 | CLI default (150 digits) | 10^149+183 | ~7 s |
+| 1000-digit prime | 10^999+7 | ~50 s |
 | Largest prime $<2^{64}$ | 18446744073709551557 | ~3 ms |
 | Mersenne M61 | $2^{61}-1$ | ~3 ms |
 

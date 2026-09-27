@@ -7,6 +7,6 @@ CLI **`TIME` is end-to-end** (import → answer).
 - $n \lt 10^4$: tiny Python loop.
 - Mid-size 64-bit: **OpenMP** `wheel_core.so` when present; else **30030** / **9699690** wheel (stdlib / **Numba**).
 - Hard 64-bit / cubic-budget multi-limb: combined BLS, else cubic C. Odd prime powers of $n\pm 1$ are peeled from the OpenMP prime table ($\le 2^{20}$), so a fresh CLI check of the near-$2^{63}$ prime is about **3 ms** and the 147-bit default about **5 ms**.
-- Still larger: **BLS only** when $n$ has fewer than 256 bits. **FastECPP** when $n$ has $\ge 256$ bits (class-number-1 lives inside that walk; the CLI default $10^{149}+183$ is in this band), then **cyclotomic APR-CL** from 800 bits. A miss raises `UnsettledPrimalityError`. AKS is not in the library.
+- Still larger: **BLS only** when $n$ has fewer than 256 bits. **FastECPP** when $n$ has $\ge 256$ bits (class-number-1 lives inside that walk; the CLI default $10^{149}+183$ is in this band), then **cyclotomic APR-CL** from 800 bits. A 1000-digit prime ($10^{999}+7$) is that cyclotomic proof, about **50 s** on 12 cores. A miss raises `UnsettledPrimalityError`. AKS is not in the library. The in-tab lab uses the elliptic-curve walk and does not run the cyclotomic proof.
 
 History and failures not to repeat: [`docs/ALGORITHM_HISTORY.md`](https://github.com/BurakAhmet/Best-Prime-Number-Function/blob/main/docs/ALGORITHM_HISTORY.md). Bench scripts: [Benchmarks](Benchmarks). Rules: [Project restrictions](Project-restrictions).

@@ -80,6 +80,14 @@
     };
   }
 
+  function fillRandom(buf) {
+    const rng = globalThis.crypto || globalThis.msCrypto;
+    const chunk = 65536;
+    for (let off = 0; off < buf.length; off += chunk) {
+      rng.getRandomValues(buf.subarray(off, Math.min(buf.length, off + chunk)));
+    }
+  }
+
   function randomBelow(limit) {
     if (limit <= 0n) return 0n;
     let bits = 0;
@@ -91,9 +99,8 @@
     const bytes = Math.ceil(bits / 8);
     const buf = new Uint8Array(bytes);
     const excess = BigInt(bytes * 8 - bits);
-    const rng = globalThis.crypto || globalThis.msCrypto;
     for (;;) {
-      rng.getRandomValues(buf);
+      fillRandom(buf);
       let x = 0n;
       for (let i = 0; i < buf.length; i++) x = (x << 8n) | BigInt(buf[i]);
       if (excess > 0n) x >>= excess;
@@ -103,22 +110,22 @@
 
   function randomWithDigits(d) {
     if (d <= 1) return randomBelow(9n) + 1n;
-    // 10^149 is the only 150-digit value allowed.
-    if (d >= 150) return 10n ** 149n;
     const lo = 10n ** BigInt(d - 1);
     return lo + randomBelow(lo * 9n);
   }
 
+  // No maximum length. Each extra digit is kept with probability 0.995,
+  // so the draw is usually a few hundred digits and has no ceiling.
+  function randomDigitLength() {
+    let d = 1;
+    while (randomBelow(1000n) < 995n) d += 1;
+    return d;
+  }
+
   function randomN(digitsInput, anyBox) {
-    // "Any size" picks the length first, uniformly from 1 digit through
-    // 10^149. A uniform integer in 1..10^149 is a 149-digit number about
-    // 90% of the time, so that draw never looks small.
-    if (anyBox && anyBox.checked) {
-      return randomWithDigits(Number(randomBelow(150n)) + 1);
-    }
+    if (anyBox && anyBox.checked) return randomWithDigits(randomDigitLength());
     let d = Number(digitsInput && digitsInput.value != null ? digitsInput.value : 20);
     if (!Number.isInteger(d) || d < 1) d = 1;
-    if (d > 150) d = 150;
     return randomWithDigits(d);
   }
 
@@ -633,13 +640,14 @@
         </div>
         <div class="row lab-rand">
           <label class="lab-kwrap" for="lab-rand-digits">digits
-            <input id="lab-rand-digits" type="number" min="1" max="150" value="20"
+            <input id="lab-rand-digits" type="number" min="1" value="20"
               aria-label="Digits in the random number"/>
           </label>
-          <label class="lab-any"><input id="lab-rand-any" type="checkbox"/> any length, from 1 digit up to 10^149</label>
+          <label class="lab-any"><input id="lab-rand-any" type="checkbox"/> any length, no maximum</label>
         </div>
         <p class="lab-hint">Proves the number in this tab, or prints a factor.
           Below 256 bits it uses both sides of n±1. From 256 bits it uses an elliptic-curve proof.
+          A 1000-digit prime is a cyclotomic proof in the Python library, about 50 seconds on 12 cores; this tab does not run that proof.
           There is no digit limit. Stop anytime.
           A miss is <strong>inconclusive</strong> here; the Python library may still prove it.</p>
         ${stageMarkup()}
