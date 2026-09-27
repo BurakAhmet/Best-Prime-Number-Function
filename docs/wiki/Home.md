@@ -18,7 +18,7 @@ Type a natural number. This page either finishes a proof or shows a factor.
 | Small, and most 64-bit values | Trial division up to the square root |
 | Harder 64-bit, and up to 256 bits | Combined BLS on $n-1$ and $n+1$, then a cubic search if those will not factor |
 | 256 bits and wider, in the library | Cyclotomic proof while \(\sqrt{n}\) fits the modulus. \(10^{999}+7\) is about 50 seconds on 12 cores |
-| 800 bits and wider, in this tab | Same cyclotomic proof. \(10^{999}+7\) is about three minutes on 12 cores. Below 800 bits this tab still uses the elliptic-curve walk |
+| 256 bits and wider, in this tab | Same cyclotomic proof, including next and previous prime. 10^999+7 is about three minutes on 12 cores |
 
 Stochastic Miller–Rabin and external prime libraries are not the engine. AKS is not in the library.
 
