@@ -318,12 +318,13 @@ console.log('100-digit OK', rf.factor, rp.path, rp.ms);
 def test_checker_worker_next_prev_prime() -> None:
     script = (
         "const api=require('./docs/wiki/assets/checker-worker.js');"
-        "const n=api.nextPrime(14n,1); const p=api.prevPrime(14n,1);"
+        "(async()=>{"
+        "const n=await api.nextPrime(14n,1); const p=await api.prevPrime(14n,1);"
         "if(!n.ok||n.value!=='17'||!p.ok||p.value!=='13'){"
         "  console.error(JSON.stringify({n,p})); process.exit(1);"
         "}"
         "if(n.delta!=='3'||p.delta!=='-1'){console.error('delta',n.delta,p.delta);process.exit(1);}"
-        "const k=api.nextPrime(100n,65);"
+        "const k=await api.nextPrime(100n,65);"
         "if(!k.ok||k.value!=='463'||k.delta!=='363'){console.error(JSON.stringify(k));process.exit(1);}"
         "if(api.parseK('0')!==null||api.parseK('999')!==999n){process.exit(1);}"
         "const face=api.numberPortrait(97n);"
@@ -331,6 +332,7 @@ def test_checker_worker_next_prev_prime() -> None:
         "  console.error(JSON.stringify(face)); process.exit(1);}"
         "if(api.quickComposite(2047n)!==true||api.quickComposite(97n)!==false){process.exit(1);}"
         "console.log('neighbors OK', n.value, p.value, k.delta);"
+        "})().catch((err)=>{console.error(err); process.exit(1);});"
     )
     r = subprocess.run(
         ["node", "-e", script],

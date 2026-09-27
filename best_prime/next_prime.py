@@ -9,8 +9,9 @@ Candidate generation is deterministic:
   adaptive window; only survivors call ``is_prime``)
 * 30030-wheel + deep prefilter as final fallback
 
-Exact primality is always delegated to ``is_prime`` (OpenMP C / n−1 /
-cubic / multiprecision cubic / AKS) — no Miller–Rabin, no prime libraries.
+Exact primality is always delegated to ``is_prime`` (trial, combined
+BLS, cyclotomic APR-CL, or FastECPP when the cyclotomic modulus does
+not cover n). No Miller–Rabin, no prime libraries.
 
 End-to-end CLI ``TIME`` starts at import (``t0``) and stops after the answer.
 """

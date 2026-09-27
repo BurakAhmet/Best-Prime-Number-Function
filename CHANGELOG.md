@@ -18,7 +18,7 @@ All notable changes to this project are documented in this file.
 ## [1.14.0] — 2026-09-25
 
 ### Performance
-- **Cold CLI on hard 64-bit primes no longer loads the native core just to discover it is not needed.** `cubic_complete_ready` answers from the pure-Python budget before dlopen. Cofactor trial up to 80 bits and bounds ≤ $50\,000$ uses an embedded prime-product table. A ≤96-bit leftover above that bound is split with deterministic Brent while `wheel_core` is still closed. Boolean BLS no longer imports the ECPP module to stash a witness. Same machine, 12 threads, best of three fresh processes: M61 ~3.1 ms → **~1.9 ms**, largest prime $<2^{64}$ ~3.2 ms → **~2.2 ms**, near $2^{63}$ ~3.1 ms → **~2.7 ms**, 147-bit default ~5.1 ms → **~4.7 ms**. Mid-size wheel trial stays in the same few milliseconds.
+- **Cold CLI on hard 64-bit primes no longer loads the native core just to discover it is not needed.** `cubic_complete_ready` answers from the pure-Python budget before dlopen. Cofactor trial up to 80 bits and bounds ≤ $50\,000$ uses an embedded prime-product table. A ≤96-bit leftover above that bound is split with deterministic Brent while `wheel_core` is still closed. Boolean BLS no longer imports the ECPP module to stash a witness. Same machine, 12 threads, best of three fresh processes: M61 ~3.1 ms → **~1.9 ms**, largest prime < $2^{64}$ ~3.2 ms → **~2.2 ms**, near $2^{63}$ ~3.1 ms → **~2.7 ms**, 147-bit default ~5.1 ms → **~4.7 ms**. Mid-size wheel trial stays in the same few milliseconds.
 
 ### Changed
 - Package version **1.14.0**. `DEFAULT_N` unchanged.
@@ -37,6 +37,7 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - **Past the wheel band, a BLS miss is a cubic search, not trial to $\sqrt{n}$.** $1955097530374556503981 = 31265776261 \times 62531552521$ passes the first ten Miller–Rabin bases, so BLS does not settle it. The lab used to divide up to $\lfloor\sqrt{n}\rfloor \approx 4.4\times 10^{10}$. Lehman’s $k=2$ window now prints the factor. The same path is every $n$ with $\lfloor\sqrt{n}\rfloor \ge 10^{7}$ under 256 bits, not a special case for this integer.
 - **Pages lab no longer asks before checking near \(2^{63}\).** \(9223372036854775783\) is an n−1 proof in the worker (tens of milliseconds); the confirm dialog is gone. In-tab ECPP peels for cofactors up to 380 bits no longer spend seconds of ECM on orders that trial and Fermat already settle, so \(10^{99}+289\) proves faster in the tab.
+
 ### Added
 - **Cyclotomic proofs for wide primes.** `is_prime` on an integer with at least 800 bits tries a deterministic Jacobi-sum (APR-CL) proof before FastECPP. $10^{999}+7$ proves in about six minutes on 12 cores. The GMP helper `is_prime_data/aprcl_hot.c` does the ring arithmetic; without it the same proof still runs in pure Python.
 - **CM tree on huge proofs.** A successful FastECPP / ECPP walk records
@@ -205,7 +206,7 @@ Interleaved same-process A/B against the previous `.so`:
 | $10^9+7\times 10^9+9$ | ~**10%** faster |
 | M61 | ~**8–14%** faster |
 | Near $2^{63}$ | ~**6–10%** faster |
-| Largest prime $<2^{64}$ | ~**6–7%** faster |
+| Largest prime < $2^{64}$ | ~**6–7%** faster |
 | Default mid-size e2e suite | unchanged class (still precomputed-prime path) |
 
 Also in this release (already on `main` after 1.9.0): package layout under `best_prime/`, MkDocs `/guide/`, Pages publish after auto-merge.
@@ -253,7 +254,7 @@ Same exact prime-only trial. 16-way trial / extra 31·37·41 OR / 64 KiB segme
 
 ### Performance (indicative vs 1.8.0, 12 OpenMP threads, LTO)
 - M61 / $10^9$ semiprime: ~**7–15%** faster in-process.
-- Largest prime $<2^{64}$ / near $2^{63}$: ~**5–12%** faster best-of runs.
+- Largest prime < $2^{64}$ / near $2^{63}$: ~**5–12%** faster best-of runs.
 - Default mid-size e2e suite: unchanged or slightly faster (same precomputed-prime path).
 
 ## [1.8.0] — 2026-08-10
@@ -268,7 +269,7 @@ Hard 64-bit / practical u128 OpenMP path (`wheel_core.c`):
 - Cached `inv30` and 32-bit DIV for first-mark / pattern build. Same exact prime-only trial; no Miller–Rabin.
 
 ### Performance (indicative vs 1.7.0 / 1.4.4 engine, 12 OpenMP threads, Zen 2)
-- Largest prime $<2^{64}$: ~**336 ms → ~287 ms** in-process (~**13–15%**); e2e ~310 ms class.
+- Largest prime < $2^{64}$: ~**336 ms → ~287 ms** in-process (~**13–15%**); e2e ~310 ms class.
 - Near $2^{63}$ / M61: ~**10–15%** faster in-process.
 - Default mid-size e2e suite: unchanged class (still precomputed-prime trial).
 
@@ -326,14 +327,14 @@ Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange
 - Hard-path prime extract: scan **8 wheel-30 bytes per `ctzll`** instead of one byte per loop. Same exact prime-only trial; u64 wrap-mul and u128 `%` unchanged.
 
 ### Performance (indicative vs 1.4.3, 12 OpenMP threads)
-- Largest prime $<2^{64}$ (CLI default): ~**381 ms → ~303 ms** (~**20%**).
+- Largest prime < $2^{64}$ (CLI default): ~**381 ms → ~303 ms** (~**20%**).
 - Near $2^{63}$ / M61 / large semiprime: ~**20–29%** faster in-process.
 - Default mid-size e2e suite: unchanged class.
 
 ## [1.4.3] — 2026-08-08
 
 ### Changed
-- CLI default $n$ is now **`18446744073709551557`** (largest prime $<2^{64}$), the hardest 64-bit yardstick. `DEFAULT_N` is exported from `is_prime` / `best_prime`.
+- CLI default $n$ is now **`18446744073709551557`** (largest prime < $2^{64}$), the hardest 64-bit yardstick. `DEFAULT_N` is exported from `is_prime` / `best_prime`.
 - Hard-path sieve: **memcpy presieve** of $7\cdot11\cdot13\cdot17$ (17017-byte repeating wheel-30 bitmap) plus **32-bit mark starts**. Same exact prime-only trial.
 
 ### Tests
@@ -342,7 +343,7 @@ Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange
 - Hard 64-bit serial==parallel moved under `@pytest.mark.slow`. CI determinism script covers more mid-size / composite / MR-liar cases without evaluating the 64-bit default (too slow).
 
 ### Performance (indicative vs 1.4.2, 12 OpenMP threads)
-- Largest prime $<2^{64}$: ~**425 ms → ~397 ms** (~**7%**).
+- Largest prime < $2^{64}$: ~**425 ms → ~397 ms** (~**7%**).
 - Near $2^{63}$ / M61 / large semiprime: ~**5–9%** faster in-process.
 - Default mid-size e2e suite: unchanged class.
 
@@ -354,7 +355,7 @@ Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange
 ### Performance (indicative, same machine as 1.4.1, 12 OpenMP threads)
 - Near $2^{63}$ prime in-process ~**340 ms → ~281 ms** (~**17%**); e2e ~**0.29 s**.
 - M61 in-process ~**168 ms → ~143 ms** (~**15%**); e2e ~**0.16 s**.
-- Largest prime $<2^{64}$ in-process ~**0.41 s** (was ~0.50 s class).
+- Largest prime < $2^{64}$ in-process ~**0.41 s** (was ~0.50 s class).
 - Default mid-size e2e suite: unchanged class (still precomputed-prime path).
 
 ## [1.4.1] — 2026-08-07

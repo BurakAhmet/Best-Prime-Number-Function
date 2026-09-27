@@ -17,8 +17,8 @@ Both in-process baselines are **deterministic** (no Miller–Rabin).
 | Hard 64-bit primes | n−1 `u64_nm1` (else cubic) | ~0.2 ms check, ~3 ms e2e (C peel of $n-1$) |
 | Up to about $10^{20}$ in cubic budget | n−1 `u128_nm1` (else cubic) | CLI default ~5 ms e2e / ~1 ms check |
 | Else practical $\sqrt{n}$ (≤128-bit) | OpenMP `u128_wheel_c` | Seconds, not AKS |
-| 256–800 bits | FastECPP (`bigint_fastecpp`) | 100 digits in seconds; the 150-digit default is about 7 s |
-| 800 bits and wider, including 1000 digits | Cyclotomic APR-CL (`bigint_aprcl`) | $10^{999}+7$ about 50 s on 12 cores |
+| 256 bits and wider, while $\sqrt{n}$ fits the cyclotomic modulus | Cyclotomic APR-CL (`bigint_aprcl`) | 100 digits about 0.7 s; $10^{999}+7$ about 50 s on 12 cores |
+| Wider than that modulus | FastECPP (`bigint_fastecpp`) | fallback when APR-CL does not cover $n$ |
 
 Without `wheel_core.so`, the library still works via stdlib wheels and/or Numba; only the slowest 64-bit / multi-limb cases suffer most.
 

@@ -79,8 +79,7 @@ flowchart TD
 One engine per band. No BLS → ECPP → FastECPP → AKS chain.
 
 1. **bits $< 256$:** combined BLS only (the 147-bit specimen `100…00031` is `u128_nm1`). If BLS misses and $\lfloor\sqrt{n}\rfloor \le 2.5\cdot10^{10}$ on a 128-bit $n$: OpenMP **`is_prime_u128_core`**. Else `UnsettledPrimalityError`. The CLI default $10^{149}+183$ is in the FastECPP band.
-2. **256 bits up to 800 bits:** **FastECPP** ([guide](ecpp-proof.md)) — class-number-1 $D$ first, then computed $H_D$, path `bigint_fastecpp`. A Fermat miss is a composite proof. No BLS peel and no AKS.
-3. **800 bits and wider:** cyclotomic APR-CL while the prepared modulus exceeds $\sqrt{n}$ (through 1000 digits; $10^{999}+7$ is about 50 s on 12 cores), path `bigint_aprcl`. If that modulus is too small, FastECPP runs inside its cap, then `UnsettledPrimalityError`. The in-tab lab runs the same cyclotomic proof from 800 bits; a 1000-digit prime is about three minutes there on 12 cores.
+2. **256 bits and wider:** cyclotomic APR-CL while the prepared modulus exceeds $\sqrt{n}$ (through about 1024 digits; $10^{999}+7$ is about 50 s on 12 cores), path `bigint_aprcl`. APR-CL is the faster proof from this band up (about 0.5 s vs 1.4 s for FastECPP at 80 digits). If the modulus does not cover $n$, **FastECPP** runs inside its cap, then `UnsettledPrimalityError`. The in-tab lab still uses the elliptic-curve walk until 800 bits, and the cyclotomic proof from there; a 1000-digit prime is about three minutes in the tab.
 
 Inspect the live path with [`lab(n)`](api.md).
 
