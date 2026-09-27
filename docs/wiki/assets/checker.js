@@ -662,7 +662,7 @@
         </div>
         <p class="lab-hint">Proves the number in this tab, or prints a factor.
           Below 256 bits it uses both sides of n±1. From 256 bits it uses an elliptic-curve proof.
-          From 800 bits this tab runs the cyclotomic proof. A 1000-digit prime takes about three minutes here on 12 cores. The Python library does that same proof in about 50 seconds.
+          From 256 bits this tab runs the cyclotomic proof, including next and previous prime. A 1000-digit prime takes about three minutes here on 12 cores. The Python library does that same proof in about 50 seconds.
           There is no digit limit. Stop anytime.
           A miss is <strong>inconclusive</strong> here; the Python library may still prove it.</p>
         ${stageMarkup()}

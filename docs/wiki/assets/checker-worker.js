@@ -378,8 +378,7 @@
     const pow10 = digits <= 1 ? 1n : 10n ** BigInt(digits - 1);
     const sq = n < 0n ? 0n : isqrt(n);
     let band = "exact trial";
-    if (bits >= 800) band = "cyclotomic proof";
-    else if (bits >= 256) band = "elliptic-curve proof";
+    if (bits >= 256) band = "cyclotomic proof";
     else if (n >= (1n << 64n)) band = "combined BLS";
     return {
       digits: digits,
@@ -2954,7 +2953,10 @@
             );
           }
         }
-        if (bits >= 800) {
+        // Same band as the library. An elliptic-curve walk of a 150-digit
+        // neighbor is several proofs and takes minutes; one cyclotomic
+        // proof is the check that already finishes a 1000-digit prime.
+        if (bits >= 256) {
           return aprclCheck(n, limit, t0, onTick, shouldStop);
         }
         emit(onTick, "ecpp", 0n, 13n, { label: "class-number-1 ECPP first, then FastECPP H_D" });

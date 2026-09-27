@@ -5,20 +5,21 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Performance
-- **1000-digit cyclotomic proofs do one large exponentiation per Jacobi sum, not one per Galois conjugate.** Cohen–Lenstra: \(\lfloor ni/r\rfloor = (n//r)\,i + ((n \bmod r)\,i)//r\), so the product in Schoof’s Theorem 3.2 is \(s_1^{n//r}\cdot\alpha\) with the short exponents below \(r\). The GMP helper also builds Jacobi sums and scans the \(R\) residues. On this 12-thread machine \(10^{999}+7\) drops from about six minutes to **about 50 s**. \(10^{99}+289\) drops from about 15 s to under a second. Odd primes \(l\mid R\) with \(n^{l-1}\equiv 1\pmod{l^2}\) now need a root-of-unity witness (Proposition 3.3) before the proof is accepted.
-- **37-digit primes no longer burn Brent curves out to \(2^{22}\).** For an 80-to-160-bit cofactor the library uses elliptic-curve factoring at \(B_1=11000\). \(10^{36}+67\) drops from about 50 s to about 0.4 s. The in-browser lab uses the same two curves and finishes that number in under a second. The certificate spells out the power-of-ten gaps and the distance above the square below \(n\).
+- **Next prime after a 150-digit number no longer walks the elliptic-curve proof.** In the lab, every check from 256 bits, including next and previous prime, uses the cyclotomic proof. A 151-digit neighbor was several elliptic-curve proofs and took minutes; it is now one cyclotomic proof, the same engine that settles a 1000-digit prime.
+- **1000-digit cyclotomic proofs do one large exponentiation per Jacobi sum, not one per Galois conjugate.** Cohen-Lenstra: floor(n*i/r) = (n//r)*i + ((n mod r)*i)//r, so the product in Schoof's Theorem 3.2 is s_1 raised to n//r, times a short correction. The GMP helper also builds Jacobi sums and scans the R residues. On this 12-thread machine 10^999+7 drops from about six minutes to **about 50 s**. 10^99+289 drops from about 15 s to under a second. When n^(l-1) ≡ 1 (mod l^2), the proof now needs a root-of-unity witness (Proposition 3.3) before it is accepted.
+- **37-digit primes no longer burn Brent curves out to 2^22.** For an 80-to-160-bit cofactor the library uses elliptic-curve factoring at B_1=11000. 10^36+67 drops from about 50 s to about 0.4 s. The in-browser lab uses the same two curves and finishes that number in under a second. The certificate spells out the power-of-ten gaps and the distance above the square below n.
 
 ### Changed
-- **CLI default** is the 150-digit prime \(10^{149}+183\). The 147-bit specimen `100…00031` remains a BLS example.
+- **CLI default** is the 150-digit prime 10^149+183. The 147-bit specimen `100…00031` remains a BLS example.
 - **`next_prime`** rejects a large Fermat survivor with a strong Lucas test before a full proof. The Pages neighbor search does the same with a prime sieve and a Fermat filter, and **k has no upper limit**.
 
 ### Performance
-- **150-digit FastECPP no longer builds the primorial by folding one prime at a time.** `product_tree.primorial` multiplies the primes in a product tree. On this machine the 150-digit prime \(10^{149}+183\) drops from about 40 s to about 7.2 s end to end. The witness is unchanged.
+- **150-digit FastECPP no longer builds the primorial by folding one prime at a time.** `product_tree.primorial` multiplies the primes in a product tree. On this machine the 150-digit prime 10^149+183 drops from about 40 s to about 7.2 s end to end. The witness is unchanged.
 
 ## [1.14.0] — 2026-09-25
 
 ### Performance
-- **Cold CLI on hard 64-bit primes no longer loads the native core just to discover it is not needed.** `cubic_complete_ready` answers from the pure-Python budget before dlopen. Cofactor trial up to 80 bits and bounds ≤ $50\,000$ uses an embedded prime-product table. A ≤96-bit leftover above that bound is split with deterministic Brent while `wheel_core` is still closed. Boolean BLS no longer imports the ECPP module to stash a witness. Same machine, 12 threads, best of three fresh processes: M61 ~3.1 ms → **~1.9 ms**, largest prime < $2^{64}$ ~3.2 ms → **~2.2 ms**, near $2^{63}$ ~3.1 ms → **~2.7 ms**, 147-bit default ~5.1 ms → **~4.7 ms**. Mid-size wheel trial stays in the same few milliseconds.
+- **Cold CLI on hard 64-bit primes no longer loads the native core just to discover it is not needed.** `cubic_complete_ready` answers from the pure-Python budget before dlopen. Cofactor trial up to 80 bits and bounds ≤ 50 000 uses an embedded prime-product table. A ≤96-bit leftover above that bound is split with deterministic Brent while `wheel_core` is still closed. Boolean BLS no longer imports the ECPP module to stash a witness. Same machine, 12 threads, best of three fresh processes: M61 ~3.1 ms → **~1.9 ms**, largest prime < 2^64 ~3.2 ms → **~2.2 ms**, near 2^63 ~3.1 ms → **~2.7 ms**, 147-bit default ~5.1 ms → **~4.7 ms**. Mid-size wheel trial stays in the same few milliseconds.
 
 ### Changed
 - Package version **1.14.0**. `DEFAULT_N` unchanged.
@@ -28,20 +29,20 @@ All notable changes to this project are documented in this file.
 - **Kronecker AKS** is no longer in the library. It was not on any size band. A miss is still `UnsettledPrimalityError`. The unused affine ECM curve constructor is gone; factoring stays on Montgomery ECM, and ECPP point search stays on the Jacobian scalar multiply.
 
 ### Performance
-- **100-digit numbers in the Pages lab.** There is no digit-length cutoff. A 100-digit Fermat composite is already settled by the Fermat filter; the factor hunt is ECM-first and capped at 8s (previously a long Brent, then 60s of ECM). \(10^{99}+9\) prints its factor in a few seconds. \(10^{99}+289\) still proves via ECPP. Longer decimals are accepted the same way.
+- **100-digit numbers in the Pages lab.** There is no digit-length cutoff. A 100-digit Fermat composite is already settled by the Fermat filter; the factor hunt is ECM-first and capped at 8s (previously a long Brent, then 60s of ECM). 10^99+9 prints its factor in a few seconds. 10^99+289 still proves via ECPP. Longer decimals are accepted the same way.
 - **Check theatre shows both doors.** After Check, the lab draws the n−1 / n+1 pass and the Selfridge discriminant row while that proof runs.
-- **Hostile \(n\pm 1\) no longer starts with a long Brent search.** The lab tries both sides and keeps looking for a Lucas witness instead of stopping at the first discriminant. `100…0009` (a prime whose \(n-1\) hides a 115-bit semiprime, while \(n+1\) factors completely) drops from tens of seconds to under a second. Primes above 96 bits no longer build a Python prime list out to \(5\cdot 10^6\) when the cofactor is already a Fermat composite.
+- **Hostile n+/- 1 no longer starts with a long Brent search.** The lab tries both sides and keeps looking for a Lucas witness instead of stopping at the first discriminant. `100…0009` (a prime whose n-1 hides a 115-bit semiprime, while n+1 factors completely) drops from tens of seconds to under a second. Primes above 96 bits no longer build a Python prime list out to 5* 10^6 when the cofactor is already a Fermat composite.
 - **Pages copy matches the faster BLS peel.** The exhibit, comparison, and cubic-search guides no longer quote the old ~0.3 s CLI default.
-- **BLS cofactor trial uses the OpenMP prime table.** Odd prime powers ≤ $2^{20}$ are peeled in `wheel_core` (2-adic on 64-bit cofactors, four-limb remainder above that) instead of a Python sieve. Same machine: near-$2^{63}$ e2e ~36 ms → ~3 ms, 147-bit CLI default ~41 ms → ~5 ms. Mid-size wheel trial is unchanged. Still deterministic; no Miller–Rabin.
+- **BLS cofactor trial uses the OpenMP prime table.** Odd prime powers ≤ 2^20 are peeled in `wheel_core` (2-adic on 64-bit cofactors, four-limb remainder above that) instead of a Python sieve. Same machine: near-2^63 e2e ~36 ms → ~3 ms, 147-bit CLI default ~41 ms → ~5 ms. Mid-size wheel trial is unchanged. Still deterministic; no Miller–Rabin.
 
 ### Fixed
-- **Past the wheel band, a BLS miss is a cubic search, not trial to $\sqrt{n}$.** $1955097530374556503981 = 31265776261 \times 62531552521$ passes the first ten Miller–Rabin bases, so BLS does not settle it. The lab used to divide up to $\lfloor\sqrt{n}\rfloor \approx 4.4\times 10^{10}$. Lehman’s $k=2$ window now prints the factor. The same path is every $n$ with $\lfloor\sqrt{n}\rfloor \ge 10^{7}$ under 256 bits, not a special case for this integer.
-- **Pages lab no longer asks before checking near \(2^{63}\).** \(9223372036854775783\) is an n−1 proof in the worker (tens of milliseconds); the confirm dialog is gone. In-tab ECPP peels for cofactors up to 380 bits no longer spend seconds of ECM on orders that trial and Fermat already settle, so \(10^{99}+289\) proves faster in the tab.
+- **Past the wheel band, a BLS miss is a cubic search, not trial to sqrt(n).** 1955097530374556503981 = 31265776261 * 62531552521 passes the first ten Miller–Rabin bases, so BLS does not settle it. The lab used to divide up to floor(sqrt(n)) approx 4.4* 10^10. Lehman’s k=2 window now prints the factor. The same path is every n with floor(sqrt(n)) >= 10^7 under 256 bits, not a special case for this integer.
+- **Pages lab no longer asks before checking near 2^63.** 9223372036854775783 is an n−1 proof in the worker (tens of milliseconds); the confirm dialog is gone. In-tab ECPP peels for cofactors up to 380 bits no longer spend seconds of ECM on orders that trial and Fermat already settle, so 10^99+289 proves faster in the tab.
 
 ### Added
-- **Cyclotomic proofs for wide primes.** `is_prime` on an integer with at least 800 bits tries a deterministic Jacobi-sum (APR-CL) proof before FastECPP. $10^{999}+7$ proves in about six minutes on 12 cores. The GMP helper `is_prime_data/aprcl_hot.c` does the ring arithmetic; without it the same proof still runs in pure Python.
+- **Cyclotomic proofs for wide primes.** `is_prime` on an integer with at least 800 bits tries a deterministic Jacobi-sum (APR-CL) proof before FastECPP. 10^999+7 proves in about six minutes on 12 cores. The GMP helper `is_prime_data/aprcl_hot.c` does the ring arithmetic; without it the same proof still runs in pure Python.
 - **CM tree on huge proofs.** A successful FastECPP / ECPP walk records
-  `D`, class number $h$, and cofactor sizes. `lab(n)["cm_tree"]` and the
+  `D`, class number h, and cofactor sizes. `lab(n)["cm_tree"]` and the
   CLI `CM_TREE:` line print the downrun so a slower smaller prime is
   visible as a heavier tree, not a dispatch bug.
 - **Standalone certificate file.** `primality-certificate --json` /
@@ -54,8 +55,8 @@ What this release **actually proves** (not a 10k-digit / 10 s claim):
 
 - Exact `is_prime`: BLS below 256 bits (`DEFAULT_N` is still the 147-bit
   Pocklington specimen). FastECPP from 256 bits through 40 000 bits.
-  Measured on one machine: $P_{100}=10^{99}+289$ a few seconds,
-  $P_{150}=10^{149}+183$ tens of seconds, $P_{200}=10^{199}+153$ about a
+  Measured on one machine: P_100=10^99+289 a few seconds,
+  P_150=10^149+183 tens of seconds, P_200=10^199+153 about a
   minute. A *general* 10k-digit prime in 10 s is the north-star and is
   **not** claimed.
 - Certificates follow that same ladder. `verify_certificate` is
@@ -68,62 +69,62 @@ What this release **actually proves** (not a 10k-digit / 10 s claim):
   A composite verdict does not wait on a complete factorization.
 
 ### Added
-- **FastECPP certificates** (`fastecpp_search`): same walk as `is_prime` at $\ge 256$ bits; nested `q_rec` so the downrun is not re-searched. `verify_certificate` already checked Atkin–GKM arithmetically.
-- **CLI progress** on stderr (`[best-prime]`, TTY or `BEST_PRIME_PROGRESS=1`): Fermat, usable $D$, prove $q$, factor hunt. `--max-ms` / `BEST_PRIME_MAX_MS` hard-stops the search as `RESULT: unsettled` (exit 3), never as a false composite.
+- **FastECPP certificates** (`fastecpp_search`): same walk as `is_prime` at >= 256 bits; nested `q_rec` so the downrun is not re-searched. `verify_certificate` already checked Atkin–GKM arithmetically.
+- **CLI progress** on stderr (`[best-prime]`, TTY or `BEST_PRIME_PROGRESS=1`): Fermat, usable D, prove q, factor hunt. `--max-ms` / `BEST_PRIME_MAX_MS` hard-stops the search as `RESULT: unsettled` (exit 3), never as a false composite.
 - **`prime_factors(..., max_ms=)`** raises `UnsettledFactorError` when the budget expires. CLI `prime-factors --max-ms` (default 30 s above 512 bits).
 - **Published timing table** (`benchmarks/timing_table.py`): PR band is P40 / `DEFAULT_N` / C123 / P100; main adds P150; nightly adds P200. CI records times and fails only on a wrong verdict.
 - **Independent certificate check** on a fixed list (2, 17, 101, P40, `DEFAULT_N`); P100 / P131 `@slow`.
-- **In-tree 33k-bit modular `pow`** (`is_prime_data/huge_arith.c`): 6-bit window. CIOS Montgomery below ~200 limbs; school / Karatsuba / Toom-3 + Barrett above that. Used by Tonelli, Fermat, and the huge-n `is_prime` filter when $n$ has $\ge 512$ bits. Measured vs CPython `pow`: ~4.7× at 1000 digits (15 ms vs 72 ms), ~6× at 10k digits (9.4 s vs ~55 s), same residues. Falls back to `pow` if the `.so` is missing. `DEFAULT_N` unchanged.
-- **FastECPP $D$ catalog** (`_fundamentals.py`, generated by `scripts/generate_fundamentals.py`): 11 013 fundamental discriminants with $2\le h\le 128$ and $|D|\le 40000$, so the walk does not recompute class numbers.
-- **FastECPP product tree** (`product_tree`): remainder-tree batch trial of many curve orders $m=n+1\pm t$ against a primorial. The $D$-walk collects a bit-scaled batch of Cornacchia hits, peels them together, then builds $H_D$ only for usable leftovers.
-- **Weber $f,f_1,f_2$** in `classpoly` (Dedekind $\eta$ quotients). $j$ from $f$ matches the Eisenstein $j$ on the class-number-1 list. Full Weber *class* polynomials need Shimura $N$-systems (not a drop-in $H_D$ yet).
-- **FastECPP M1–M3** (`primality_fastecpp`, `classpoly`): computed Hilbert $H_D$ (bit-identical to the transcribed $|D|\le 68$ table). `is_prime` runs it for $256\le$ bits $\le 40\,000$ after BLS/ECPP miss (15 s cap above ~1000 digits so 10k-digit inputs do not hang). Measured on this machine: $P_{100}=10^{99}+289$ ~10 s; $P_{300}=10^{299}+669$ ~15 min. 10k-digit / 10 s is still the north-star: a 10k-digit modular exponentiation is already seconds in CPython. `DEFAULT_N` unchanged.
-- **`UnsettledPrimalityError`** when $n$ has $\ge 512$ bits and ECPP/BLS cannot settle. Kronecker AKS is not started (it would hang at 10k digits). CLI prints `RESULT: unsettled` and exits $3$. `sys.set_int_max_str_digits(0)` so 10k-digit decimals parse. FastECPP is the next engine for that wider band.
-- Pages lab shows the **digit count** of $n$ as you type, and a **next / previous prime** panel under the checker (same deterministic worker; optional $k$-th neighbor; no try-count / wall-clock cap).
-- **Small-h CM ECPP** ($h(D)\le 16$) from transcribed Hilbert class polynomials
-  $H_D$ (Cohen Tables 7.1 / 7.6, Fungrim 20b6d2). Numbered Cantor–Zassenhaus
-  for a root of $H_D$ mod $n$. The general 100-digit gate is this layer.
+- **In-tree 33k-bit modular `pow`** (`is_prime_data/huge_arith.c`): 6-bit window. CIOS Montgomery below ~200 limbs; school / Karatsuba / Toom-3 + Barrett above that. Used by Tonelli, Fermat, and the huge-n `is_prime` filter when n has >= 512 bits. Measured vs CPython `pow`: ~4.7× at 1000 digits (15 ms vs 72 ms), ~6× at 10k digits (9.4 s vs ~55 s), same residues. Falls back to `pow` if the `.so` is missing. `DEFAULT_N` unchanged.
+- **FastECPP D catalog** (`_fundamentals.py`, generated by `scripts/generate_fundamentals.py`): 11 013 fundamental discriminants with 2<= h<= 128 and |D|<= 40000, so the walk does not recompute class numbers.
+- **FastECPP product tree** (`product_tree`): remainder-tree batch trial of many curve orders m=n+1+/- t against a primorial. The D-walk collects a bit-scaled batch of Cornacchia hits, peels them together, then builds H_D only for usable leftovers.
+- **Weber f,f_1,f_2** in `classpoly` (Dedekind eta quotients). j from f matches the Eisenstein j on the class-number-1 list. Full Weber *class* polynomials need Shimura N-systems (not a drop-in H_D yet).
+- **FastECPP M1–M3** (`primality_fastecpp`, `classpoly`): computed Hilbert H_D (bit-identical to the transcribed |D|<= 68 table). `is_prime` runs it for 256<= bits <= 40 000 after BLS/ECPP miss (15 s cap above ~1000 digits so 10k-digit inputs do not hang). Measured on this machine: P_100=10^99+289 ~10 s; P_300=10^299+669 ~15 min. 10k-digit / 10 s is still the north-star: a 10k-digit modular exponentiation is already seconds in CPython. `DEFAULT_N` unchanged.
+- **`UnsettledPrimalityError`** when n has >= 512 bits and ECPP/BLS cannot settle. Kronecker AKS is not started (it would hang at 10k digits). CLI prints `RESULT: unsettled` and exits 3. `sys.set_int_max_str_digits(0)` so 10k-digit decimals parse. FastECPP is the next engine for that wider band.
+- Pages lab shows the **digit count** of n as you type, and a **next / previous prime** panel under the checker (same deterministic worker; optional k-th neighbor; no try-count / wall-clock cap).
+- **Small-h CM ECPP** (h(D)<= 16) from transcribed Hilbert class polynomials
+  H_D (Cohen Tables 7.1 / 7.6, Fungrim 20b6d2). Numbered Cantor–Zassenhaus
+  for a root of H_D mod n. The general 100-digit gate is this layer.
 - **BLS and Atkin–GKM certificates** (`primality_certificate` / `verify_certificate`):
   same ladder as `is_prime`, arithmetic-only verifier. `is_prime` remains
   boolean-only.
 - **Class-number-1 deterministic Atkin–Morain ECPP** skeleton (`primality_ecpp`):
-  13 discriminants, canonical Cornacchia, $C_4$/$C_6$ twist generators.
+  13 discriminants, canonical Cornacchia, C_4/C_6 twist generators.
   Not a general 100-digit engine.
 - **BLS n+1 + Combined Theorem 1** in `primality_nm1`: Lucas condition (II) when
-  $G>\sqrt{n}$ or $G=n+1$, and Combined Theorem 1
-  ($n < \max(F^2 G/2,\, F G^2/2)$). Special-form / smooth $n\pm 1$ only;
+  G>sqrt(n) or G=n+1, and Combined Theorem 1
+  (n < max(F^2 G/2, F G^2/2)). Special-form / smooth n+/- 1 only;
   not a general 100-digit prover. Cofactor proofs never enter AKS.
-- **SIQS** in the n±1 splitter after ECM (`80\le` bits $\le 200$), with
+- **SIQS** in the n±1 splitter after ECM (80 to 200 bits), with
   `max_ms` abort on ECM/SIQS (no raise).
 
 ### Changed
 - Package version **1.13.0**. `DEFAULT_N` unchanged.
-- **`_trial_30(..., limit=)` no longer ignores the limit after the first factor.** Stripping 193 from $10^{131}+1113$ used to raise the cap to $\sqrt{q}$ (~65 digits) and hang. The ceiling stays.
-- **`python -m best_prime` no longer hangs after proving a huge composite.** Fermat already rejects $10^{122}+1203$ in milliseconds; the CLI then used to start an 8-million-$k$ cubic hunt. `_one_factor` now trials / short Brent / bounded ECM and prints `FACTOR` when it finds one (that $n$ splits as $5482299091\cdot q$).
+- **`_trial_30(..., limit=)` no longer ignores the limit after the first factor.** Stripping 193 from 10^131+1113 used to raise the cap to sqrt(q) (~65 digits) and hang. The ceiling stays.
+- **`python -m best_prime` no longer hangs after proving a huge composite.** Fermat already rejects 10^122+1203 in milliseconds; the CLI then used to start an 8-million-k cubic hunt. `_one_factor` now trials / short Brent / bounded ECM and prints `FACTOR` when it finds one (that n splits as 5482299091* q).
 - **`prev_prime` window-sieves backward** (same deep odd window as `next_prime`) so a large prime gap is not a 1e6-trial per candidate. FastECPP downruns no longer repeat the 13 class-number-1 discriminants after the caller already missed. Smaller *n* can still take longer when the previous prime has a harder CM tree — that is the proof, not the digit count.
 - **`python -m best_prime.prev_prime n` is a real CLI** (it used to import the module and exit with no output). Same `TEST`/`RESULT`/`TIME` as `prev-prime`. The walk also Fermat-rejects composites before `is_prime`, so a 123-digit predecessor finishes in seconds instead of hanging on every wheel candidate.
-- **Pages lab prints a factor** for huge Fermat composites (trial to \(10^6\), then p−1 / Brent / ECM). \(10^{131}+1113 = 193\cdot q\) no longer shows “factor: not isolated”.
-- **Pages lab proves general 132–150 digit primes.** After class-number-1 the worker computes Hilbert $H_D$ (same $j(\tau)$ q-expansion as `classpoly`) and walks $|D|$ up to 12 000, so $10^{131}+63$ and $10^{149}+183$ settle in-tab. `DEFAULT_N` unchanged.
+- **Pages lab prints a factor** for huge Fermat composites (trial to 10^6, then p−1 / Brent / ECM). 10^131+1113 = 193* q no longer shows “factor: not isolated”.
+- **Pages lab proves general 132–150 digit primes.** After class-number-1 the worker computes Hilbert H_D (same j(tau) q-expansion as `classpoly`) and walks |D| up to 12 000, so 10^131+63 and 10^149+183 settle in-tab. `DEFAULT_N` unchanged.
 - **Pages engine theatre:** each lab stage is a small scene (doormen, Fermat lanterns, Brent hare/tortoise, ECM scout, CM sky, 30-wheel orrery needle) with a dry one-line act title. Same engines and IDs; `prefers-reduced-motion` respected.
 - **Stdlib-fallback CI no longer imports Numba** in `_configure_threads` / `_is_prime_u64` when NumPy/Numba are absent (the no-compiler job sets `OMP_NUM_THREADS` and runs BLS certificate tests). Falls back to the 30030-wheel.
-- **Pages lab next/prev after $10^{130}+1113$**: after class-number-1 miss the worker walks in-tab $H_D$ (Cantor–Zassenhaus + Goldwasser–Kilian), including $D=-3076$ so $10^{130}+1189$ proves in-tab. No BLS after an ECPP miss. `DEFAULT_N` unchanged.
-- **ECPP peel is trial-first** (short Brent; ECM only when $h>1$). $10^{130}+1113$ ~4.6 s. Cofactors $\ge 256$ bits skip BLS / transcribed $h\le 16$ and recurse FastECPP. `next_prime` after that specimen finishes (~42 s): the *next* prime is a general 131-digit FastECPP proof ($D=-3076$), not another $D=-19$ downrun. `DEFAULT_N` unchanged.
-- **One engine per bit band** in `is_prime`: BLS only below 256 bits (`DEFAULT_N` stays `u128_nm1`); FastECPP only at $\ge 256$ bits (class-number-1 is inside that walk). Removed the BLS → transcribed ECPP → FastECPP → AKS chain. A miss is `UnsettledPrimalityError`, not AKS. The Pages lab matches: ≥256-bit checks are class-number-1 then in-tab FastECPP $H_D$ (no BLS after a miss). `DEFAULT_N` unchanged.
-- **10k-digit `is_prime` no longer burns six Fermats + p−1 + 13 class-number-1 Tonellis** before FastECPP. Above 3500 bits: one base-2 Fermat, skip p−1/ECM split, skip $h=1$, Cornacchia batch size 1. Tonelli uses Atkin when $n\equiv 5\pmod 8$ (one exp, not three). `DEFAULT_N` unchanged.
-- **n±1 peel is staged:** trial to 50k first; deepen only when the leftover is Fermat-composite; a large prime cofactor of $n-1$ (the CLI default $2\cdot5\cdot13\cdot q_{140}$) is proved without a 5e6 scan of $n+1$. CLI `TIME` on `DEFAULT_N` drops from ~0.26 s to ~0.04 s on this machine.
+- **Pages lab next/prev after 10^130+1113**: after class-number-1 miss the worker walks in-tab H_D (Cantor–Zassenhaus + Goldwasser–Kilian), including D=-3076 so 10^130+1189 proves in-tab. No BLS after an ECPP miss. `DEFAULT_N` unchanged.
+- **ECPP peel is trial-first** (short Brent; ECM only when h>1). 10^130+1113 ~4.6 s. Cofactors >= 256 bits skip BLS / transcribed h<= 16 and recurse FastECPP. `next_prime` after that specimen finishes (~42 s): the *next* prime is a general 131-digit FastECPP proof (D=-3076), not another D=-19 downrun. `DEFAULT_N` unchanged.
+- **One engine per bit band** in `is_prime`: BLS only below 256 bits (`DEFAULT_N` stays `u128_nm1`); FastECPP only at >= 256 bits (class-number-1 is inside that walk). Removed the BLS → transcribed ECPP → FastECPP → AKS chain. A miss is `UnsettledPrimalityError`, not AKS. The Pages lab matches: ≥256-bit checks are class-number-1 then in-tab FastECPP H_D (no BLS after a miss). `DEFAULT_N` unchanged.
+- **10k-digit `is_prime` no longer burns six Fermats + p−1 + 13 class-number-1 Tonellis** before FastECPP. Above 3500 bits: one base-2 Fermat, skip p−1/ECM split, skip h=1, Cornacchia batch size 1. Tonelli uses Atkin when n ≡ 5 (mod 8) (one exp, not three). `DEFAULT_N` unchanged.
+- **n±1 peel is staged:** trial to 50k first; deepen only when the leftover is Fermat-composite; a large prime cofactor of n-1 (the CLI default 2*5*13* q_140) is proved without a 5e6 scan of n+1. CLI `TIME` on `DEFAULT_N` drops from ~0.26 s to ~0.04 s on this machine.
 - Deterministic **Montgomery/Suyama ECM** (fixed σ=6,7,…) replaces affine Weierstrass as the factorer; Weierstrass `_mul` stays Jacobian for ECPP point search. Huge-n `is_prime` tries ECPP before a deep BLS peel (`bits≥256`; `DEFAULT_N` unchanged). Peel of curve orders is cached; smallest Goldwasser–Kilian `q` is tried first.
-- Pages interactive lab **proves** $10^{130}+1113$ in-tab: Jacobian ECPP mul, stacked ECM peel of $m$, and “wrong order → next $(q,c)$ pair” (a $g=n$ inversion is not the point at infinity). The previous 45 s budget died on $D=-3$ and never reached $D=-19$.
+- Pages interactive lab **proves** 10^130+1113 in-tab: Jacobian ECPP mul, stacked ECM peel of m, and “wrong order → next (q,c) pair” (a g=n inversion is not the point at infinity). The previous 45 s budget died on D=-3 and never reached D=-19.
 - Pages interactive lab mirrors the new huge-n ladder: **combined BLS** (n−1, Lucas n+1, Combined Theorem 1), then class-number-1 **ECPP**, then 30-wheel trial. Stage panel adds Lucas / Combined / ECPP views.
 - **PR CI is leaner:** one Linux 3.12 job does tests + lint + determinism trials; auto-merge waits only for branch-protection gates; **Publish wiki** is dispatched after a successful merge. The Pages workflow no longer also hooks Auto-merge via `workflow_run` (that cancelled the real deploy). Full extra-version determinism and 3.9/3.12/3.13 + macOS/Windows run on `main`.
-- Pages interactive lab uses **Montgomery ECM (Suyama)** on hostile $n-1$, so $10^{54}+31$ proves prime in-tab (~1–2 min) instead of returning inconclusive.
-- Pages lab prints a **factor** for composites and shows a live stage panel that mirrors the engine (precheck, Fermat, split, Brent, $p-1$, ECM, Pocklington, 30-wheel).
-- n−1 proofs use the **BLS $n^{1/3}$ extra** when $F$ is below $\sqrt{n}$ but $n < 2F^3$ (settles $10^{96}+127$ in the Pages lab).
+- Pages interactive lab uses **Montgomery ECM (Suyama)** on hostile n-1, so 10^54+31 proves prime in-tab (~1–2 min) instead of returning inconclusive.
+- Pages lab prints a **factor** for composites and shows a live stage panel that mirrors the engine (precheck, Fermat, split, Brent, p-1, ECM, Pocklington, 30-wheel).
+- n−1 proofs use the **BLS n^1/3 extra** when F is below sqrt(n) but n < 2F^3 (settles 10^96+127 in the Pages lab).
 
 ### Docs
-- FastECPP M1–M3: computed $H_D$; general 100- and 300-digit gate is
+- FastECPP M1–M3: computed H_D; general 100- and 300-digit gate is
   `bigint_fastecpp`. Combined BLS, then ECPP, then FastECPP for
-  $256\le$ bits $\le 40\,000$, then AKS below 512 bits. Combined Theorem 1
-  (not $FG>\sqrt{n}$); `gk_min_q`. Restrictions + wiki synced. `DEFAULT_N`
+  256<= bits <= 40 000, then AKS below 512 bits. Combined Theorem 1
+  (not FG>sqrt(n)); `gk_min_q`. Restrictions + wiki synced. `DEFAULT_N`
   unchanged (147-bit). Guide: `docs/guide/ecpp-proof.md`.
 - Wiki CI page and Home lab copy describe the PR/main split and in-browser ECM.
 - Dropped duplicate README mermaid / Mission essay, wiki dispatch reprint, and `.github/SECURITY.md` (root `SECURITY.md` is the policy). Stale “AKS only” ledes now say BLS → ECPP → AKS.
@@ -131,16 +132,16 @@ What this release **actually proves** (not a 10k-digit / 10 s claim):
 ## [1.12.0] — 2026-08-13
 
 ### Added
-- **n−1 Pocklington primality** (`best_prime/primality_nm1.py`) on the hard path: factor $n-1$, prove prime with fixed bases. Deterministic; not Miller–Rabin. Complete cubic search remains the fallback when $n-1$ is hostile. Guide: `docs/guide/nm1-proof.md`.
+- **n−1 Pocklington primality** (`best_prime/primality_nm1.py`) on the hard path: factor n-1, prove prime with fixed bases. Deterministic; not Miller–Rabin. Complete cubic search remains the fallback when n-1 is hostile. Guide: `docs/guide/nm1-proof.md`.
 - Python **3.9 import fix**: type alias uses `Optional[bool]` (not `X | Y` at runtime) so hard-path imports do not crash on 3.9.
-- **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to $\lceil n^{1/3}\rceil$, then integer-safe Lehman windows. Complete through every 64-bit $n$; hard-path fallback and `factorint` splitter. Guide: `docs/guide/cubic-search.md`.
-- OpenMP cubic completeness is **engine-limited only**: any $n$ with $4kn$ in 128 bits for $k\le\lceil n^{1/3}\rceil$ (no artificial cube-root product cap).
+- **`lehman_factor`** — two-band cubic factor search: 30-wheel rising-product gcd up to ceil(n^1/3), then integer-safe Lehman windows. Complete through every 64-bit n; hard-path fallback and `factorint` splitter. Guide: `docs/guide/cubic-search.md`.
+- OpenMP cubic completeness is **engine-limited only**: any n with 4kn in 128 bits for k<=ceil(n^1/3) (no artificial cube-root product cap).
 - n−1 cofactor primality uses full `is_prime` (recursive Pocklington) instead of forcing cubic on large prime cofactors.
 - Multi-limb `is_prime` always tries **n−1 Pocklington** even when cubic C cannot run (`4kn` > 128 bits). Fixes `next_prime(10**29+1)` falling into AKS despite an easy next prime.
 - **Deep `next_prime` window sieve** (primes ≤ 1e6 mark adaptive windows; Fermat reject before `is_prime`).
-- **Multiprecision cubic** (Python `int` `4kn`) for complete proofs while $\lceil n^{1/3}\rceil \le 8\cdot10^6$; C still used when `4kn` fits in 128 bits.
-- Stronger n−1 factoring: Fermat + Brent + Pollard p−1 + short cubic + ECM so primes past the u128 wall with awkward $n-1$ still get Pocklington.
-- **Partial Pocklington**: factor only until $F>\sqrt{n}$.
+- **Multiprecision cubic** (Python `int` `4kn`) for complete proofs while ceil(n^1/3) <= 8*10^6; C still used when `4kn` fits in 128 bits.
+- Stronger n−1 factoring: Fermat + Brent + Pollard p−1 + short cubic + ECM so primes past the u128 wall with awkward n-1 still get Pocklington.
+- **Partial Pocklington**: factor only until F>sqrt(n).
 
 ### Changed
 - Hard 64-bit / multi-limb `is_prime` tries **n−1 first** (`u64_nm1` / `u128_nm1`), then cubic. Mid-size 64-bit stays `u64_wheel_c`.
@@ -193,20 +194,20 @@ What this release **actually proves** (not a 10k-digit / 10 s claim):
 ### Changed
 Hard-path OpenMP sieve (u64 and u128), same exact prime-only trial:
 
-- **L1-tiled marking for $p<256$** — walk each 128 KiB segment as 16 KiB tiles so the hottest mark streams stay in L1. Larger sieve primes still do one pass (few stores; tile restart would dominate).
-- Mid-size $\sqrt{n}\le 2^{20}$ unchanged (precomputed 2-adic trial).
+- **L1-tiled marking for p<256** — walk each 128 KiB segment as 16 KiB tiles so the hottest mark streams stay in L1. Larger sieve primes still do one pass (few stores; tile restart would dominate).
+- Mid-size sqrt(n)<= 2^20 unchanged (precomputed 2-adic trial).
 
-Tried same session and **not taken:** 8-way mark unroll (noise); 32-bit `__builtin_umul_overflow` (wrong width); extra $31\cdot37\cdot41$ presieve / 16-way trial (still F13); tiling *all* primes (already rejected).
+Tried same session and **not taken:** 8-way mark unroll (noise); 32-bit `__builtin_umul_overflow` (wrong width); extra 31*37*41 presieve / 16-way trial (still F13); tiling *all* primes (already rejected).
 
 ### Performance (indicative vs 1.9.0 / 1.8.1 engine, 12 OpenMP threads, Zen 2)
 Interleaved same-process A/B against the previous `.so`:
 
 | Case | Δ best-of |
 |------|----------:|
-| $10^9+7\times 10^9+9$ | ~**10%** faster |
+| 10^9+7* 10^9+9 | ~**10%** faster |
 | M61 | ~**8–14%** faster |
-| Near $2^{63}$ | ~**6–10%** faster |
-| Largest prime < $2^{64}$ | ~**6–7%** faster |
+| Near 2^63 | ~**6–10%** faster |
+| Largest prime < 2^64 | ~**6–7%** faster |
 | Default mid-size e2e suite | unchanged class (still precomputed-prime path) |
 
 Also in this release (already on `main` after 1.9.0): package layout under `best_prime/`, MkDocs `/guide/`, Pages publish after auto-merge.
@@ -223,7 +224,7 @@ Library arithmetic on top of existing exact `is_prime` / `factorint` (still no M
 - **`omega` / `bigomega` / `radical` / `is_squarefree` / `is_semiprime` / `is_carmichael`**
 - **`gcd` / `egcd` / `modinv` / `crt` / `jacobi`**
 - Console scripts: `totient`, `primorial`, `divisors`
-- **`nth_prime(k)`** for large $k$ uses $\log p_k$ calls to `prime_count` (binary search) instead of sieving every prime up to $p_k$
+- **`nth_prime(k)`** for large k uses log p_k calls to `prime_count` (binary search) instead of sieving every prime up to p_k
 - Optional extra **`[fast]`** (`numpy` + `numba`); core install has no required third-party deps. OpenMP C still builds when `gcc` is present.
 
 New module: [`ntheory.py`](ntheory.py). Import from `best_prime`.
@@ -234,10 +235,10 @@ New module: [`ntheory.py`](ntheory.py). Import from `best_prime`.
 
 ### Added
 - **`prime_count(n)`** now covers every 64-bit `n` (`PRIME_COUNT_MAX_N = 2⁶⁴−1`):
-  - odds-only sieve / Lucy–Hedgehog while $\sqrt{n}\le 5\cdot10^7$ ($n\le 2.5\cdot10^{15}$)
+  - odds-only sieve / Lucy–Hedgehog while sqrt(n)<= 5*10^7 (n<= 2.5*10^15)
   - memoized **Meissel–Lehmer** beyond that (subproblems still use Lucy when they fit)
 - Public `PRIME_COUNT_MAX_N` on `best_prime`. `n > 2⁶⁴−1` raises `ValueError`.
-- Tests actually run the Lehmer loops (forced on $10^4\ldots10^7$ / $2^{20}$) instead of only Lucy-sized $10^{12}$.
+- Tests actually run the Lehmer loops (forced on 10^4...10^7 / 2^20) instead of only Lucy-sized 10^12.
 
 ### Fixed
 - Unfinished Meissel–Lehmer work: Numba 32-bit sieve kernel is cached (was rebuilt every call); prime list stored as compact `array('I')` when large.
@@ -253,8 +254,8 @@ Hard-path OpenMP sieve (u64 and u128):
 Same exact prime-only trial. 16-way trial / extra 31·37·41 OR / 64 KiB segments still not taken.
 
 ### Performance (indicative vs 1.8.0, 12 OpenMP threads, LTO)
-- M61 / $10^9$ semiprime: ~**7–15%** faster in-process.
-- Largest prime < $2^{64}$ / near $2^{63}$: ~**5–12%** faster best-of runs.
+- M61 / 10^9 semiprime: ~**7–15%** faster in-process.
+- Largest prime < 2^64 / near 2^63: ~**5–12%** faster best-of runs.
 - Default mid-size e2e suite: unchanged or slightly faster (same precomputed-prime path).
 
 ## [1.8.0] — 2026-08-10
@@ -262,18 +263,18 @@ Same exact prime-only trial. 16-way trial / extra 31·37·41 OR / 64 KiB segme
 ### Changed
 Hard 64-bit / practical u128 OpenMP path (`wheel_core.c`):
 
-- **INV16** — lift $p^{-1}\bmod 2^{16}$ with **two** Newton steps (was three from 8-bit `INV8`) on sieved-prime wrap-mul trial.
-- **Presieve $19\cdot23\cdot29$** — sequential AVX2/scalar OR of a 12673-byte wheel-30 pattern on top of the existing $7\cdot11\cdot13\cdot17$ memcpy tile. Marking starts at $p\ge 31$.
-- **Contiguous per-thread segments + persisted mark positions** — each thread owns a consecutive run of segments and walks the 8 residue streams forward (one first-$m$ DIV per prime, no per-segment DIV).
+- **INV16** — lift p^-1 mod 2^16 with **two** Newton steps (was three from 8-bit `INV8`) on sieved-prime wrap-mul trial.
+- **Presieve 19*23*29** — sequential AVX2/scalar OR of a 12673-byte wheel-30 pattern on top of the existing 7*11*13*17 memcpy tile. Marking starts at p>= 31.
+- **Contiguous per-thread segments + persisted mark positions** — each thread owns a consecutive run of segments and walks the 8 residue streams forward (one first-m DIV per prime, no per-segment DIV).
 - **128 KiB segments** on the hard path (persist made 256 KiB unnecessary).
 - Cached `inv30` and 32-bit DIV for first-mark / pattern build. Same exact prime-only trial; no Miller–Rabin.
 
 ### Performance (indicative vs 1.7.0 / 1.4.4 engine, 12 OpenMP threads, Zen 2)
-- Largest prime < $2^{64}$: ~**336 ms → ~287 ms** in-process (~**13–15%**); e2e ~310 ms class.
-- Near $2^{63}$ / M61: ~**10–15%** faster in-process.
+- Largest prime < 2^64: ~**336 ms → ~287 ms** in-process (~**13–15%**); e2e ~310 ms class.
+- Near 2^63 / M61: ~**10–15%** faster in-process.
 - Default mid-size e2e suite: unchanged class (still precomputed-prime trial).
 
-Tried same session and **not taken**: 16-way trial (hurt the default $n$); extra $31\cdot37\cdot41$ OR pattern (helped M61, slightly hurt max 64-bit); 512 KiB segments.
+Tried same session and **not taken**: 16-way trial (hurt the default n); extra 31*37*41 OR pattern (helped M61, slightly hurt max 64-bit); 512 KiB segments.
 
 ## [1.7.0] — 2026-08-10
 
@@ -281,11 +282,11 @@ Tried same session and **not taken**: 16-way trial (hurt the default $n$); extra
 Deterministic library APIs on top of the existing engines (no new primality shortcut):
 
 - **`prev_prime(n, k=1)`** — k-th prime strictly below `n` (table / interval sieve / backward 30030-wheel).
-- **`nth_prime(k)`** — $p_k$; odds-only sieve or segmented sieve from a Dusart bound.
-- **`prime_count(n)`** — $\pi(n)$; odds-only sieve below $2\cdot10^7$, Lucy–Hedgehog (compact int64 + Numba) up to $n\le 2.5\cdot10^{15}$ (`PRIME_COUNT_MAX_N`). The former $5\cdot10^6$ figure was the Lucy *√n* table cap, not max $n$.
+- **`nth_prime(k)`** — p_k; odds-only sieve or segmented sieve from a Dusart bound.
+- **`prime_count(n)`** — pi(n); odds-only sieve below 2*10^7, Lucy–Hedgehog (compact int64 + Numba) up to n<= 2.5*10^15 (`PRIME_COUNT_MAX_N`). The former 5*10^6 figure was the Lucy *√n* table cap, not max n.
 - **`primes(n)`**, **`primerange(a, b)`** — cached odds-only Eratosthenes / segmented interval sieve.
-- **`prime_factors(n)`**, **`factorint(n)`** — 30-wheel trial, Fermat for close factors, deterministic Brent–Pollard (fixed $c=1,2,\ldots$), then `is_prime` on pieces.
-- **`is_perfect_power(n)`**, **`is_prime_power(n)`** — Newton integer $k$-th roots; only prime exponents.
+- **`prime_factors(n)`**, **`factorint(n)`** — 30-wheel trial, Fermat for close factors, deterministic Brent–Pollard (fixed c=1,2,...), then `is_prime` on pieces.
+- **`is_perfect_power(n)`**, **`is_prime_power(n)`** — Newton integer k-th roots; only prime exponents.
 
 Shared engine: [`prime_sieve.py`](prime_sieve.py). Still no stochastic engines and no prime libraries.
 
@@ -299,27 +300,27 @@ Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange
 ### Added
 - **`next_prime(n, k=1, *, parallel=True) -> int`** in a new module [`next_prime.py`](next_prime.py): the `k`-th prime *strictly greater than* `n` (`k=1` is the successor).
   - Same input contract as `is_prime` (`int` or decimal `str`; rejects `bool` / negatives). `k` is a positive `int`.
-  - Tiny \(n\): one Eratosthenes table through \(10\,007\) and a bisect (no NumPy/Numba).
-  - Large `k` with practical \(\sqrt{\text{bound}}\): our own interval sieve.
+  - Tiny n: one Eratosthenes table through 10 007 and a bisect (no NumPy/Numba).
+  - Large `k` with practical sqrt{text{bound}}: our own interval sieve.
   - Otherwise: **30030-wheel** candidates, a 17…1021 prefilter, then the existing `is_prime` engines (OpenMP C / stdlib wheel / Numba / AKS).
   - Fully deterministic; no Miller–Rabin; no prime libraries as the engine.
 - Console script **`next-prime`**. Also importable as `best_prime.next_prime` and lazily as `is_prime.next_prime`.
 
 ### Tests
-- New `tests/test_next_prime.py`: exhaustive naive match on \(0\ldots4999\), `k`-th successor, API contract, wheel alignment, mid-size twins / 12-digit minimality, Hypothesis (derandomized), CLI.
+- New `tests/test_next_prime.py`: exhaustive naive match on 0...4999, `k`-th successor, API contract, wheel alignment, mid-size twins / 12-digit minimality, Hypothesis (derandomized), CLI.
 
 ## [1.5.0] — 2026-08-08
 
 ### Changed
-- **Huge \(n\)** (beyond practical full trial): 30030-wheel factor scan to \(10^8\) (was an odd loop to \(5\cdot10^7\)), then a faster exact **AKS**:
-  - Kronecker substitution (Python long-int) instead of \(O(r^2)\) schoolbook poly mul
-  - prime \(r\) only; skip when \(r-1\le(\log_2 n)^2\)
+- **Huge n** (beyond practical full trial): 30030-wheel factor scan to 10^8 (was an odd loop to 5*10^7), then a faster exact **AKS**:
+  - Kronecker substitution (Python long-int) instead of O(r^2) schoolbook poly mul
+  - prime r only; skip when r-1<=(log_2 n)^2
   - perfect-power: squares + odd exponents only
   - optional threaded witness loop (`parallel=True`)
-- Still fully deterministic; AKS remains the final engine (no Miller–Rabin). Huge **primes** can still take a long time; huge **composites** with a factor \(\le 10^8\) return quickly.
+- Still fully deterministic; AKS remains the final engine (no Miller–Rabin). Huge **primes** can still take a long time; huge **composites** with a factor <= 10^8 return quickly.
 
 ### Tests
-- New `tests/test_aks.py`: perfect powers, Kronecker mul vs schoolbook, AKS vs `is_prime` on \(0\ldots399\), Carmichael/Poulet, huge pre-AKS composites.
+- New `tests/test_aks.py`: perfect powers, Kronecker mul vs schoolbook, AKS vs `is_prime` on 0...399, Carmichael/Poulet, huge pre-AKS composites.
 
 ## [1.4.4] — 2026-08-08
 
@@ -327,47 +328,47 @@ Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange
 - Hard-path prime extract: scan **8 wheel-30 bytes per `ctzll`** instead of one byte per loop. Same exact prime-only trial; u64 wrap-mul and u128 `%` unchanged.
 
 ### Performance (indicative vs 1.4.3, 12 OpenMP threads)
-- Largest prime < $2^{64}$ (CLI default): ~**381 ms → ~303 ms** (~**20%**).
-- Near $2^{63}$ / M61 / large semiprime: ~**20–29%** faster in-process.
+- Largest prime < 2^64 (CLI default): ~**381 ms → ~303 ms** (~**20%**).
+- Near 2^63 / M61 / large semiprime: ~**20–29%** faster in-process.
 - Default mid-size e2e suite: unchanged class.
 
 ## [1.4.3] — 2026-08-08
 
 ### Changed
-- CLI default $n$ is now **`18446744073709551557`** (largest prime < $2^{64}$), the hardest 64-bit yardstick. `DEFAULT_N` is exported from `is_prime` / `best_prime`.
-- Hard-path sieve: **memcpy presieve** of $7\cdot11\cdot13\cdot17$ (17017-byte repeating wheel-30 bitmap) plus **32-bit mark starts**. Same exact prime-only trial.
+- CLI default n is now **`18446744073709551557`** (largest prime < 2^64), the hardest 64-bit yardstick. `DEFAULT_N` is exported from `is_prime` / `best_prime`.
+- Hard-path sieve: **memcpy presieve** of 7*11*13*17 (17017-byte repeating wheel-30 bitmap) plus **32-bit mark starts**. Same exact prime-only trial.
 
 ### Tests
 - Shared `tests/numbers.py` + `conftest.py`; new `test_cli.py`, `test_lab.py`, `test_determinism.py`.
-- Exhaustive naive match extended through $9999$; more Carmichael / Poulet / Fermat specimens; Hypothesis products/squares/evens/string parity; threaded small-n determinism; `lab()` contract.
+- Exhaustive naive match extended through 9999; more Carmichael / Poulet / Fermat specimens; Hypothesis products/squares/evens/string parity; threaded small-n determinism; `lab()` contract.
 - Hard 64-bit serial==parallel moved under `@pytest.mark.slow`. CI determinism script covers more mid-size / composite / MR-liar cases without evaluating the 64-bit default (too slow).
 
 ### Performance (indicative vs 1.4.2, 12 OpenMP threads)
-- Largest prime < $2^{64}$: ~**425 ms → ~397 ms** (~**7%**).
-- Near $2^{63}$ / M61 / large semiprime: ~**5–9%** faster in-process.
+- Largest prime < 2^64: ~**425 ms → ~397 ms** (~**7%**).
+- Near 2^63 / M61 / large semiprime: ~**5–9%** faster in-process.
 - Default mid-size e2e suite: unchanged class.
 
 ## [1.4.2] — 2026-08-08
 
 ### Changed
-- Hard 64-bit OpenMP path: **8-way 2-adic wrap-mul trial** of sieved primes instead of `DIV`. Odd $p$ divides $n&lt;2^{64}$ iff $(n\cdot p^{-1}\bmod 2^{64})\cdot p&lt;2^{64}$. Inverse lifted from a 128-byte table (`INV8`) by three Newton steps. Mid-size precomputed `PRE_INV`/`PRE_TH` path unchanged. u128 trial still uses limb `DIV`.
+- Hard 64-bit OpenMP path: **8-way 2-adic wrap-mul trial** of sieved primes instead of `DIV`. Odd p divides n&lt;2^64 iff (n* p^-1 mod 2^64)* p&lt;2^64. Inverse lifted from a 128-byte table (`INV8`) by three Newton steps. Mid-size precomputed `PRE_INV`/`PRE_TH` path unchanged. u128 trial still uses limb `DIV`.
 
 ### Performance (indicative, same machine as 1.4.1, 12 OpenMP threads)
-- Near $2^{63}$ prime in-process ~**340 ms → ~281 ms** (~**17%**); e2e ~**0.29 s**.
+- Near 2^63 prime in-process ~**340 ms → ~281 ms** (~**17%**); e2e ~**0.29 s**.
 - M61 in-process ~**168 ms → ~143 ms** (~**15%**); e2e ~**0.16 s**.
-- Largest prime < $2^{64}$ in-process ~**0.41 s** (was ~0.50 s class).
+- Largest prime < 2^64 in-process ~**0.41 s** (was ~0.50 s class).
 - Default mid-size e2e suite: unchanged class (still precomputed-prime path).
 
 ## [1.4.1] — 2026-08-07
 
 ### Changed
-- Hard 64-bit / u128 OpenMP path: **wheel-30 segmented sieve** (1 byte per 30 numbers; residues $1,7,11,13,17,19,23,29$) instead of an odds-only byte/bit sieve. Marks only numbers coprime to $2\cdot3\cdot5$; 8-way prime trial unchanged. 4-way stride unroll on small-prime marking is bounds-checked.
-- Adaptive wheel-30 segment: 64–256 KiB (256 KiB when $\lfloor\sqrt{n}\rfloor \ge 5\cdot10^8$).
+- Hard 64-bit / u128 OpenMP path: **wheel-30 segmented sieve** (1 byte per 30 numbers; residues 1,7,11,13,17,19,23,29) instead of an odds-only byte/bit sieve. Marks only numbers coprime to 2*3*5; 8-way prime trial unchanged. 4-way stride unroll on small-prime marking is bounds-checked.
+- Adaptive wheel-30 segment: 64–256 KiB (256 KiB when floor(sqrt(n)) >= 5*10^8).
 
 ### Performance (indicative, same machine as 1.4.0)
 - **M61** in-process ~**0.27 s → ~0.15 s**; e2e 12-thread ~**0.17 s**.
-- **Near $2^{63}$ prime** in-process ~**0.56 s → ~0.30 s**; e2e 12-thread ~**0.32 s** (~**45%** faster).
-- 2-thread e2e: M61 ~1.0 s → ~0.60 s; near $2^{63}$ ~1.9 s → ~1.16 s.
+- **Near 2^63 prime** in-process ~**0.56 s → ~0.30 s**; e2e 12-thread ~**0.32 s** (~**45%** faster).
+- 2-thread e2e: M61 ~1.0 s → ~0.60 s; near 2^63 ~1.9 s → ~1.16 s.
 - Default mid-size e2e suite: unchanged (still precomputed-prime path).
 
 ## [1.4.0] — 2026-08-07
@@ -388,14 +389,14 @@ Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange
 
 ### Changed
 - OpenMP C core: **lower segmented-prime threshold** (`isqrt(n) ≥ 2·10⁵` instead of `2·10⁸`) so mid-size primes (e.g. 12-digit) use prime-only trial instead of the denser 9699690-wheel.
-- **Bit-packed** odd segmented sieve for moderate $\sqrt{n}$; **byte sieve** retained for hard 64-bit primes (best measured tradeoff).
+- **Bit-packed** odd segmented sieve for moderate sqrt(n); **byte sieve** retained for hard 64-bit primes (best measured tradeoff).
 - Adaptive segment size; **8-way** independent-mod ILP on the wheel hot path (was 4-way).
 - Expanded deterministic small-prime precheck (through 271).
 - Build: enable **LTO** (`-flto`) in `scripts/compile_wheel_core.sh`.
 
 ### Performance (indicative, same machine class)
 - **12-digit prime** e2e CLI `TIME`: ~**4×–7×** faster vs 1.3.1 (segmented primes + bit sieve).
-- Hard primes (M61 / near $2^{63}$): roughly **unchanged to slightly faster** in-process; e2e within noise.
+- Hard primes (M61 / near 2^63): roughly **unchanged to slightly faster** in-process; e2e within noise.
 - Default e2e suite: large win on the 12-digit case; no regressions on smaller cases.
 
 ## [1.3.1] — 2026-07-01
@@ -412,7 +413,7 @@ Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange
 ## [1.3.0] — 2026-07-01
 
 ### Added
-- **65–128-bit full trial** via OpenMP C `is_prime_u128_core` (limbs `lo`/`hi`): same deterministic wheel / segmented-prime engines as the 64-bit path, no AKS for practical sizes (`isqrt(n) ≤ 2.5·10¹⁰`, e.g. primes near $10^{20}$).
+- **65–128-bit full trial** via OpenMP C `is_prime_u128_core` (limbs `lo`/`hi`): same deterministic wheel / segmented-prime engines as the 64-bit path, no AKS for practical sizes (`isqrt(n) ≤ 2.5·10¹⁰`, e.g. primes near 10^20).
 - `lab()` paths `u128_wheel_c` and `bigint_wheel` (stdlib wheel fallback without the `.so` symbol).
 
 ### Changed
@@ -426,19 +427,19 @@ Console scripts: `prev-prime`, `nth-prime`, `prime-count`, `primes`, `primerange
 - Regenerated `is_prime_data/wheel_core.c` / `wheel_core.so` via `scripts/generate_wheel_core_c.py`.
 
 ### Performance (indicative, same class of machine)
-- Near $2^{63}$ prime and Mersenne M61: roughly **12–20%** faster end-to-end / in-process vs 1.1.1 wheel-only parallel trial.
+- Near 2^63 prime and Mersenne M61: roughly **12–20%** faster end-to-end / in-process vs 1.1.1 wheel-only parallel trial.
 - Moderate e2e suite (`compare_e2e.py` cases through 12-digit): no regression vs prior baseline (within noise / slightly faster on several cases).
 
 ## [1.1.1] — 2026-07-01
 
 ### Changed
-- Faster OpenMP C `9699690`-wheel hot path: **4-way independent trial mods** so out-of-order CPUs can overlap `DIV` latency (still exact wheel trial division to $\lfloor\sqrt{n}\rfloor$).
+- Faster OpenMP C `9699690`-wheel hot path: **4-way independent trial mods** so out-of-order CPUs can overlap `DIV` latency (still exact wheel trial division to floor(sqrt(n))).
 - Integer `isqrt` in `wheel_core` (no libm in the hot path); slightly extended deterministic small-prime precheck (through 97).
 - OpenMP early-abort via shared `found` for composites; compile with `-march=native` (fallback `x86-64-v2`), `-funroll-loops`, and correct `-lm` link order.
 - Regenerated `is_prime_data/wheel_core.c` / `wheel_core.so`; refreshed `benchmarks/e2e_results.json` and performance docs.
 
 ### Performance (indicative e2e CLI `TIME`, same machine as prior snapshot)
-- Near $2^{63}$ prime: ~7% faster; 12-digit prime: ~9% faster; overall default e2e suite ~6% faster. Still fully deterministic; no MR / prime-lib engines.
+- Near 2^63 prime: ~7% faster; 12-digit prime: ~9% faster; overall default e2e suite ~6% faster. Still fully deterministic; no MR / prime-lib engines.
 
 ## [1.1.0] — 2026-07-01
 

@@ -263,9 +263,9 @@ def test_checker_worker_100_digit_under_30s() -> None:
     """
     script = r"""
 const api=require('./docs/wiki/assets/checker-worker.js');
-function check(n, limitMs) {
+async function check(n, limitMs) {
   const t0 = Date.now();
-  const r = api.checkPrime(n);
+  const r = await api.checkPrime(n);
   const dt = Date.now() - t0;
   if (dt >= limitMs) {
     console.error('slow', dt, JSON.stringify(r));
@@ -273,20 +273,21 @@ function check(n, limitMs) {
   }
   return r;
 }
+(async () => {
 const wide = 17n * (10n**399n + 1n);
-const rw = check(wide, 2000);
+const rw = await check(wide, 2000);
 if (String(wide).length < 400 || rw.prime !== false || rw.factor == null || wide % BigInt(rw.factor) !== 0n) {
   console.error('400-digit rejected', JSON.stringify(rw));
   process.exit(1);
 }
 const cSmall = 10n**99n + 7n;
-const rs = check(cSmall, 2000);
+const rs = await check(cSmall, 2000);
 if (rs.prime !== false || cSmall % BigInt(rs.factor) !== 0n) {
   console.error('100-digit small factor', JSON.stringify(rs));
   process.exit(1);
 }
 const cFerm = 10n**99n + 9n;
-const rf = check(cFerm, 12000);
+const rf = await check(cFerm, 12000);
 if (rf.prime !== false) {
   console.error('100-digit Fermat composite', JSON.stringify(rf));
   process.exit(1);
@@ -296,12 +297,13 @@ if (rf.factor == null || cFerm % BigInt(rf.factor) !== 0n) {
   process.exit(1);
 }
 const p100 = 10n**99n + 289n;
-const rp = check(p100, 25000);
-if (rp.prime !== true || rp.path !== 'ecpp') {
+const rp = await check(p100, 25000);
+if (rp.prime !== true || rp.path !== 'aprcl') {
   console.error('P100', JSON.stringify(rp));
   process.exit(1);
 }
 console.log('100-digit OK', rf.factor, rp.path, rp.ms);
+})().catch((err) => { console.error(err); process.exit(1); });
 """
     r = subprocess.run(
         ["node", "-e", script],
@@ -376,11 +378,11 @@ def test_checker_worker_p131_ecpp() -> None:
     script = (
         "const api=require('./docs/wiki/assets/checker-worker.js');"
         "const n=10n**130n+1113n;"
-        "const r=api.checkPrime(n);"
-        "if(!r || r.prime!==true || r.path!=='ecpp'){"
+        "(async()=>{const r=await api.checkPrime(n);"
+        "if(!r || r.prime!==true || r.path!=='aprcl'){"
         "  console.error(JSON.stringify(r)); process.exit(1);"
         "}"
-        "console.log('p131 OK', r.path, r.ms);"
+        "console.log('p131 OK', r.path, r.ms);})().catch(e=>{console.error(e);process.exit(1);});"
     )
     r = subprocess.run(
         ["node", "-e", script],
@@ -400,11 +402,11 @@ def test_checker_worker_p131_next_prime() -> None:
     script = (
         "const api=require('./docs/wiki/assets/checker-worker.js');"
         "const n=10n**130n+1113n;"
-        "const r=api.nextPrime(n,1);"
+        "(async()=>{const r=await api.nextPrime(n,1);"
         "if(!r || !r.ok || r.value!==(10n**130n+1189n).toString()){"
         "  console.error(JSON.stringify(r)); process.exit(1);"
         "}"
-        "console.log('p131 next OK', r.value, r.path, r.ms);"
+        "console.log('p131 next OK', r.value, r.path, r.ms);})().catch(e=>{console.error(e);process.exit(1);});"
     )
     r = subprocess.run(
         ["node", "-e", script],
@@ -424,11 +426,11 @@ def test_checker_worker_p132_computed_hd() -> None:
     script = (
         "const api=require('./docs/wiki/assets/checker-worker.js');"
         "const n=10n**131n+63n;"
-        "const r=api.checkPrime(n);"
-        "if(!r || r.prime!==true || r.path!=='ecpp'){"
+        "(async()=>{const r=await api.checkPrime(n);"
+        "if(!r || r.prime!==true || r.path!=='aprcl'){"
         "  console.error(JSON.stringify(r)); process.exit(1);"
         "}"
-        "console.log('p132 OK', r.path, r.ms);"
+        "console.log('p132 OK', r.path, r.ms);})().catch(e=>{console.error(e);process.exit(1);});"
     )
     r = subprocess.run(
         ["node", "-e", script],
@@ -448,11 +450,11 @@ def test_checker_worker_p150_computed_hd() -> None:
     script = (
         "const api=require('./docs/wiki/assets/checker-worker.js');"
         "const n=10n**149n+183n;"
-        "const r=api.checkPrime(n);"
-        "if(!r || r.prime!==true || r.path!=='ecpp'){"
+        "(async()=>{const r=await api.checkPrime(n);"
+        "if(!r || r.prime!==true || r.path!=='aprcl'){"
         "  console.error(JSON.stringify(r)); process.exit(1);"
         "}"
-        "console.log('p150 OK', r.path, r.ms);"
+        "console.log('p150 OK', r.path, r.ms);})().catch(e=>{console.error(e);process.exit(1);});"
     )
     r = subprocess.run(
         ["node", "-e", script],
