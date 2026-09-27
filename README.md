@@ -97,7 +97,7 @@ NumPy / Numba speed the wheel when the OpenMP core is absent. They are not a sec
 
 **Elliptic-curve proof.** Build a curve whose order splits as $c\cdot q$ with $q$ a smaller prime. A point on the curve, plus a proof of $q$, proves $n$. Repeat until the cofactor is small enough for trial or BLS. This is the 100-digit path. The in-browser lab uses the same idea; the Python library is the one that continues into the cyclotomic band.
 
-**Cyclotomic proof.** For a wide $n$, pick a modulus $s>\sqrt{n}$ built from many small primes. Jacobi-sum identities in cyclotomic rings force every prime divisor of $n$ to equal $n^k \bmod s$ for some small $k$. Divide those few residues into $n$. That is how $10^{999}+7$ is proved, in minutes rather than by an elliptic-curve chain that only shrinks a few digits per step.
+**Cyclotomic proof.** For a wide $n$, pick a modulus $s>\sqrt{n}$ built from many small primes. Jacobi-sum identities in cyclotomic rings force every prime divisor of $n$ to equal $n^k \bmod s$ for some small $k$. Divide those few residues into $n$. That is how $10^{999}+7$ is proved, in about a minute on 12 cores, rather than by an elliptic-curve chain that only shrinks a few digits per step.
 
 ```mermaid
 sequenceDiagram

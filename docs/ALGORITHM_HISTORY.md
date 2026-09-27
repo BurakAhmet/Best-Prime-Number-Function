@@ -888,6 +888,22 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+## Era — unreleased: one exponentiation per Jacobi sum
+
+**Problem.** A 1000-digit cyclotomic proof (\(10^{999}+7\)) took about six minutes. Each pair \((q,r)\) built \(\varphi(r)\) full-size powers in \(\mathbb{Z}[\zeta_r]/(n)\). The final scan of \(R=\mathrm{lcm}(1..17)\) residues was a Python loop, and the Jacobi table spent ~16 s in Python on the largest \(q\).
+
+**Change.** Schoof §3 / Cohen–Lenstra: \(\lfloor ni/r\rfloor=(n//r)i+((n\bmod r)i)//r\), so the Galois product is one power \(s_1^{n//r}\) times a product of exponents \(<r\). `aprcl_hot.c` does that power with a 4-bit window, builds \(j(\chi,\chi)\) and \(j(\chi,\chi^2)\), and scans residues with GMP. Threads call the helper (it releases the GIL). Odd \(l\mid R\) with \(n^{l-1}\equiv 1\pmod{l^2}\) require a root-of-unity generator (Proposition 3.3); otherwise the result is unsettled, not prime.
+
+**Same machine, 12 threads.** \(10^{999}+7\): ~6 min → **~50 s**. \(10^{99}+289\): ~15 s → **~0.7 s**.
+
+| | |
+|--|--|
+| **Advantages** | General 1000-digit primes finish inside a minute; the \(l\)-adic side of Theorem 3.2 is actually checked |
+| **Disadvantages** | Still one modulus, \(\mathrm{lcm}(1..17)\). Past ~1024 digits the proof returns unsettled and FastECPP may run |
+| **Failures / lessons** | Do not assemble each conjugate with its own copy of the square chain. Do not declare prime when every witness has \(l\mid h\) and \(n^{l-1}\equiv 1\pmod{l^2}\) |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:
