@@ -378,7 +378,7 @@
     const pow10 = digits <= 1 ? 1n : 10n ** BigInt(digits - 1);
     const sq = n < 0n ? 0n : isqrt(n);
     let band = "exact trial";
-    if (bits >= 800) band = "cyclotomic band in the library; this tab uses an elliptic-curve proof";
+    if (bits >= 800) band = "cyclotomic proof";
     else if (bits >= 256) band = "elliptic-curve proof";
     else if (n >= (1n << 64n)) band = "combined BLS";
     return {
@@ -3105,7 +3105,11 @@
     return false;
   }
 
-  function nextPrime(n, k, onTick, shouldStop) {
+  function settled(r) {
+    return r && typeof r.then === "function" ? r : Promise.resolve(r);
+  }
+
+  async function nextPrime(n, k, onTick, shouldStop) {
     const kk = parseK(k == null ? 1 : k);
     if (kk == null) {
       return { ok: false, error: "k must be a positive integer" };
@@ -3124,7 +3128,7 @@
         found: String(found.length),
       });
       if (!quickComposite(cand)) {
-        const r = checkPrime(cand, onTick, shouldStop);
+        const r = await settled(checkPrime(cand, onTick, shouldStop));
         if (r && r.aborted) return { aborted: true };
         if (r && r.prime === true) {
           found.push({ p: cand, path: r.path, ms: r.ms });
@@ -3166,7 +3170,7 @@
     };
   }
 
-  function prevPrime(n, k, onTick, shouldStop) {
+  async function prevPrime(n, k, onTick, shouldStop) {
     const kk = parseK(k == null ? 1 : k);
     if (kk == null) {
       return { ok: false, error: "k must be a positive integer" };
@@ -3202,7 +3206,7 @@
         found: String(found.length),
       });
       if (!quickComposite(cand)) {
-        const r = checkPrime(cand, onTick, shouldStop);
+        const r = await settled(checkPrime(cand, onTick, shouldStop));
         if (r && r.aborted) return { aborted: true };
         if (r && r.prime === true) {
           found.push({ p: cand, path: r.path, ms: r.ms });
@@ -3508,7 +3512,7 @@
     if (!cond) throw new Error(msg);
   }
 
-  function selfTest() {
+  async function selfTest() {
     const knownPrime = [
       2n, 3n, 5n, 17n, 53n, 59n, 97n, 1000000007n, 1000000009n, 2147483647n,
       600000000000000000001n, // smooth n−1 specimen
@@ -3641,13 +3645,13 @@
 
     const overSafe = 59n * (MAX_SAFE / 59n + 11n);
     assert(overSafe > MAX_SAFE && overSafe < TWO64, "u64 fixture range");
-    assert(nextPrime(0n, 1).value === "2", "next(0)=2");
-    assert(nextPrime(1n, 1).value === "2", "next(1)=2");
-    assert(nextPrime(2n, 1).value === "3", "next(2)=3");
-    assert(nextPrime(14n, 1).value === "17", "next(14)=17");
-    assert(nextPrime(14n, 3).value === "23", "next(14,3)=23");
-    assert(nextPrime(14n, 1).delta === "3", "next(14) gap");
-    assert(prevPrime(14n, 1).delta === "-1", "prev(14) gap");
+    assert((await nextPrime(0n, 1)).value === "2", "next(0)=2");
+    assert((await nextPrime(1n, 1)).value === "2", "next(1)=2");
+    assert((await nextPrime(2n, 1)).value === "3", "next(2)=3");
+    assert((await nextPrime(14n, 1)).value === "17", "next(14)=17");
+    assert((await nextPrime(14n, 3)).value === "23", "next(14,3)=23");
+    assert((await nextPrime(14n, 1)).delta === "3", "next(14) gap");
+    assert((await prevPrime(14n, 1)).delta === "-1", "prev(14) gap");
     const face = numberPortrait(97n);
     assert(face.bits === 7 && face.digits === 2 && face.lastDigit === "7", "portrait 97");
     assert(face.digitSum === 16 && face.digitalRoot === 7, "digit sum 97");
@@ -3658,13 +3662,13 @@
     const rp = randomPrime({ any: false, digits: 2 });
     assert(rp.prime === true && rp.n.length === 2, "random 2-digit prime");
     assert(checkPrime(BigInt(rp.n)).prime === true, "random prime rechecks");
-    assert(nextPrime(100n, 1).value === "101", "next(100)=101");
-    assert(nextPrime(100n, 65).value === "463", "next(100,65)=463");
-    assert(nextPrime(14n, 100).ok === true, "k=100 has no cap");
-    assert(prevPrime(14n, 1).value === "13", "prev(14)=13");
-    assert(prevPrime(14n, 2).value === "11", "prev(14,2)=11");
-    assert(prevPrime(3n, 1).value === "2", "prev(3)=2");
-    assert(prevPrime(2n, 1).ok === false, "no prime < 2");
+    assert((await nextPrime(100n, 1)).value === "101", "next(100)=101");
+    assert((await nextPrime(100n, 65)).value === "463", "next(100,65)=463");
+    assert((await nextPrime(14n, 100)).ok === true, "k=100 has no cap");
+    assert((await prevPrime(14n, 1)).value === "13", "prev(14)=13");
+    assert((await prevPrime(14n, 2)).value === "11", "prev(14,2)=11");
+    assert((await prevPrime(3n, 1)).value === "2", "prev(3)=2");
+    assert((await prevPrime(2n, 1)).ok === false, "no prime < 2");
 
     const over = checkPrime(overSafe);
     assert(over.prime === false, "u64 composite should be composite");
@@ -3692,6 +3696,9 @@
   }
 
   if (typeof process !== "undefined" && process.argv && process.argv.includes("--self-test")) {
-    selfTest();
+    selfTest().catch(function (err) {
+      console.error(err);
+      process.exit(1);
+    });
   }
 })(typeof self !== "undefined" ? self : globalThis);

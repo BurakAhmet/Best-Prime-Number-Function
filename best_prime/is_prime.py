@@ -709,12 +709,11 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
 
     One engine per band (no BLS→ECPP→FastECPP→AKS chain):
 
-    * ``bits < 256``: combined BLS (``DEFAULT_N``). Then u128 trial if
-      that band is complete. Else unsettled — do not start AKS.
-    * ``bits ≥ 256``: FastECPP only (includes class-number-1). A Fermat
-      miss is a composite proof, not a second engine. Arithmetic cost
-      grows with bit length (one exp, then CM work on *n*). Two primes
-      of similar size can still differ when their ECPP trees differ.
+    * ``bits < 256``: combined BLS. Then u128 trial if that band is
+      complete. Else unsettled.
+    * ``bits ≥ 256``: cyclotomic APR-CL while its modulus exceeds
+      ``√n``. FastECPP only if that proof does not cover ``n``. A
+      Fermat miss is a composite proof, not a second engine.
     """
     global _last_is_prime_big_path
     _last_is_prime_big_path = None
@@ -761,10 +760,11 @@ def _is_prime_big(n: int, *, parallel: bool = True, skip_nm1: bool = False) -> b
             return n == a
         if _powmod(a, n - 1, n) != 1:
             return False
-    # Cyclotomic proof for wide n. FastECPP's downrun only sheds a few
-    # digits per step, so a 1000-digit prime stays in that walk for a long
-    # time. APR-CL decides the same n in a few minutes.
-    if bits >= 800:
+    # APR-CL is faster than FastECPP from this band upward (measured:
+    # about 0.5 s vs 1.4 s at 80 digits, and the gap widens). Below 256
+    # bits a friendly n±1 proof is still milliseconds, so BLS stays.
+    # FastECPP remains the fallback once √n exceeds the cyclotomic modulus.
+    if bits >= 256:
         from .primality_aprcl import aprcl_primality
 
         decided = aprcl_primality(n)

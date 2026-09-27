@@ -64,14 +64,14 @@ flowchart TD
   bls -->|"Enough factors"| done["Prime or composite"]
   bls -->|"n plus or minus 1 will not factor, and n is still in budget"| cubic["Cubic search"]
 
-  band -->|"256 bits up to 800 bits"| ecpp["Elliptic-curve proof"]
-  band -->|"800 bits and wider"| apr["Cyclotomic proof"]
+  band -->|"256 bits and wider, modulus covers n"| apr["Cyclotomic proof"]
+  band -->|"wider than the cyclotomic modulus"| ecpp["Elliptic-curve proof"]
   apr -->|"Modulus no longer larger than the square root"| ecpp
   ecpp -->|"Curve walk does not finish"| unsettled["UnsettledPrimalityError"]
   apr -->|"Identities do not settle"| unsettled
 ```
 
-In symbols: below $10^{4}$ the check is direct. Below $2^{64}$ with $\lfloor\sqrt{n}\rfloor < 10^{7}$ it is trial division. From 256 bits it is an elliptic-curve proof, and from 800 bits a cyclotomic one.
+In symbols: below $10^{4}$ the check is direct. Below $2^{64}$ with $\lfloor\sqrt{n}\rfloor < 10^{7}$ it is trial division. Below 256 bits a friendly $n\pm 1$ proof is used. From 256 bits it is a cyclotomic proof while $\sqrt{n}$ fits the modulus, and an elliptic-curve proof only after that.
 
 | You are looking at | What actually runs | What “proved” feels like |
 |---|---|---|
@@ -79,8 +79,8 @@ In symbols: below $10^{4}$ the check is direct. Below $2^{64}$ with $\lfloor\sqr
 | Most 64-bit numbers with $\lfloor\sqrt{n}\rfloor < 10^7$ | Wheel trial, in OpenMP C when `wheel_core.so` is built, otherwise a 30030-wheel or a 9699690-wheel | Milliseconds |
 | A hard 64-bit prime, or the 147-bit default | Combined BLS: factor $n-1$ or $n+1$ and check the witnesses | Milliseconds when the factors are kind |
 | The same band when $n\pm 1$ is hostile | Cubic search, the complete fallback inside its budget | Still a proof, slower |
-| About 100 digits (256–800 bits) | FastECPP: an elliptic curve whose order leads to a smaller prime, proved the same way | Seconds in the library |
-| About 1000 digits (from 800 bits), while the cyclotomic modulus exceeds $\sqrt{n}$ | Jacobi sums. Any prime divisor is forced into a short list, then that list is checked | Minutes, not a guess |
+| About 100 digits and up, while $\sqrt{n}$ fits the cyclotomic modulus | Jacobi sums. Any prime divisor is forced into a short list, then that list is checked | About 0.7 s at 100 digits; about 50 s at 1000 digits on 12 cores |
+| Wider than that modulus | FastECPP: an elliptic curve whose order leads to a smaller prime, proved the same way | The fallback, not the 100-digit path |
 | Wider than the engines cover | Stop | `UnsettledPrimalityError` |
 
 NumPy / Numba speed the wheel when the OpenMP core is absent. They are not a second answer.

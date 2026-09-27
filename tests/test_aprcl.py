@@ -18,6 +18,15 @@ def test_aprcl_small_prime_and_composite():
     assert is_prime(10007) is True
 
 
+def test_hundred_digit_prime_uses_aprcl_not_fastecpp():
+    from best_prime.is_prime import is_prime, lab
+
+    report = lab(10**99 + 289)
+    assert report["is_prime"] is True
+    assert report["path"] == "bigint_aprcl"
+    assert is_prime(10**99 + 289) is True
+
+
 def test_aprcl_hundred_digit_prime_is_quick():
     # Was about 15 s with one exponentiation per Galois conjugate.
     started = time.perf_counter()
