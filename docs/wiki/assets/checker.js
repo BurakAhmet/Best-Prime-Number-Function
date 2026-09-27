@@ -587,6 +587,21 @@
           </svg>
           <figcaption>shopping for a CM curve · class-number-1, then H_D · no RNG</figcaption>
         </figure>
+        <figure class="lab-viz" data-phase="cyclotomic" hidden>
+          <svg viewBox="0 0 200 112" aria-hidden="true">
+            <text class="viz-title" x="4" y="14">cyclotomic ring</text>
+            <circle class="viz-orbit viz-orbit-dash" cx="100" cy="48" r="30"/>
+            <g id="viz-cyclo-zeta" class="viz-zeta">
+              <text x="100" y="52" text-anchor="middle">ζ</text>
+            </g>
+            <g id="viz-cyclo-roots"></g>
+            <rect class="viz-track" x="16" y="84" width="168" height="6" rx="2"/>
+            <rect class="viz-fill" id="viz-cyclo-fill" x="16" y="84" width="0" height="6" rx="2"/>
+            <circle class="viz-point" id="viz-cyclo-bead" cx="16" cy="87" r="4"/>
+            <text class="viz-mono" id="viz-cyclo-note" x="8" y="106">Jacobi sums</text>
+          </svg>
+          <figcaption>roots of unity light as each Jacobi identity finishes · then the residue bead walks n^k mod s</figcaption>
+        </figure>
         <figure class="lab-viz" data-phase="neighbor" hidden>
           <svg viewBox="0 0 200 88" aria-hidden="true">
             <text class="viz-title" x="4" y="14">hopping candidates</text>
@@ -760,7 +775,7 @@
         lucas: "Selfridge’s sequence, until one discriminant makes U land on zero.",
         combined: "A balance, not FG > √n. The cubic roof decides.",
         ecpp: "Shopping the CM sky. No RNG in the catalogue.",
-        cyclotomic: "Jacobi sums. Every prime factor has to show up in a short list.",
+        cyclotomic: "Roots of unity. A Jacobi identity, then a short list of residues.",
         wheel: "Only residues coprime to 30 may approach the hub.",
         neighbor: "Hopping odd stones across the number line.",
       };
@@ -945,6 +960,49 @@
         root.querySelectorAll(".viz-star").forEach(function (el) {
           el.classList.toggle("on", el.getAttribute("data-d") === want);
         });
+      } else if (phase === "cyclotomic") {
+        const host = $("#viz-cyclo-roots", root);
+        if (host && !host.childElementCount) {
+          let marks = "";
+          for (let k = 0; k < 12; k++) {
+            const th = (k / 12) * Math.PI * 2 - Math.PI / 2;
+            const x = 100 + 30 * Math.cos(th);
+            const y = 48 + 30 * Math.sin(th);
+            marks +=
+              '<g class="viz-root" data-k="' +
+              k +
+              '"><circle cx="' +
+              x.toFixed(1) +
+              '" cy="' +
+              y.toFixed(1) +
+              '" r="3.4"/></g>';
+          }
+          host.innerHTML = marks;
+        }
+        const tot = Number(msg.limit) || 1;
+        const i = Number(msg.i) || 0;
+        const frac = Math.max(0, Math.min(1, i / Math.max(1, tot)));
+        const scan = extra.stage === "scan" || (extra.label && extra.label.indexOf("residue") >= 0);
+        const fig = root.querySelector('.lab-viz[data-phase="cyclotomic"]');
+        if (fig) fig.classList.toggle("scanning", !!scan);
+        if (host) {
+          const lit = Math.round(frac * 12);
+          host.querySelectorAll(".viz-root").forEach(function (el) {
+            const k = Number(el.getAttribute("data-k"));
+            el.classList.toggle("on", !scan && k < lit);
+            el.classList.toggle("hot", !scan && k === lit % 12);
+          });
+        }
+        const fill = $("#viz-cyclo-fill", root);
+        if (fill) fill.setAttribute("width", String(Math.round(168 * frac)));
+        const bead = $("#viz-cyclo-bead", root);
+        if (bead) bead.setAttribute("cx", String(16 + 168 * frac));
+        const note = $("#viz-cyclo-note", root);
+        if (note) {
+          note.textContent = scan
+            ? "residue scan  " + i + " / " + tot
+            : "Jacobi sum  " + i + " / " + tot;
+        }
       } else if (phase === "split") {
         const bits = $("#viz-split-bits", root);
         if (bits) {
@@ -1043,6 +1101,9 @@
       if (phase === "lucas") return extra.D ? "Selfridge D = " + extra.D : "Lucas n+1 on primes of G";
       if (phase === "combined") return "Combined Theorem 1 (not FG>√n)";
       if (phase === "ecpp") return extra.D ? "ECPP discriminant D=" + extra.D : "class-number-1 / FastECPP";
+      if (phase === "cyclotomic") {
+        return extra.stage === "scan" ? "residue scan n^k mod s" : "Jacobi sums in the cyclotomic ring";
+      }
       if (phase === "split") return extra.label || "factoring a cofactor of n±1";
       if (phase === "precheck") return "small-prime / parity filter";
       if (phase === "wheel") return "30-wheel trial division";

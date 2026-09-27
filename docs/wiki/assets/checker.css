@@ -405,6 +405,30 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
+.viz-zeta {
+  transform-box: view-box;
+  transform-origin: 100px 48px;
+  animation: viz-spin 14s linear infinite;
+}
+.viz-zeta text {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 16px;
+  fill: var(--ink);
+}
+.viz-root circle {
+  fill: transparent;
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+.viz-root.on circle,
+.viz-root.hot circle {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+.viz-root.hot circle { animation: viz-pulse 0.7s ease-in-out infinite; }
+.lab-viz.scanning .viz-root circle { opacity: 0.35; }
+.lab-viz.scanning #viz-cyclo-bead { animation: viz-pulse 0.8s ease-in-out infinite; }
 @keyframes viz-spin {
   to { transform: rotate(360deg); }
 }
@@ -419,7 +443,10 @@
   .viz-star.on circle,
   .lab-orrery .orrery-ring-outer,
   .lab-orrery .spoke.active .spoke-dot,
-  .viz-bob {
+  .viz-bob,
+  .viz-zeta,
+  .viz-root.hot circle,
+  .lab-viz.scanning #viz-cyclo-bead {
     animation: none !important;
   }
 }

@@ -56,6 +56,8 @@ def test_lab_assets_allow_near_2_63_prime():
     assert "Selfridge" in ui
     assert 'data-phase="combined"' in ui
     assert 'data-phase="ecpp"' in ui
+    assert 'data-phase="cyclotomic"' in ui
+    assert "viz-cyclo-bead" in ui
     assert "Combined Theorem 1" in ui
     assert "checker-worker.js" in ui
     assert "lab-stage" in ui

@@ -489,7 +489,6 @@
     return { hit: false };
   }
 
-  // Fix witness: the first version had a logic bug. Use this.
   function witnessOk(n, q, prime, h) {
     if (h < 0 || h % prime === 0) return false;
     if (prime === 2) return modPow(BigInt(q), (n - 1n) / 2n, n) === n - 1n;
@@ -508,10 +507,13 @@
     return { ok: true, satisfied };
   }
 
-  function runScan(n, s, root, start, count) {
-    let acc = modPow(n % s, BigInt(start), s);
+  function runScan(n, s, root, start, count, progress) {
+    const base = n % s;
+    let acc = modPow(base, BigInt(start), s);
+    const step = 65536;
     for (let k = 0; k < count; k++) {
-      acc = (acc * (n % s)) % s;
+      acc = (acc * base) % s;
+      if (progress && k % step === 0) progress(k, count);
       if (acc > 1n && acc <= root && n % acc === 0n) return { hit: true, factor: acc.toString() };
     }
     return { hit: false };
@@ -521,8 +523,9 @@
     const n = BigInt(msg.n);
     let out;
     if (msg.cmd === "tests") out = runTestIndexes(n, msg.R, msg.indexes, progress);
-    else if (msg.cmd === "scan") out = runScan(n, BigInt(msg.s), BigInt(msg.root), msg.start, msg.count);
-    else out = { ok: false };
+    else if (msg.cmd === "scan") {
+      out = runScan(n, BigInt(msg.s), BigInt(msg.root), msg.start, msg.count, progress);
+    } else out = { ok: false };
     if (msg._id != null) out._id = msg._id;
     return out;
   }
@@ -612,7 +615,13 @@
         try {
           g.postMessage(
             handleJob(msg, function (k, total) {
-              g.postMessage({ progress: true, k: k, total: total, _id: msg._id });
+              g.postMessage({
+                progress: true,
+                k: k,
+                total: total,
+                stage: msg.cmd === "scan" ? "scan" : "tests",
+                _id: msg._id,
+              });
             })
           );
         } catch (err) {
@@ -629,7 +638,13 @@
         try {
           wt.parentPort.postMessage(
             handleJob(msg, function (k, total) {
-              wt.parentPort.postMessage({ progress: true, k: k, total: total, _id: msg._id });
+              wt.parentPort.postMessage({
+                progress: true,
+                k: k,
+                total: total,
+                stage: msg.cmd === "scan" ? "scan" : "tests",
+                _id: msg._id,
+              });
             })
           );
         } catch (err) {
