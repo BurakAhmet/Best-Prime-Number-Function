@@ -17,4 +17,4 @@ python scripts/check_e2e_regression.py \
   --baseline benchmarks/e2e_results.json --candidate /tmp/e2e.json
 ```
 
-See also [Hall of fame](Hall-of-fame) for notable primes and the automated prime-of-the-day log. A 1000-digit cyclotomic proof, $10^{999}+7$, is about 50 seconds on 12 cores (`is_prime`, not the in-tab elliptic walk).
+See also [Hall of fame](Hall-of-fame) for notable primes and the automated prime-of-the-day log. A 1000-digit cyclotomic proof, $10^{999}+7$, is about 50 seconds in `is_prime` on 12 cores, and about three minutes in the in-tab checker on that machine.

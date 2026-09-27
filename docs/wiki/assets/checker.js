@@ -62,7 +62,7 @@
     const pow10 = digits <= 1 ? 1n : 10n ** BigInt(digits - 1);
     const sq = isqrt(n);
     let band = "exact trial";
-    if (bits >= 800) band = "cyclotomic band in the library; this tab uses an elliptic-curve proof";
+    if (bits >= 800) band = "cyclotomic proof";
     else if (bits >= 256) band = "elliptic-curve proof";
     else if (n >= TWO64) band = "combined BLS";
     return {
@@ -647,7 +647,7 @@
         </div>
         <p class="lab-hint">Proves the number in this tab, or prints a factor.
           Below 256 bits it uses both sides of n±1. From 256 bits it uses an elliptic-curve proof.
-          A 1000-digit prime is a cyclotomic proof in the Python library, about 50 seconds on 12 cores; this tab does not run that proof.
+          From 800 bits this tab runs the cyclotomic proof. A 1000-digit prime takes about three minutes here on 12 cores. The Python library does that same proof in about 50 seconds.
           There is no digit limit. Stop anytime.
           A miss is <strong>inconclusive</strong> here; the Python library may still prove it.</p>
         ${stageMarkup()}
@@ -760,6 +760,7 @@
         lucas: "Selfridge’s sequence, until one discriminant makes U land on zero.",
         combined: "A balance, not FG > √n. The cubic roof decides.",
         ecpp: "Shopping the CM sky. No RNG in the catalogue.",
+        cyclotomic: "Jacobi sums. Every prime factor has to show up in a short list.",
         wheel: "Only residues coprime to 30 may approach the hub.",
         neighbor: "Hopping odd stones across the number line.",
       };
