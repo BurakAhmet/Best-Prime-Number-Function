@@ -613,6 +613,9 @@ def main() -> int:
             worker = dest / "assets" / "checker-worker.js"
             if worker.is_file():
                 blob += worker.read_bytes()
+            apr = dest / "assets" / "aprcl.js"
+            if apr.is_file():
+                blob += apr.read_bytes()
             h = hashlib.sha256(blob).hexdigest()[:10]
             asset_q = f"?v={h}"
         html_out = page_html(

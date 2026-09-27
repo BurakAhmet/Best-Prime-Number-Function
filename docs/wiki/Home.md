@@ -18,11 +18,11 @@ Type a natural number. This page either finishes a proof or shows a factor.
 | Small, and most 64-bit values | Trial division up to the square root |
 | Harder 64-bit, and up to 256 bits | Combined BLS on $n-1$ and $n+1$, then a cubic search if those will not factor |
 | 256 bits up to 800 bits | Elliptic-curve proof (FastECPP) |
-| 800 bits and wider, including 1000 digits | Cyclotomic proof in the library. \(10^{999}+7\) finishes in about 50 seconds on 12 cores. This tab’s elliptic-curve walk does not run that proof |
+| 800 bits and wider, including 1000 digits | Cyclotomic proof, in this tab and in the library. \(10^{999}+7\) is about three minutes in the tab on 12 cores, and about 50 seconds in the Python library |
 
 Stochastic Miller–Rabin and external prime libraries are not the engine. AKS is not in the library.
 
-On this machine a hard 64-bit check is about 2 ms end to end. With no argument, `is-prime` checks the 150-digit prime $10^{149}+183$. A 1000-digit prime, such as $10^{999}+7$, is a cyclotomic proof and finishes in about 50 seconds on 12 cores.
+On this machine a hard 64-bit check is about 2 ms end to end. With no argument, `is-prime` checks the 150-digit prime $10^{149}+183$. A 1000-digit prime, such as $10^{999}+7$, is a cyclotomic proof: about three minutes in this tab on 12 cores, and about 50 seconds in the Python library.
 
 ## Try it from the shell
 

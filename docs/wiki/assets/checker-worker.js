@@ -2784,6 +2784,122 @@
     return { factor: null, complete: kMax >= cub && wheelLim >= cub };
   }
 
+  let AprclMod = null;
+  function loadAprcl() {
+    if (AprclMod) return AprclMod;
+    if (typeof importScripts === "function") {
+      importScripts(new URL("aprcl.js", self.location.href).href);
+      AprclMod = self.Aprcl;
+    } else {
+      AprclMod = require("./aprcl.js");
+    }
+    return AprclMod;
+  }
+
+  function aprclPool(cores, onTick) {
+    const url = new URL("aprcl.js", self.location.href);
+    url.search = self.location.search;
+    const workers = [];
+    for (let i = 0; i < cores; i++) workers.push(new Worker(url));
+    let seq = 0;
+    const waiters = new Map();
+    for (const w of workers) {
+      w.onmessage = function (ev) {
+        const msg = ev.data || {};
+        if (msg.progress) {
+          emit(onTick, "cyclotomic", BigInt(msg.k || 0), BigInt(msg.total || 1), {
+            label: "cyclotomic proof",
+          });
+          return;
+        }
+        const doneWait = waiters.get(msg._id);
+        if (doneWait) {
+          waiters.delete(msg._id);
+          doneWait(msg);
+        }
+      };
+    }
+    return {
+      cores: cores,
+      run: function (jobs) {
+        return Promise.all(
+          jobs.map(function (job, i) {
+            return new Promise(function (resolve) {
+              const id = ++seq;
+              job._id = id;
+              waiters.set(id, resolve);
+              workers[i % workers.length].postMessage(job);
+            });
+          })
+        );
+      },
+      close: function () {
+        for (const w of workers) w.terminate();
+      },
+    };
+  }
+
+  function aprclCheck(n, limit, t0, onTick, shouldStop) {
+    const Aprcl = loadAprcl();
+    emit(onTick, "cyclotomic", 0n, 1n, { label: "cyclotomic proof" });
+    const cores = Math.max(
+      1,
+      Math.min(12, (typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 4)
+    );
+    let pool = null;
+    if (typeof Worker !== "undefined" && typeof self !== "undefined" && self.location) {
+      try {
+        pool = aprclPool(cores, onTick);
+      } catch (err) {
+        pool = null;
+      }
+    }
+    const prove = pool
+      ? Aprcl.proveParallel(
+          n,
+          function (info) {
+            emit(onTick, info.phase, info.i, info.limit, info.extra || {});
+          },
+          shouldStop,
+          pool
+        )
+      : Promise.resolve(
+          Aprcl.proveSerial(
+            n,
+            function (info) {
+              emit(onTick, info.phase, info.i, info.limit, info.extra || {});
+            },
+            shouldStop
+          )
+        );
+    return prove.then(function (r) {
+      if (pool) pool.close();
+      if (!r || r.aborted) return { aborted: true };
+      if (r.prime === true) {
+        return done(true, "aprcl", null, "cyclotomic proof (Jacobi sums)", limit, t0);
+      }
+      if (r.prime === false) {
+        const fac = r.factor == null ? null : typeof r.factor === "bigint" ? r.factor : BigInt(r.factor);
+        return done(
+          false,
+          "aprcl",
+          fac,
+          fac ? "cyclotomic proof found factor " + fac.toString() : "cyclotomic proof: composite",
+          limit,
+          t0
+        );
+      }
+      return {
+        prime: null,
+        path: "inconclusive",
+        factor: null,
+        isqrt: limit.toString(),
+        ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+        note: r.note || "cyclotomic proof did not settle",
+      };
+    });
+  }
+
   function checkPrime(n, onTick, shouldStop) {
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
     emit(onTick, "precheck", 0n, 1n, { label: "small-prime / parity filter" });
@@ -2835,6 +2951,9 @@
               t0
             );
           }
+        }
+        if (bits >= 800) {
+          return aprclCheck(n, limit, t0, onTick, shouldStop);
         }
         emit(onTick, "ecpp", 0n, 13n, { label: "class-number-1 ECPP first, then FastECPP H_D" });
         const ecHuge = ecppPrimality(n, 0, onTick, shouldStop);
@@ -3360,11 +3479,18 @@
         else if (msg.cmd === "randomPrime") {
           res = randomPrime({ any: msg.any, digits: msg.digits }, onTick, shouldStop);
         } else res = checkPrime(n, onTick, shouldStop);
-        if (res && res.aborted) {
-          g.postMessage({ type: "aborted" });
-          return;
-        }
-        g.postMessage({ type: "done", result: res, kind: msg.cmd });
+        Promise.resolve(res)
+          .then(function (settled) {
+            if (settled && settled.aborted) {
+              g.postMessage({ type: "aborted" });
+              return;
+            }
+            g.postMessage({ type: "done", result: settled, kind: msg.cmd });
+          })
+          .catch(function (err) {
+            g.postMessage({ type: "error", message: String(err && err.message ? err.message : err) });
+          });
+        return;
       } catch (err) {
         g.postMessage({ type: "error", message: String(err && err.message ? err.message : err) });
       }
