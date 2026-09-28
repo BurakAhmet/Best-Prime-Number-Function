@@ -968,6 +968,20 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+## Era — unreleased: factor proofs do not change at 200 bits
+
+**Problem.** $10^{89}+9$ (90 digits) listed its factors in a few seconds. $10^{90}+9$ (91 digits) sat for minutes. The split itself is the same shape. The prime cofactor of $10^{90}+9$ is 186 bits, so `is_prime` / the in-tab BLS budget spent its elliptic curves on $n\pm 1$ (about 13 s here, the tab's 700-curve plan in the browser). The 203-bit prime cofactor of $10^{89}+9$ is past the 200-bit cutoff and went straight to the cyclotomic proof.
+
+**Change.** `prime_factors` and List factors prove a cofactor wider than 96 bits with the cyclotomic test only. The ECM ladder is one table for every width (small $B_1$ first, σ = 6, 7, … restarted at each $B_1$). A σ that splits only at $B_1=50\,000$ is not consumed by a cheaper row. `tests/test_factor_complete.py` locks 2-digit through 91-digit factorizations.
+
+| | |
+|--|--|
+| **Advantages** | 90 digits and 91 digits take the same proof; time follows the smallest factor, not a bit cutoff |
+| **Disadvantages** | A 45-digit prime factor is still a long ECM search at its own $B_1$ |
+| **Failures / lessons** | Do not prove a factor-list cofactor with the primality engine's n±1 ECM budget past 96 bits. Do not spend σ on a $B_1$ that cannot see that factor and then skip it at the $B_1$ that can |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:

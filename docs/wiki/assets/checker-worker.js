@@ -4100,13 +4100,34 @@
     return null;
   }
 
-  function factorEcmPhases(bits) {
-    if (bits <= 80) return [[2000, 100000, 12]];
-    if (bits <= 120) return [[8000, 700000, 12], [20000, 1000000, 8]];
-    if (bits <= 180) return [[11000, 900000, 10], [50000, 2000000, 16]];
-    if (bits <= 240) return [[15000, 1200000, 8], [50000, 2000000, 12], [200000, 4000000, 8]];
-    if (bits <= 340) return [[15000, 1200000, 8], [50000, 2000000, 12], [250000, 5000000, 8]];
-    return [[50000, 2000000, 8], [250000, 5000000, 8], [1000000, 12000000, 6]];
+  function factorEcmLadder(bits) {
+    // Same rows as Python _ecm_ladder. Early rows do not depend on a
+    // digit band: a 16-digit factor of a 40-digit cofactor and of a
+    // 91-digit cofactor is the same curve budget.
+    const digits = Math.max(2, Math.floor(bits * 0.30103) + 1);
+    const half = Math.max(Math.floor(digits / 2), 12);
+    // σ restarts at 6 on each row. 10^90+9's 18-digit factor is σ=30
+    // at B1=50000; that same σ at a smaller B1 does not split it.
+    const rows = [
+      [12, 2000, 8],
+      [16, 11000, 16],
+      [21, 50000, 32],
+      [26, 120000, 16],
+      [31, 250000, 16],
+      [36, 1000000, 8],
+    ];
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const target = rows[i][0];
+      const b1 = rows[i][1];
+      const curves = rows[i][2];
+      if (target > half + 3 && target > 20) break;
+      let b2 = b1 * (b1 <= 50000 ? 40 : 16);
+      if (b2 > 8000000) b2 = 8000000;
+      out.push([b1, b2, curves]);
+    }
+    if (!out.length) out.push([2000, 80000, 8]);
+    return out;
   }
 
   function ecmPhaseRun(n, sigma0, B1, B2, curves, onTick, shouldStop) {
@@ -4131,31 +4152,49 @@
    */
   function deepSplit(n, onTick, shouldStop) {
     const bits = bitLength(n);
-    const p1 = bits > 90 ? 100000 : 20000;
+    const p1 = bits > 64 ? 100000 : 20000;
     emit(onTick, "p1", 1n, 1n, { B1: String(p1) });
     let g = pollardP1(n, p1);
     if (g && g > 1n && g < n) return g;
-    let sigma = 6;
-    const phases = factorEcmPhases(bits);
+    const triedAt = {};
+    let triedHeavyP1 = false;
+    function runCurves(B1, B2, curves) {
+      const start = 6 + (triedAt[B1] || 0);
+      const hit = ecmPhaseRun(n, start, B1, B2, curves, onTick, shouldStop);
+      if (hit && hit.aborted) return hit;
+      if (typeof hit === "bigint") {
+        triedAt[B1] = (triedAt[B1] || 0) + curves;
+        return hit;
+      }
+      triedAt[B1] = (triedAt[B1] || 0) + curves;
+      return null;
+    }
+    const phases = factorEcmLadder(bits);
     for (let ph = 0; ph < phases.length; ph++) {
       const row = phases[ph];
-      const hit = ecmPhaseRun(n, sigma, row[0], row[1], row[2], onTick, shouldStop);
+      if (row[0] >= 50000 && !triedHeavyP1) {
+        triedHeavyP1 = true;
+        if (shouldStop && shouldStop()) return { aborted: true };
+        emit(onTick, "p1", 1n, 1n, { B1: "1000000" });
+        g = pollardP1(n, 1000000);
+        if (g && g > 1n && g < n) return g;
+        for (let i = 0; i < 3; i++) {
+          const P = [1, 3, 5][i];
+          if (shouldStop && shouldStop()) return { aborted: true };
+          emit(onTick, "pp1", BigInt(i + 1), 3n, { P: String(P) });
+          g = williamsPp1(n, 40000, P);
+          if (g && g > 1n && g < n) return g;
+        }
+      }
+      const hit = runCurves(row[0], row[1], row[2]);
       if (hit && hit.aborted) return hit;
       if (typeof hit === "bigint") return hit;
-      sigma += row[2];
     }
-    if (bits > 160) {
+    if (!triedHeavyP1 && bits > 80) {
       if (shouldStop && shouldStop()) return { aborted: true };
-      emit(onTick, "p1", 1n, 1n, { B1: "2000000" });
-      g = pollardP1(n, 2000000);
+      emit(onTick, "p1", 1n, 1n, { B1: "1000000" });
+      g = pollardP1(n, 1000000);
       if (g && g > 1n && g < n) return g;
-      for (let i = 0; i < 3; i++) {
-        const P = [1, 3, 5][i];
-        if (shouldStop && shouldStop()) return { aborted: true };
-        emit(onTick, "pp1", BigInt(i + 1), 3n, { P: String(P) });
-        g = williamsPp1(n, 60000, P);
-        if (g && g > 1n && g < n) return g;
-      }
     }
     if (bits >= 90 && bits <= 140 && fermatSaysComposite(n)) {
       emit(onTick, "siqs", 0n, 1n, { label: "quadratic sieve" });
@@ -4163,18 +4202,27 @@
       if (shouldStop && shouldStop()) return { aborted: true };
       if (typeof g === "bigint" && g > 1n && g < n) return g;
     }
-    let B1 = 100000;
-    let curves = 12;
-    for (;;) {
-      if (shouldStop && shouldStop()) return { aborted: true };
-      let B2 = B1 * 40;
-      if (B2 > 30000000) B2 = 30000000;
-      const hit = ecmPhaseRun(n, sigma, B1, B2, curves, onTick, shouldStop);
+    const follow = [
+      [50000, 1200000, 40],
+      [250000, 4000000, 24],
+    ];
+    for (let fi = 0; fi < follow.length; fi++) {
+      const row = follow[fi];
+      const hit = runCurves(row[0], row[1], row[2]);
       if (hit && hit.aborted) return hit;
       if (typeof hit === "bigint") return hit;
-      sigma += curves;
-      if (B1 < 8000000) B1 *= 2;
-      else curves = Math.min(curves + 4, 80);
+    }
+    let B1 = 500000;
+    let curves = 16;
+    for (;;) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      let B2 = B1 * 12;
+      if (B2 > 8000000) B2 = 8000000;
+      const hit = runCurves(B1, B2, curves);
+      if (hit && hit.aborted) return hit;
+      if (typeof hit === "bigint") return hit;
+      if (B1 < 4000000) B1 = Math.floor((B1 * 3) / 2);
+      else curves = Math.min(curves + 8, 48);
     }
   }
 
@@ -4194,8 +4242,8 @@
     if (bits > 96 && !fermatSaysComposite(n)) return null;
     // A full 2^20 miss is several seconds and still short of a 15-digit
     // factor. Stage-2 ECM is the faster tool past that size.
-    const brentCurves = bits > 120 ? 3n : bits > 60 ? 4n : 16n;
-    const brentR = bits > 120 ? 1n << 16n : bits > 60 ? 1n << 18n : 1n << 20n;
+    const brentCurves = bits > 60 ? 4n : 16n;
+    const brentR = bits > 60 ? 1n << 18n : 1n << 20n;
     for (let c = 1n; c <= brentCurves; c++) {
       if (shouldStop && shouldStop()) return { aborted: true };
       emit(onTick, "brent", c, brentCurves, { label: "Brent–Pollard, fixed c" });
@@ -4208,30 +4256,20 @@
   }
 
   /**
-   * Prime, composite, or unsettled. Below 256 bits a BLS miss is not a
-   * composite: the cyclotomic proof has no such floor.
+   * Prime, composite, or unsettled. Past 96 bits the n±1 search is a long
+   * ECM budget (minutes in this tab around 180 bits) and still needs the
+   * cyclotomic proof. That proof has no 200-bit edge.
    */
   async function classifyCofactor(c, onTick, shouldStop) {
     const bits = bitLength(c);
-    if (bits >= 256) {
+    if (bits <= 96) {
       let proved = checkPrime(c, onTick, shouldStop);
       if (proved && typeof proved.then === "function") proved = await proved;
       if (proved && proved.aborted) return proved;
       if (proved && proved.prime === true) return { kind: "prime" };
-      if (proved && proved.factor != null) {
-        const f = BigInt(proved.factor);
-        if (f > 1n && f < c && c % f === 0n) return { kind: "factor", factor: f };
-      }
-      if (proved && proved.prime === false) return { kind: "composite" };
-      return { kind: "unsettled" };
-    }
-    if (bits <= 200) {
-      const decided = blsPrimality(c, 0, onTick, shouldStop);
-      if (shouldStop && shouldStop()) return { aborted: true };
-      if (decided && decided.prime === true) return { kind: "prime" };
-      if (decided && decided.prime === false) {
-        if (decided.factor != null) {
-          const f = BigInt(decided.factor);
+      if (proved && proved.prime === false) {
+        if (proved.factor != null) {
+          const f = BigInt(proved.factor);
           if (f > 1n && f < c && c % f === 0n) return { kind: "factor", factor: f };
         }
         return { kind: "composite" };
