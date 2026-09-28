@@ -1597,7 +1597,15 @@
         i: "starting",
         stage: kind === "check" ? "precheck" : kind === "randomPrime" ? "random prime" : kind === "nextPrime" ? "next prime" : "previous prime",
       };
-      if (kind === "check" || kind === "randomPrime") renderBusy(busyState);
+      if (kind === "factors" && facOut) {
+        facOut.className = "lab-out show busy";
+        facOut.innerHTML =
+          '<p class="verdict">Factoring…</p><dl><dt>n</dt><dd>' +
+          escapeHtml(n.toString()) +
+          "</dd><dt>digits</dt><dd>" +
+          n.toString().length +
+          "</dd></dl>";
+      } else if (kind === "check" || kind === "randomPrime") renderBusy(busyState);
       else if (nbOut) {
         nbOut.className = "lab-out show busy";
         nbOut.innerHTML =

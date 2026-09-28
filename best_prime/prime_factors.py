@@ -174,11 +174,11 @@ def _split(n: int, budget: _FactorBudget | None = None) -> int:
         f = lehman_factor(n, k_max=16)
     if f is not None and 1 < f < n:
         return f
-    # Fixed c sequence. Past 60 bits a 2^22 Brent run is the multi-minute
-    # hang and still misses a 15-digit factor.
+    # Fixed c sequence. 2^16 misses a 12-digit factor; 2^22 is the
+    # multi-minute hang. 2^20 with a few curves reaches that factor.
     bits = n.bit_length()
-    brent_curves = 4 if bits > 60 else 64
-    brent_r = 1 << (16 if bits > 60 else 22)
+    brent_curves = 6 if bits > 60 else 64
+    brent_r = 1 << (20 if bits > 60 else 22)
     for c in range(1, brent_curves + 1):
         if budget is not None:
             budget.check(n)
