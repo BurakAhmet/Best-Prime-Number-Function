@@ -2789,6 +2789,7 @@
       const need = (cub + 16n * k - 1n) / (16n * k);
       let extra = isqrt(need);
       if (extra * extra !== need) extra += 1n;
+      if (extra > 8192n) extra = 8192n;
       let a2 = a * a;
       const aEnd = a + extra;
       while (a <= aEnd) {
@@ -3414,24 +3415,32 @@
   }
 
   function splitComposite(n, onTick, shouldStop) {
-    const close = fermatSplit(n, 8192);
+    const close = fermatSplit(n, 4096);
     if (close) return close;
     const bits = bitLength(n);
-    const cub = icbrt(n);
-    const kMax = bits <= 64 ? cub : cub < 100000n ? cub : 100000n;
-    const lh = lehmanFactor(n, cub, kMax, onTick, shouldStop);
-    if (lh && lh.aborted) return lh;
-    if (lh && lh.factor) return lh.factor;
-    for (let c = 1n; c <= 16n; c++) {
+    // A 2^22 Brent run is tens of seconds past 60 bits and still misses a
+    // 15-digit factor. Keep a short fixed-c probe, then ECM.
+    const brentCurves = bits > 60 ? 4n : 16n;
+    const brentR = bits > 60 ? 1n << 16n : 1n << 20n;
+    for (let c = 1n; c <= brentCurves; c++) {
       if (shouldStop && shouldStop()) return { aborted: true };
-      emit(onTick, "brent", c, 16n, { label: "Brent–Pollard, fixed c" });
-      const g = brent(n, c, 2n, 1n << 18n, shouldStop);
+      emit(onTick, "brent", c, brentCurves, { label: "Brent–Pollard, fixed c" });
+      const g = brent(n, c, 2n, brentR, shouldStop);
       if (g == null) return { aborted: true };
       if (g > 1n && g < n) return g;
     }
+    const cub = icbrt(n);
+    // The real cube root past 60 bits makes each Lehman window enormous.
+    const cubProbe = bits > 60 && cub > 100000n ? 100000n : cub;
+    let kMax = cubProbe;
+    if (bits > 60 && kMax > 16n) kMax = 16n;
+    const lh = lehmanFactor(n, cubProbe, kMax, onTick, shouldStop);
+    if (lh && lh.aborted) return lh;
+    if (lh && lh.factor) return lh.factor;
     if (bits >= 28) {
-      const cap = bits < 90 ? 4000 : 12000;
-      const g = ecmFactor(n, onTick, shouldStop, 6, cap, null);
+      const cap = bits > 60 ? 2500 : 2000;
+      const phases = bits > 60 ? [{ B1: 2500, curves: 10 }] : null;
+      const g = ecmFactor(n, onTick, shouldStop, 6, cap, phases);
       if (g && g.aborted) return g;
       if (typeof g === "bigint" && g > 1n && g < n) return g;
     }
@@ -3483,6 +3492,12 @@
         continue;
       }
       emit(onTick, "split", 0n, 1n, { label: "splitting a composite cofactor" });
+      const g = splitComposite(c, onTick, shouldStop);
+      if (g && g.aborted) return g;
+      if (typeof g === "bigint" && g > 1n && g < c && c % g === 0n) {
+        stack.push(g, c / g);
+        continue;
+      }
       if (!quickComposite(c)) {
         const proved = checkPrime(c, onTick, shouldStop);
         if (proved && proved.aborted) return proved;
@@ -3497,12 +3512,6 @@
             continue;
           }
         }
-      }
-      const g = splitComposite(c, onTick, shouldStop);
-      if (g && g.aborted) return g;
-      if (typeof g === "bigint" && g > 1n && g < c && c % g === 0n) {
-        stack.push(g, c / g);
-        continue;
       }
       unsettled.push(c);
     }
