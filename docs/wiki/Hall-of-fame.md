@@ -13,7 +13,7 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 9223372036854775783 | near $2^{63}$ | ~3 ms |
 | 100000000000000000000000000000000000000000031 | 147-bit n−1 specimen | ~5 ms |
 | 10^149+183 | CLI default (150 digits) | ~7 s |
-| 10^999+7 | 1000-digit cyclotomic proof | ~50 s |
+| 10^999+7 | 1000-digit cyclotomic proof | ~43 s |
 | 10^1099+73 | 1100-digit cyclotomic proof, past the old 1024-digit modulus | ~158 s |
 | 18446744073709551557 | largest prime $\lt 2^{64}$ | ~3 ms |
 
