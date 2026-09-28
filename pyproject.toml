@@ -84,6 +84,7 @@ is-perfect-power = "best_prime.prime_cli:is_perfect_power_main"
 totient = "best_prime.prime_cli:totient_main"
 primorial = "best_prime.prime_cli:primorial_main"
 divisors = "best_prime.prime_cli:divisors_main"
+factors = "best_prime.prime_cli:factors_main"
 primality-certificate = "best_prime.prime_cli:primality_certificate_main"
 next-primes = "best_prime.prime_cli:next_primes_main"
 

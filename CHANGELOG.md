@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **`factors(n)` returns every positive divisor, ascending.** `factors(12)` is `[1, 2, 3, 4, 6, 12]`. The list is the complete prime factorization, expanded. The in-browser lab has a **List factors** button on the same number. The search is deterministic: trial, Fermat, Lehman, fixed-c Brent, then fixed-σ ECM. A cofactor that does not split is shown separately.
+
 ### Performance
 - **A 1000-digit cyclotomic proof is about 43 s.** The ring product for degree 8 and up is one integer multiplication (Kronecker), and each cyclotomic coefficient is reduced modulo $n$ once instead of once per elimination step. On this 12-thread machine `is_prime` of $10^{999}+7$ is **42.6 s** (path `bigint_aprcl`), down from about 50 s. The same single reduction is in the in-browser ring.
 - **n−1 trial division divides by a block of small primes at once.** The in-tab factoring step was one big-integer remainder per prime up to the trial bound. Primes whose product fits in 53 bits now share one remainder. On this machine the 72-bit successor of $2588668629162033095543$ proves in about 40 ms instead of about 70 ms, and the next-prime walk is about 110 ms.

@@ -15,6 +15,7 @@ from best_prime.ntheory import (
     divisor_count,
     divisor_sum,
     divisors,
+    factors,
     egcd,
     euler_phi,
     gcd,
@@ -213,10 +214,21 @@ def test_totient_hypothesis(n: int):
     assert totient(n) == _naive_totient(n)
 
 
+def test_factors_lists_every_positive_divisor():
+    assert factors(1) == [1]
+    assert factors(12) == [1, 2, 3, 4, 6, 12]
+    assert factors(97) == [1, 97]
+    assert factors(91) == [1, 7, 13, 91]
+    assert factors("12") == factors(12)
+    with pytest.raises(ValueError):
+        factors(0)
+
+
 @settings(max_examples=30, **_HYP)
 @given(st.integers(min_value=1, max_value=200))
 def test_divisors_hypothesis(n: int):
     d = _naive_divisors(n)
+    assert factors(n) == d
     assert divisors(n) == d
     assert divisor_count(n) == len(d)
     assert divisor_sum(n) == sum(d)
