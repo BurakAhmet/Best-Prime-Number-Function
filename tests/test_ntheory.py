@@ -225,6 +225,17 @@ def test_factors_lists_every_positive_divisor():
         factors(0)
 
 
+def test_fifty_digit_cofactor_is_finished():
+    """10^49+21 used to list two prime factors and leave a 35-digit cofactor."""
+    n = 10**49 + 21
+    t = time.perf_counter()
+    got = factors(n)
+    assert time.perf_counter() - t < 60
+    assert 18911 in got
+    assert 580056567656257 in got
+    assert got[0] == 1 and got[-1] == n
+
+
 def test_fifty_digit_factors_finish():
     """A 50-digit integer with a small prime factor must not enter the old cube-root search."""
     from best_prime.errors import UnsettledFactorError

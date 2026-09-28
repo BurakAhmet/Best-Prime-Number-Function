@@ -684,7 +684,7 @@
       </section>
       <section class="prime-lab lab-factors" aria-label="All factors">
         <h3 class="lab-subhead">All factors</h3>
-        <p class="lab-hint">Every positive divisor of n. Small factors are divided out first. A 50-digit number with a factor under about 13 digits finishes in a couple of seconds. A product of two primes near 25 digits stops and lists that cofactor on its own. Stop anytime.</p>
+        <p class="lab-hint">Every positive divisor of n. Small factors are divided out first. A cofactor up to about 40 digits is finished with the quadratic sieve, so a 50-digit number that has a small factor comes back complete. A product of two primes near 25 digits stops and lists that cofactor on its own. Stop anytime.</p>
         <div class="row">
           <button type="button" id="lab-factors">List factors</button>
         </div>
