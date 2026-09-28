@@ -234,43 +234,67 @@ def _williams_pp1(n: int, b1: int, p: int) -> int | None:
     return g if 1 < g < n else None
 
 
-def _ecm_phases(bits: int) -> list[tuple[int, int, int]]:
-    """(B1, B2, curves) for a cofactor of this width. Stage 2 is B2.
+def _ecm_ladder(bits: int) -> list[tuple[int, int, int]]:
+    """(B1, B2, curves), small factors first, for every cofactor width.
 
-    The first rows are sized for the factor ECM actually meets on a
-    30-to-90-digit composite (about 12–20 digits), not for a balanced
-    half-size factor. The continuation after these rows keeps going.
+    The rows follow the GMP-ECM expected-curve table (Zimmermann): a
+    16-digit factor wants about B1=11e3, a 20-digit factor about B1=25e3,
+    a 25-digit factor about B1=50e3. Curve counts are a fixed slice of
+    that expectation, so a 91-digit cofactor gets the same early rows as
+    a 40-digit one. How far the ladder climbs is half the cofactor's
+    digits. B2 stays a small multiple of B1; this stage 2 is a product
+    of X-differences, and a huge B2 costs more than it finds.
     """
-    if bits <= 80:
-        return [(2_000, 100_000, 12)]
-    if bits <= 120:
-        return [(8_000, 700_000, 12), (20_000, 1_000_000, 8)]
-    if bits <= 180:
-        return [(11_000, 900_000, 10), (50_000, 2_000_000, 16)]
-    if bits <= 240:
-        return [(15_000, 1_200_000, 8), (50_000, 2_000_000, 12), (200_000, 4_000_000, 8)]
-    if bits <= 340:
-        return [(15_000, 1_200_000, 8), (50_000, 2_000_000, 12), (250_000, 5_000_000, 8)]
-    return [(50_000, 2_000_000, 8), (250_000, 5_000_000, 8), (1_000_000, 12_000_000, 6)]
+    digits = max(2, int(bits * math.log10(2)) + 1)
+    half = max(digits // 2, 12)
+    # (target factor digits, B1, curves)
+    # Each row starts again at σ=6. A σ that needs this B1 must not be
+    # spent on a cheaper row: 10^90+9's 18-digit factor is σ=30 at
+    # B1=50_000, and the same σ at B1=25_000 does not split it.
+    rows = (
+        (12, 2_000, 8),
+        (16, 11_000, 16),
+        (21, 50_000, 32),
+        (26, 120_000, 16),
+        (31, 250_000, 16),
+        (36, 1_000_000, 8),
+    )
+    out: list[tuple[int, int, int]] = []
+    for target, b1, curves in rows:
+        if target > half + 3 and target > 20:
+            break
+        ratio = 40 if b1 <= 50_000 else 16
+        b2 = b1 * ratio
+        if b2 > 8_000_000:
+            b2 = 8_000_000
+        out.append((b1, b2, curves))
+    if not out:
+        out.append((2_000, 80_000, 8))
+    return out
 
 
 def _classify_cofactor(n: int, *, parallel: bool) -> str:
     """'prime', 'composite', or 'unsettled'.
 
-    Below 256 bits a BLS miss is not a composite. The cyclotomic proof
-    has no such floor, so a Fermat survivor still gets a finished proof.
+    Up to 96 bits the n±1 / trial proof is the fast one. Wider than that,
+    ``is_prime`` still spends its ECM budget on n±1 before it will say
+    the cofactor is prime: about 13 s for the 186-bit prime factor of
+    10^90+9, and minutes in the browser. The same prime is a cyclotomic
+    proof in a fraction of a second, with no band edge at 200 bits.
     """
-    try:
-        return "prime" if is_prime(n, parallel=parallel) else "composite"
-    except UnsettledPrimalityError:
-        from .primality_aprcl import aprcl_primality
+    if n.bit_length() <= 96:
+        try:
+            return "prime" if is_prime(n, parallel=parallel) else "composite"
+        except UnsettledPrimalityError:
+            pass
+    from .primality_aprcl import aprcl_primality
 
-        decided = aprcl_primality(n)
-        if decided is True:
-            return "prime"
-        if decided is False:
-            return "composite"
-        return "unsettled"
+    decided = aprcl_primality(n)
+    if decided is True:
+        return "prime"
+    if decided is False:
+        return "composite"
+    return "unsettled"
 
 
 def _deep_split(n: int, budget: "_FactorBudget") -> int | None:
@@ -289,31 +313,50 @@ def _deep_split(n: int, budget: "_FactorBudget") -> int | None:
     # A second, larger bound runs only if those curves miss.
     if budget is not None:
         budget.check(n)
-    g = _pollard_p1(n, 100_000 if bits > 90 else 20_000)
+    g = _pollard_p1(n, 100_000 if bits > 64 else 20_000)
     if g is not None:
         return g
-    sigma = 6
-    for b1, b2, curves in _ecm_phases(bits):
-        for _ in range(curves):
+    # σ restarts at 6 for each B1. See _ecm_ladder.
+    tried_at: dict[int, int] = {}
+    tried_heavy_p1 = False
+
+    def _curves(b1: int, b2: int, curves: int) -> int | None:
+        start = 6 + tried_at.get(b1, 0)
+        for i in range(curves):
             if budget is not None:
                 budget.check(n)
-            g = ecm_one_curve(n, sigma, b1, b2)
-            sigma += 1
-            if g is not None and 1 < g < n:
-                return g
-    if bits > 160:
-        # The planned curves missed. One deeper p−1 / p+1 pass, then the sieve.
-        if budget is not None:
-            budget.check(n)
-        g = _pollard_p1(n, 2_000_000)
-        if g is not None:
-            return g
-        for param in (1, 3, 5):
+            found = ecm_one_curve(n, start + i, b1, b2)
+            if found is not None and 1 < found < n:
+                tried_at[b1] = tried_at.get(b1, 0) + i + 1
+                return found
+        tried_at[b1] = tried_at.get(b1, 0) + curves
+        return None
+
+    for b1, b2, curves in _ecm_ladder(bits):
+        # One larger p−1 / p+1 pass once the cheap curves have missed.
+        # It is a single exponentiation, useful at every width.
+        if b1 >= 50_000 and not tried_heavy_p1:
+            tried_heavy_p1 = True
             if budget is not None:
                 budget.check(n)
-            g = _williams_pp1(n, 60_000, param)
+            g = _pollard_p1(n, 1_000_000)
             if g is not None:
                 return g
+            for param in (1, 3, 5):
+                if budget is not None:
+                    budget.check(n)
+                g = _williams_pp1(n, 40_000, param)
+                if g is not None:
+                    return g
+        g = _curves(b1, b2, curves)
+        if g is not None:
+            return g
+    if not tried_heavy_p1 and bits > 80:
+        if budget is not None:
+            budget.check(n)
+        g = _pollard_p1(n, 1_000_000)
+        if g is not None:
+            return g
     if 90 <= bits <= 140 and pow(2, n - 1, n) != 1:
         if budget is not None:
             budget.check(n)
@@ -330,24 +373,29 @@ def _deep_split(n: int, budget: "_FactorBudget") -> int | None:
         g = siqs_factor(n, max_ms=ms)
         if g is not None and 1 < g < n:
             return g
-    # No digit ceiling. Each new sigma is the next fixed curve.
-    b1 = 100_000
-    curves = 12
+    # The ladder missed. More curves at the B1 that fits a 20-to-30-digit
+    # factor, then a slow step up. Jumping straight to B1=8e6 spends
+    # minutes per curve on the wrong bound.
+    for b1, b2, curves in (
+        (50_000, 1_200_000, 40),
+        (250_000, 4_000_000, 24),
+    ):
+        g = _curves(b1, b2, curves)
+        if g is not None:
+            return g
+    b1 = 500_000
+    curves = 16
     while True:
-        b2 = b1 * 40
-        if b2 > 30_000_000:
-            b2 = 30_000_000
-        for _ in range(curves):
-            if budget is not None:
-                budget.check(n)
-            g = ecm_one_curve(n, sigma, b1, b2)
-            sigma += 1
-            if g is not None and 1 < g < n:
-                return g
-        if b1 < 8_000_000:
-            b1 *= 2
+        b2 = b1 * 12
+        if b2 > 8_000_000:
+            b2 = 8_000_000
+        g = _curves(b1, b2, curves)
+        if g is not None:
+            return g
+        if b1 < 4_000_000:
+            b1 = (b1 * 3) // 2
         else:
-            curves = min(curves + 4, 80)
+            curves = min(curves + 8, 48)
 
 
 @dataclass
@@ -404,9 +452,10 @@ def _split(n: int, budget: _FactorBudget | None = None) -> int | None:
     # Fixed c sequence. A miss at 2^20 is several seconds and still too
     # short for a 15-digit factor; stage-2 ECM is faster there. 2^22 is
     # the multi-minute hang, so the wide cofactor only gets a short probe.
-    if bits > 120:
-        brent_curves, brent_r = 3, 1 << 16
-    elif bits > 60:
+    # 2^16 misses an 8-digit factor (10^90+9's 28511929). 2^18 with a
+    # few curves catches that and still returns in about a second when
+    # the factor is larger. 2^22 is the multi-minute hang.
+    if bits > 60:
         brent_curves, brent_r = 4, 1 << 18
     else:
         brent_curves, brent_r = 64, 1 << 22

@@ -193,6 +193,54 @@ console.log('random ok', sawPastOldCap ? 'saw >149' : 'tail not hit in 80 draws'
     assert proc.returncode == 0, proc.stderr or proc.stdout
 
 
+def test_ninety_one_digit_factor_list_matches_ninety() -> None:
+    """91-digit 10^90+9 must finish, not sit in the 200-bit n±1 budget.
+
+    Its 56-digit prime factor is 186 bits. The old path proved that prime
+    with BLS (minutes in this worker). The cyclotomic proof has no such edge.
+    """
+    script = r"""
+const api = require('./docs/wiki/assets/checker-worker.js');
+(async () => {
+  async function check(n, label, limit) {
+    const t0 = Date.now();
+    const r = await api.factorAll(n);
+    const dt = Date.now() - t0;
+    if (!r || !r.ok || (r.unsettled && r.unsettled.length) || dt >= limit) {
+      console.error(label, dt, r && r.ok, r && r.unsettled, r && r.primes);
+      process.exit(1);
+    }
+    let prod = 1n;
+    for (const p of r.primes) prod *= BigInt(p);
+    if (prod !== n) {
+      console.error(label, 'product', r.primes);
+      process.exit(1);
+    }
+    console.log(label, dt);
+    return r;
+  }
+  const wide = await check(10n ** 89n + 9n, '90', 60000);
+  if (!wide.primes.includes('9302577834136361')) {
+    console.error('missing 16-digit', wide.primes);
+    process.exit(1);
+  }
+  const next = await check(10n ** 90n + 9n, '91', 120000);
+  if (!next.primes.includes('28511929') || !next.primes.includes('131316266047656409')) {
+    console.error('91 factors', next.primes);
+    process.exit(1);
+  }
+})().catch((err) => { console.error(err); process.exit(1); });
+"""
+    proc = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+
+
 def test_ninety_digit_factor_list_finishes_in_the_lab() -> None:
     """10^89+9 used to return Incomplete on a 77-digit cofactor."""
     script = r"""
