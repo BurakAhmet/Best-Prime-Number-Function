@@ -251,20 +251,29 @@ def _ecm_ladder(bits: int) -> list[tuple[int, int, int]]:
     # Each row starts again at σ=6. A σ that needs this B1 must not be
     # spent on a cheaper row: 10^90+9's 18-digit factor is σ=30 at
     # B1=50_000, and the same σ at B1=25_000 does not split it.
+    # Curve counts are about one expected run from the GMP-ECM table,
+    # not a short sample. A 31-digit factor of a 79-digit cofactor
+    # (4405…5209) is σ=484 at B1=250_000; sixteen curves never reach it.
+    # B2=2·B1 is enough for that curve. A 40×B1 stage 2 is slower and
+    # does not find it any sooner.
     rows = (
         (12, 2_000, 8),
         (16, 11_000, 16),
-        (21, 50_000, 32),
-        (26, 120_000, 16),
-        (31, 250_000, 16),
-        (36, 1_000_000, 8),
+        (21, 50_000, 40),
+        (26, 120_000, 24),
+        (31, 250_000, 500),
+        (36, 1_000_000, 40),
     )
     out: list[tuple[int, int, int]] = []
     for target, b1, curves in rows:
         if target > half + 3 and target > 20:
             break
-        ratio = 40 if b1 <= 50_000 else 16
-        b2 = b1 * ratio
+        if b1 <= 50_000:
+            b2 = b1 * 40
+        elif b1 <= 120_000:
+            b2 = b1 * 16
+        else:
+            b2 = b1 * 2
         if b2 > 8_000_000:
             b2 = 8_000_000
         out.append((b1, b2, curves))
@@ -297,7 +306,18 @@ def _classify_cofactor(n: int, *, parallel: bool) -> str:
     return "unsettled"
 
 
-def _deep_split(n: int, budget: "_FactorBudget") -> int | None:
+def _ecm_curve_job(job: tuple[int, int, int, int]) -> int | None:
+    """One curve in a worker process. Top-level so it can be pickled."""
+    n, sigma, b1, b2 = job
+    from .factor_ecm import ecm_one_curve
+
+    found = ecm_one_curve(n, sigma, b1, b2)
+    if found is not None and 1 < found < n and n % found == 0:
+        return found
+    return None
+
+
+def _deep_split(n: int, budget: "_FactorBudget", *, parallel: bool = True) -> int | None:
     """Split a Fermat-composite cofactor. None only when a deadline stops it.
 
     With no deadline the elliptic-curve search does not stop on a digit
@@ -322,6 +342,29 @@ def _deep_split(n: int, budget: "_FactorBudget") -> int | None:
 
     def _curves(b1: int, b2: int, curves: int) -> int | None:
         start = 6 + tried_at.get(b1, 0)
+        # Hundreds of curves at B1=250_000 are the 31-digit search.
+        # Processes keep the same σ order as one core: the smallest σ wins.
+        if parallel and curves >= 24 and b1 >= 50_000:
+            import os
+            from concurrent.futures import ProcessPoolExecutor
+
+            workers = min(8, os.cpu_count() or 1)
+            if workers >= 2:
+                with ProcessPoolExecutor(max_workers=workers) as pool:
+                    done = 0
+                    while done < curves:
+                        if budget is not None:
+                            budget.check(n)
+                        wave = min(workers, curves - done)
+                        jobs = [(n, start + done + i, b1, b2) for i in range(wave)]
+                        founds = list(pool.map(_ecm_curve_job, jobs, chunksize=1))
+                        for i, found in enumerate(founds):
+                            if found is not None:
+                                tried_at[b1] = tried_at.get(b1, 0) + done + i + 1
+                                return found
+                        done += wave
+                tried_at[b1] = tried_at.get(b1, 0) + curves
+                return None
         for i in range(curves):
             if budget is not None:
                 budget.check(n)
@@ -409,7 +452,9 @@ class _FactorBudget:
             raise UnsettledFactorError(self.n, leftover=leftover, found=list(self.found))
 
 
-def _split(n: int, budget: _FactorBudget | None = None) -> int | None:
+def _split(
+    n: int, budget: _FactorBudget | None = None, *, parallel: bool = True
+) -> int | None:
     """A proper factor of composite n, or None when n still looks prime.
 
     A Fermat survivor returns None so the caller can prove it. A Fermat
@@ -467,7 +512,7 @@ def _split(n: int, budget: _FactorBudget | None = None) -> int | None:
             return g
     if not _fermat_composite(n):
         return None
-    return _deep_split(n, budget)
+    return _deep_split(n, budget, parallel=parallel)
 
 
 def _factor_rec(n: int, out: list[int], *, parallel: bool, budget: _FactorBudget) -> None:
@@ -494,7 +539,7 @@ def _factor_rec(n: int, out: list[int], *, parallel: bool, budget: _FactorBudget
         if is_prime(n, parallel=parallel):
             out.append(n)
             return
-    f = _split(n, budget)
+    f = _split(n, budget, parallel=parallel)
     if f is None:
         kind = _classify_cofactor(n, parallel=parallel)
         if kind == "prime":
@@ -503,7 +548,7 @@ def _factor_rec(n: int, out: list[int], *, parallel: bool, budget: _FactorBudget
         if kind == "composite":
             # Passed the Fermat screen and still composite (or the screen
             # was skipped). Keep splitting; a deadline raises inside.
-            f = _deep_split(n, budget)
+            f = _deep_split(n, budget, parallel=parallel)
         else:
             raise UnsettledFactorError(budget.n, leftover=n, found=list(out))
     if f is None or f <= 1 or f >= n or n % f != 0:

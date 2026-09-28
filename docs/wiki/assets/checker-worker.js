@@ -4108,13 +4108,15 @@
     const half = Math.max(Math.floor(digits / 2), 12);
     // σ restarts at 6 on each row. 10^90+9's 18-digit factor is σ=30
     // at B1=50000; that same σ at a smaller B1 does not split it.
+    // 500 curves at B1=250000: the 31-digit factor of 4405…5209 is σ=484.
+    // B2 = 2·B1 is enough for that curve.
     const rows = [
       [12, 2000, 8],
       [16, 11000, 16],
-      [21, 50000, 32],
-      [26, 120000, 16],
-      [31, 250000, 16],
-      [36, 1000000, 8],
+      [21, 50000, 40],
+      [26, 120000, 24],
+      [31, 250000, 500],
+      [36, 1000000, 40],
     ];
     const out = [];
     for (let i = 0; i < rows.length; i++) {
@@ -4122,7 +4124,7 @@
       const b1 = rows[i][1];
       const curves = rows[i][2];
       if (target > half + 3 && target > 20) break;
-      let b2 = b1 * (b1 <= 50000 ? 40 : 16);
+      let b2 = b1 * (b1 <= 50000 ? 40 : b1 <= 120000 ? 16 : 2);
       if (b2 > 8000000) b2 = 8000000;
       out.push([b1, b2, curves]);
     }
@@ -4150,7 +4152,68 @@
    * Split a known composite. No digit cap: after the planned curves the
    * search keeps taking the next fixed σ. Stop is the only abort.
    */
-  function deepSplit(n, onTick, shouldStop) {
+  let _ecmPool = null;
+  let _ecmPoolBroken = false;
+  let _ecmMsg = 1;
+
+  function ecmPool() {
+    if (_ecmPoolBroken) return [];
+    if (_ecmPool) return _ecmPool;
+    if (typeof Worker !== "function") return [];
+    const cores = (typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 1;
+    const width = Math.max(0, Math.min(8, cores - 1));
+    if (width < 2) return [];
+    let href = "";
+    try {
+      href = self.location && self.location.href ? String(self.location.href) : "";
+    } catch (err) {
+      href = "";
+    }
+    if (!href) return [];
+    const pool = [];
+    try {
+      for (let i = 0; i < width; i++) pool.push(new Worker(href));
+    } catch (err) {
+      for (let i = 0; i < pool.length; i++) {
+        try { pool[i].terminate(); } catch (e2) { /* already gone */ }
+      }
+      _ecmPoolBroken = true;
+      return [];
+    }
+    _ecmPool = pool;
+    return pool;
+  }
+
+  function ecmBatch(pool, n, sigma0, width, B1, B2) {
+    const text = n.toString();
+    const jobs = [];
+    for (let i = 0; i < width; i++) {
+      jobs.push(new Promise(function (resolve) {
+        const worker = pool[i];
+        const id = _ecmMsg++;
+        const sigma = sigma0 + i;
+        function finish(factor) {
+          worker.removeEventListener("message", onMsg);
+          worker.removeEventListener("error", onErr);
+          resolve(factor);
+        }
+        function onMsg(ev) {
+          const msg = ev.data || {};
+          if (msg.type !== "ecmCurve" || msg.id !== id) return;
+          finish(msg.factor ? BigInt(msg.factor) : null);
+        }
+        function onErr() {
+          finish(null);
+        }
+        worker.addEventListener("message", onMsg);
+        worker.addEventListener("error", onErr);
+        worker.postMessage({ cmd: "ecmCurve", id: id, n: text, sigma: sigma, B1: B1, B2: B2 });
+      }));
+    }
+    return Promise.all(jobs);
+  }
+
+  async function deepSplit(n, onTick, shouldStop) {
     const bits = bitLength(n);
     const p1 = bits > 64 ? 100000 : 20000;
     emit(onTick, "p1", 1n, 1n, { B1: String(p1) });
@@ -4158,13 +4221,33 @@
     if (g && g > 1n && g < n) return g;
     const triedAt = {};
     let triedHeavyP1 = false;
-    function runCurves(B1, B2, curves) {
+    const digits = String(n.toString().length);
+    async function runCurves(B1, B2, curves) {
       const start = 6 + (triedAt[B1] || 0);
-      const hit = ecmPhaseRun(n, start, B1, B2, curves, onTick, shouldStop);
-      if (hit && hit.aborted) return hit;
-      if (typeof hit === "bigint") {
+      const pool = curves >= 16 ? ecmPool() : [];
+      if (pool.length < 2) {
+        const hit = ecmPhaseRun(n, start, B1, B2, curves, onTick, shouldStop);
         triedAt[B1] = (triedAt[B1] || 0) + curves;
         return hit;
+      }
+      let offset = 0;
+      while (offset < curves) {
+        if (shouldStop && shouldStop()) return { aborted: true };
+        const width = Math.min(pool.length, curves - offset);
+        const facts = await ecmBatch(pool, n, start + offset, width, B1, B2);
+        for (let i = 0; i < width; i++) {
+          const factor = facts[i];
+          if (typeof factor === "bigint" && factor > 1n && factor < n && n % factor === 0n) {
+            triedAt[B1] = (triedAt[B1] || 0) + offset + i + 1;
+            return factor;
+          }
+        }
+        offset += width;
+        emit(onTick, "ecm", BigInt(offset), BigInt(curves), {
+          sigma: String(start + offset - 1),
+          B1: String(B1),
+          digits: digits,
+        });
       }
       triedAt[B1] = (triedAt[B1] || 0) + curves;
       return null;
@@ -4186,7 +4269,7 @@
           if (g && g > 1n && g < n) return g;
         }
       }
-      const hit = runCurves(row[0], row[1], row[2]);
+      const hit = await runCurves(row[0], row[1], row[2]);
       if (hit && hit.aborted) return hit;
       if (typeof hit === "bigint") return hit;
     }
@@ -4208,7 +4291,7 @@
     ];
     for (let fi = 0; fi < follow.length; fi++) {
       const row = follow[fi];
-      const hit = runCurves(row[0], row[1], row[2]);
+      const hit = await runCurves(row[0], row[1], row[2]);
       if (hit && hit.aborted) return hit;
       if (typeof hit === "bigint") return hit;
     }
@@ -4218,7 +4301,7 @@
       if (shouldStop && shouldStop()) return { aborted: true };
       let B2 = B1 * 12;
       if (B2 > 8000000) B2 = 8000000;
-      const hit = runCurves(B1, B2, curves);
+      const hit = await runCurves(B1, B2, curves);
       if (hit && hit.aborted) return hit;
       if (typeof hit === "bigint") return hit;
       if (B1 < 4000000) B1 = Math.floor((B1 * 3) / 2);
@@ -4226,7 +4309,7 @@
     }
   }
 
-  function splitComposite(n, onTick, shouldStop) {
+  async function splitComposite(n, onTick, shouldStop) {
     const bits = bitLength(n);
     const close = fermatSplit(n, bits > 180 ? 1024 : 4096);
     if (close) return close;
@@ -4252,7 +4335,7 @@
       if (g > 1n && g < n) return g;
     }
     if (!fermatSaysComposite(n)) return null;
-    return deepSplit(n, onTick, shouldStop);
+    return await deepSplit(n, onTick, shouldStop);
   }
 
   /**
@@ -4365,7 +4448,7 @@
         }
         // Fermat screen missed a composite. The screen's early return would
         // skip the curves, so split it directly.
-        const deep = deepSplit(c, onTick, shouldStop);
+        const deep = await deepSplit(c, onTick, shouldStop);
         if (deep && deep.aborted) return deep;
         if (typeof deep === "bigint" && deep > 1n && deep < c && c % deep === 0n) {
           stack.push(deep, c / deep);
@@ -4377,7 +4460,7 @@
       emit(onTick, "split", 0n, 1n, {
         label: "splitting a " + c.toString().length + "-digit cofactor",
       });
-      const g = splitComposite(c, onTick, shouldStop);
+      const g = await splitComposite(c, onTick, shouldStop);
       if (g && g.aborted) return g;
       if (typeof g === "bigint" && g > 1n && g < c && c % g === 0n) {
         stack.push(g, c / g);
@@ -4480,6 +4563,7 @@
     parseK: parseK,
     quickComposite: quickComposite,
     factorAll: factorAll,
+    ecmOneCurve: ecmOneCurve,
     randomPrime: randomPrime,
     ecmFactor: ecmFactor,
     umod64: umod64,
@@ -4508,6 +4592,19 @@
       const msg = ev.data || {};
       if (msg.cmd === "stop") {
         stop = true;
+        return;
+      }
+      if (msg.cmd === "ecmCurve") {
+        try {
+          const factor = ecmOneCurve(BigInt(msg.n), msg.sigma | 0, msg.B1 | 0, msg.B2 | 0);
+          g.postMessage({
+            type: "ecmCurve",
+            id: msg.id,
+            factor: typeof factor === "bigint" ? factor.toString() : "",
+          });
+        } catch (err) {
+          g.postMessage({ type: "ecmCurve", id: msg.id, factor: "", error: String(err) });
+        }
         return;
       }
       if (
