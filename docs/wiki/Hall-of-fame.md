@@ -14,6 +14,7 @@ Times are **indicative** and depend on CPU, `OMP_NUM_THREADS`, and whether `whee
 | 100000000000000000000000000000000000000000031 | 147-bit n−1 specimen | ~5 ms |
 | 10^149+183 | CLI default (150 digits) | ~7 s |
 | 10^999+7 | 1000-digit cyclotomic proof | ~50 s |
+| 10^1099+73 | 1100-digit cyclotomic proof, past the old 1024-digit modulus | ~158 s |
 | 18446744073709551557 | largest prime $\lt 2^{64}$ | ~3 ms |
 
 C core (v1.8.1+): precomputed primes $\le 2^{20}$ with 2-adic inverse trial for mid-size $n$. The same table peels odd prime powers while BLS factors $n\pm 1$ (no Python prime tuple). Harder full-trial paths still use a **wheel-30** segmented sieve, **memcpy / OR presieve** ($7{\cdot}29$), **uint32 persisted byte-index marks**, **`DELTA[64]`/`ctzll` extract**, and **8-way 2-adic** (INV16) prime-only trial. Stdlib / Numba still keep the **30030** / **9699690** wheels.

@@ -79,8 +79,8 @@ In symbols: below $10^{4}$ the check is direct. Below $2^{64}$ with $\lfloor\sqr
 | Most 64-bit numbers with $\lfloor\sqrt{n}\rfloor < 10^7$ | Wheel trial, in OpenMP C when `wheel_core.so` is built, otherwise a 30030-wheel or a 9699690-wheel | Milliseconds |
 | A hard 64-bit prime, or the 147-bit default | Combined BLS: factor $n-1$ or $n+1$ and check the witnesses | Milliseconds when the factors are kind |
 | The same band when $n\pm 1$ is hostile | Cubic search, the complete fallback inside its budget | Still a proof, slower |
-| About 100 digits and up, while $\sqrt{n}$ fits the cyclotomic modulus | Jacobi sums. Any prime divisor is forced into a short list, then that list is checked | About 0.7 s at 100 digits; about 50 s at 1000 digits on 12 cores |
-| Wider than that modulus | FastECPP: an elliptic curve whose order leads to a smaller prime, proved the same way | The fallback, not the 100-digit path |
+| About 100 digits and up, while $\sqrt{n}$ fits the cyclotomic modulus | Jacobi sums. Any prime divisor is forced into a short list, then that list is checked | About 0.7 s at 100 digits; about 50 s at 1000 digits; about 158 s at 1100 digits on 12 cores. The modulus ladder covers every integer through 5000 digits |
+| Wider than that modulus (past 5000 digits) | FastECPP: an elliptic curve whose order leads to a smaller prime, proved the same way | The fallback. A 5000-digit cyclotomic proof is real and much slower than five minutes |
 | Wider than the engines cover | Stop | `UnsettledPrimalityError` |
 
 NumPy / Numba speed the wheel when the OpenMP core is absent. They are not a second answer.
@@ -97,7 +97,7 @@ NumPy / Numba speed the wheel when the OpenMP core is absent. They are not a sec
 
 **Elliptic-curve proof.** Build a curve whose order splits as $c\cdot q$ with $q$ a smaller prime. A point on the curve, plus a proof of $q$, proves $n$. Repeat until the cofactor is small enough for trial or BLS. This is the 100-digit path. The in-browser lab uses the same idea; the Python library is the one that continues into the cyclotomic band.
 
-**Cyclotomic proof.** For a wide $n$, pick a modulus $s>\sqrt{n}$ built from many small primes. Jacobi-sum identities in cyclotomic rings force every prime divisor of $n$ to equal $n^k \bmod s$ for some small $k$. Divide those few residues into $n$. That is how $10^{999}+7$ is proved, in about a minute on 12 cores, rather than by an elliptic-curve chain that only shrinks a few digits per step.
+**Cyclotomic proof.** For a wide $n$, pick a modulus $s>\sqrt{n}$ built from many small primes. Jacobi-sum identities in cyclotomic rings force every prime divisor of $n$ to equal $n^k \bmod s$ for some small $k$. Divide those residues into $n$. The exponent is the smallest entry of a fixed ladder that still makes $s>\sqrt{n}$. That ladder reaches every 5000-digit integer. $10^{999}+7$ takes about a minute on 12 cores, and $10^{1099}+73$ takes about 158 seconds. The in-browser lab runs this same proof from 256 bits, including next and previous prime.
 
 ```mermaid
 sequenceDiagram

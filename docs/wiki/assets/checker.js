@@ -62,8 +62,7 @@
     const pow10 = digits <= 1 ? 1n : 10n ** BigInt(digits - 1);
     const sq = isqrt(n);
     let band = "exact trial";
-    if (bits >= 800) band = "cyclotomic proof";
-    else if (bits >= 256) band = "elliptic-curve proof";
+    if (bits >= 256) band = "cyclotomic proof";
     else if (n >= TWO64) band = "combined BLS";
     return {
       digits: digits,
@@ -661,8 +660,8 @@
           <label class="lab-any"><input id="lab-rand-any" type="checkbox"/> any length, no maximum</label>
         </div>
         <p class="lab-hint">Proves the number in this tab, or prints a factor.
-          Below 256 bits it uses both sides of n±1. From 256 bits it uses an elliptic-curve proof.
-          From 256 bits this tab runs the cyclotomic proof, including next and previous prime. A 1000-digit prime takes about three minutes here on 12 cores. The Python library does that same proof in about 50 seconds.
+          Below 256 bits it uses both sides of n±1.
+          From 256 bits this tab runs the same cyclotomic proof as the library, including next and previous prime, while the modulus covers the square root. That covers every integer through 5000 digits. A 1000-digit prime takes about three minutes here on 12 cores. The Python library does that proof in about 50 seconds, and proved 10^1099+73 in about 158 seconds.
           There is no digit limit. Stop anytime.
           A miss is <strong>inconclusive</strong> here; the Python library may still prove it.</p>
         ${stageMarkup()}
@@ -1663,7 +1662,7 @@
               <dt>⌊√n⌋</dt><dd>${fmt(res.isqrt)}</dd>
               <dt>time</dt><dd>${Number(res.ms).toFixed(2)} ms</dd>
               <dt>note</dt><dd>${escapeHtml(res.note || "")}</dd></dl>
-              <p class="lab-hint">This tab did not finish a proof. The Python library may still settle it. From 800 bits that library uses a cyclotomic proof.</p>`
+              <p class="lab-hint">This tab did not finish a proof. The Python library uses the same cyclotomic ladder from 256 bits. Past 5000 digits the prepared modulus no longer covers the square root.</p>`
             );
           } else {
             renderCert({

@@ -255,6 +255,38 @@ console.log('spsp', r.factor, dt);
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_browser_aprcl_ladder_matches_library() -> None:
+    """The tab selects the same modulus rung as the library, without building Jacobi sums."""
+    script = r"""
+const A = require('./docs/wiki/assets/aprcl.js');
+function digits(n){ return n.toString().length; }
+const n1100 = 10n ** 1099n + 73n;
+const r1100 = A.chooseR(n1100);
+if (r1100 !== 73513440) { console.error('1100 R', r1100); process.exit(1); }
+if (!(A.modulus(r1100).s > A.isqrt(n1100))) { console.error('1100 cover'); process.exit(1); }
+const n5000 = 10n ** 4999n;
+const r5000 = A.chooseR(n5000);
+if (r5000 !== 4655851200) { console.error('5000 R', r5000); process.exit(1); }
+if (!(A.modulus(r5000).s > A.isqrt(n5000))) { console.error('5000 cover'); process.exit(1); }
+if (digits(A.modulus(r5000).s) < 2501) { console.error('s digits', digits(A.modulus(r5000).s)); process.exit(1); }
+const past = A.chooseR(10n ** 5199n);
+if (past !== null) { console.error('past ladder', past); process.exit(1); }
+const small = A.proveSerial(10007n);
+if (!small.prime || small.path !== 'aprcl') { console.error(JSON.stringify(small)); process.exit(1); }
+console.log('ladder ok', r1100, r5000, digits(A.modulus(r5000).s));
+"""
+    r = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 def test_checker_worker_100_digit_under_30s() -> None:
     """100-digit prime, Fermat composite, and a 400-digit input. No digit cap.
 
