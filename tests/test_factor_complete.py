@@ -118,6 +118,42 @@ def test_factors_lists_every_divisor(label: str, n: int, expected: tuple[int, ..
     assert got == built
 
 
+# 4405…5209. After 103 and an 11-digit factor, the cofactor is 79 digits
+# and its smallest prime factor is 31 digits. That factor is σ=484 at
+# B1=250_000. A 16-curve sample at that bound never reaches it.
+_USER_91 = 4405534351621172144485300162991104082034261209371735440164784129999970703283215812210875209
+_USER_91_FACTORS = (
+    103,
+    24389542339,
+    1185427688742314546183690475871,
+    1479389899150408870626090235887201665115900796187,
+)
+
+
+def test_user_91_digit_reaches_the_31_digit_curve():
+    from best_prime.factor_ecm import ecm_one_curve
+    from best_prime.prime_factors import _ecm_ladder
+
+    cofactor = _USER_91 // 103 // 24389542339
+    started = time.perf_counter()
+    found = ecm_one_curve(cofactor, 484, 250_000, 500_000)
+    assert time.perf_counter() - started < 15
+    assert found is not None and cofactor % found == 0
+    assert min(found, cofactor // found) == _USER_91_FACTORS[2]
+    row = [item for item in _ecm_ladder(cofactor.bit_length()) if item[0] == 250_000]
+    assert row and row[0][1] >= 500_000 and row[0][2] >= 479
+    assert math.prod(_USER_91_FACTORS) == _USER_91
+
+
+@pytest.mark.slow
+def test_user_91_digit_factors_completely():
+    started = time.perf_counter()
+    got = prime_factors(_USER_91)
+    assert time.perf_counter() - started < 900
+    assert got == list(_USER_91_FACTORS)
+    assert math.prod(got) == _USER_91
+
+
 def test_max_ms_still_stops_a_hard_semiprime():
     """A cap must return. It must not walk up to the square root."""
     hard = 1000100000000000000000077 * 1000700000000000000000059
