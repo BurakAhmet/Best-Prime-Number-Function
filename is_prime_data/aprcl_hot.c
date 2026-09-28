@@ -13,6 +13,7 @@ typedef struct {
 typedef __mpz_struct mpz_t[1];
 
 extern void __gmpz_init(mpz_t);
+extern void __gmpz_init2(mpz_t, mp_bitcnt_t);
 extern void __gmpz_clear(mpz_t);
 extern void __gmpz_set(mpz_t, const mpz_t);
 extern void __gmpz_set_ui(mpz_t, unsigned long);
@@ -32,6 +33,7 @@ extern int __gmpz_divisible_p(const mpz_t, const mpz_t);
 extern int __gmpz_cmp_ui(const mpz_t, unsigned long);
 
 #define mpz_init __gmpz_init
+#define mpz_init2 __gmpz_init2
 #define mpz_clear __gmpz_clear
 #define mpz_set __gmpz_set
 #define mpz_set_ui __gmpz_set_ui
@@ -419,28 +421,37 @@ int aprcl_residue_divides(const uint64_t *n_limbs, size_t nlimbs,
     if (!n_limbs || !s_limbs || nlimbs == 0 || slimbs == 0 || count == 0) {
         return -1;
     }
-    mpz_t n, s, base, acc, root, tmp;
+    mpz_t n, s, base, acc, root, prod;
     mpz_init(n);
     mpz_init(s);
     mpz_init(base);
-    mpz_init(acc);
     mpz_init(root);
-    mpz_init(tmp);
     mpz_import(n, nlimbs, -1, sizeof(uint64_t), 0, 0, n_limbs);
     mpz_import(s, slimbs, -1, sizeof(uint64_t), 0, 0, s_limbs);
     mpz_sqrt(root, n);
     mpz_mod(base, n, s);
+    /* Keep the product buffer; GMP otherwise reallocates every step. */
+    {
+        size_t bits = mpz_sizeinbase(s, 2);
+        mpz_init2(prod, bits * 2 + 64);
+        mpz_init2(acc, bits + 64);
+    }
     mpz_powm_ui(acc, base, start, s);
     int hit = 0;
+    int n_odd = mpz_tstbit(n, 0);
     for (uint64_t j = 0; j < count; j++) {
-        mpz_mul(acc, acc, base);
-        mpz_mod(acc, acc, s);
+        mpz_mul(prod, acc, base);
+        mpz_mod(acc, prod, s);
+        /* Even residues cannot divide an odd n. Size rejects a > sqrt(n). */
+        if (n_odd && mpz_tstbit(acc, 0) == 0) {
+            continue;
+        }
         if (mpz_cmp_ui(acc, 1) > 0 && mpz_cmp(acc, root) <= 0 && mpz_divisible_p(n, acc)) {
             hit = 1;
             break;
         }
     }
-    mpz_clear(tmp);
+    mpz_clear(prod);
     mpz_clear(root);
     mpz_clear(acc);
     mpz_clear(base);
@@ -494,7 +505,11 @@ int aprcl_jacobi_sum(unsigned long q, unsigned r, int which, long long *out) {
     if (q < 3 || r < 1 || (q - 1) % r != 0 || !out || (which != 1 && which != 2)) {
         return -1;
     }
-    unsigned long *ind = calloc(q, sizeof(unsigned long));
+    /* Index fits in a byte (r < 256). A full word table does not fit for q ~ 1e8. */
+    if (q > 400000000ul || r > 255) {
+        return -1;
+    }
+    uint8_t *ind = calloc(q, 1);
     if (!ind) {
         return -1;
     }

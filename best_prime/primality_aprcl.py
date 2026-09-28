@@ -6,8 +6,10 @@ in ``Z[ζ_r]/(n)`` show that every prime divisor of ``n`` is ``n^k mod s``
 for some ``k < R``. Those residues are then divided into ``n``. No randomness.
 
 Schoof, "Four primality testing algorithms", §3 (following Lenstra's
-Bourbaki lecture). ``R`` is ``lcm(1..16)`` or ``lcm(1..17)`` so that ``s``
-clears ``√n`` through 1000 decimal digits.
+Bourbaki lecture). ``R`` is the smallest ladder entry whose prime product
+``s`` exceeds ``√n``. The ladder reaches 5000 decimal digits. A Euclidean
+prime ``q > _Q_CAP`` is left out of ``s``: its index table is hundreds of
+megabytes and the digits it would add are not needed to clear ``√n``.
 """
 
 from __future__ import annotations
@@ -15,9 +17,18 @@ from __future__ import annotations
 import math
 from functools import lru_cache
 
-# lcm(1..16) and lcm(1..17). s(R) has 231 and 512 digits respectively.
-_R_SMALL = 720720
-_R_LARGE = 12252240
+# Each entry is a smooth exponent. s(R) digits, with q <= _Q_CAP, clear
+# about 463, 1025, 1917, 2968, 3788 and 5030 decimal digits of n.
+_R_LADDER = (
+    720720,
+    12252240,
+    73513440,
+    367567200,
+    1396755360,
+    4655851200,
+)
+# uint8 index table for the Jacobi sum. 250e6 bytes fits a 3 GiB machine.
+_Q_CAP = 250_000_000
 
 
 def _factor(n: int) -> list[tuple[int, int]]:
@@ -206,13 +217,20 @@ def _jacobi_sum_chi2(q: int, r: int) -> list[int]:
     return acc
 
 
-@lru_cache(maxsize=4)
-def _table(R: int) -> tuple[int, tuple[tuple[int, int, tuple[int, ...]], ...]]:
-    """``(s, tests)`` where each test is ``(q, r, packed jacobi sum)``."""
-    qs = tuple(sorted(d + 1 for d in _divisors(R) if _is_prime_small(d + 1)))
+@lru_cache(maxsize=8)
+def _modulus(R: int) -> tuple[int, tuple[int, ...]]:
+    """``(s, primes q)`` with ``q - 1`` dividing ``R`` and ``q <= _Q_CAP``."""
+    qs = tuple(sorted(d + 1 for d in _divisors(R) if d + 1 <= _Q_CAP and _is_prime_small(d + 1)))
     s = 1
     for q in qs:
         s *= q
+    return s, qs
+
+
+@lru_cache(maxsize=4)
+def _table(R: int) -> tuple[int, tuple[tuple[int, int, tuple[int, ...]], ...]]:
+    """``(s, tests)`` where each test is ``(q, r, packed jacobi sum)``."""
+    s, qs = _modulus(R)
     tests: list[tuple[int, int, tuple[int, ...]]] = []
     for q in qs:
         for p, e in _factor(q - 1):
@@ -280,12 +298,14 @@ def _two_idxs(r: int, n: int) -> list[int]:
     return _coprime_idxs(r)
 
 
-def _choose_R(n: int) -> int:
+def _choose_R(n: int) -> int | None:
+    """Smallest ladder modulus with ``s > √n``, or None past the ladder."""
     root = math.isqrt(n)
-    s_small, _ = _table(_R_SMALL)
-    if s_small > root:
-        return _R_SMALL
-    return _R_LARGE
+    for R in _R_LADDER:
+        s, _qs = _modulus(R)
+        if s > root:
+            return R
+    return None
 
 
 _LIB = None
@@ -583,6 +603,8 @@ def aprcl_primality(n: int) -> bool | None:
     if root * root == n:
         return False
     R = _choose_R(n)
+    if R is None:
+        return None
     s, tests = _table(R)
     if s <= root:
         return None

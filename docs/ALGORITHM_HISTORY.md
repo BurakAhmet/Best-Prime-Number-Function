@@ -899,8 +899,24 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 | | |
 |--|--|
 | **Advantages** | General 1000-digit primes finish inside a minute; the \(l\)-adic side of Theorem 3.2 is actually checked |
-| **Disadvantages** | Still one modulus, \(\mathrm{lcm}(1..17)\). Past ~1024 digits the proof returns unsettled and FastECPP may run |
+| **Disadvantages** | Still one modulus family. The largest prepared \(R\) was \(\mathrm{lcm}(1..17)\), so past ~1024 digits the proof returned unsettled |
 | **Failures / lessons** | Do not assemble each conjugate with its own copy of the square chain. Do not declare prime when every witness has \(l\mid h\) and \(n^{l-1}\equiv 1\pmod{l^2}\) |
+
+---
+
+## Era — unreleased: APR-CL modulus ladder through 5000 digits
+
+**Problem.** `s = ∏_{q-1|R} q` for `R = lcm(1..17) = 12252240` has 513 digits, so `√n` outgrows it at 1026 digits. Past that, `aprcl_primality` returned `None` and FastECPP ran under a short cap. Published FastECPP (Enge, *FastECPP over MPI*, 2024) takes about 51 minutes on 128 cores for a 5000-digit prime. A classical final walk cannot do better than one mulmod per exponent on this 12-thread machine: the smallest smooth `R` with `s > 10^2500` is `4655851200` (about `4.7·10^9` steps). GMP mulmod of a 2560-digit modulus is about 7–15 µs, which is roughly 45–90 minutes for the walk alone.
+
+**Change.** `_R_LADDER` picks the smallest smooth exponent whose prime product exceeds `√n`: `720720`, `12252240`, `73513440`, `367567200`, `1396755360`, `4655851200`. Primes `q > 250000000` are left out of `s` (the index table would not fit in 3 GiB); the 5000-digit rung still has a 2516-digit `s`. The residue scan keeps a GMP product buffer instead of reallocating every step.
+
+**Same machine, 12 threads.** `is_prime(10^{1099}+73)` path `bigint_aprcl`, **158 s** (Jacobi table for `R = 73513440` about 8 s, 1026 tests). Previously this integer was past the modulus.
+
+| | |
+|--|--|
+| **Advantages** | Every integer through 5000 digits has a prepared cyclotomic modulus. An 1100-digit prime proves in under three minutes |
+| **Disadvantages** | The 5000-digit proof is the same `Θ(R)` residue walk. It does not finish in five minutes here |
+| **Failures / lessons** | Do not shrink `R` by dropping prime-power factors of the exponent: `s` then falls below `√n`. A Kronecker packing of the cyclotomic product did not beat schoolbook multiplication at 100–2500 digits |
 
 ---
 
