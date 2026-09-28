@@ -315,7 +315,6 @@ def _brent_small(n: int, c: int) -> int | None:
         k = 0
         m = 128
         while k < r and g == 1:
-            ys = y
             lim = r - k
             if lim > m:
                 lim = m
