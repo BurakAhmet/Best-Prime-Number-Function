@@ -307,7 +307,6 @@ def _brent_small(n: int, c: int) -> int | None:
     q = 1
     r = 1
     x = y
-    ys = y
     while g == 1 and r <= (1 << 16):
         x = y
         for _ in range(r):
