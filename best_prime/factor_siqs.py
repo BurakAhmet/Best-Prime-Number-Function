@@ -208,14 +208,22 @@ def _sieve_poly(
 ) -> list[tuple[int, list[int], int]]:
     """Sieve Q(x)=(A x + B)² − n on x ∈ [-M, M].
 
-    Each hit is ``(ax+b, exponents, leftover)``. ``leftover`` is 1 when Q is
-    factor-base smooth, or one prime in ``(max FB prime, large_prime_bound)``.
+    Each hit is ``(ax+b, exponents, large-prime counts)``. Counts are empty
+    when Q is factor-base smooth.
     """
     width = 2 * m + 1
     logv = [0.0] * width
     primes = [p for p, _ in fb]
     logs = [math.log(p) for p in primes]
     max_p = primes[-1] if primes else 2
+    # Q is divisible by A. Record those exponents and sieve only the cofactor.
+    a_exp = [0] * len(primes)
+    aval = a
+    if a > 1:
+        for i, p in enumerate(primes):
+            while aval % p == 0:
+                aval //= p
+                a_exp[i] += 1
     # Q(x) ≡ 0 (mod p)  ⇒  A x + B ≡ ±root (mod p)
     for (p, root), lg in zip(fb, logs):
         if p == 2 or a % p == 0:
@@ -228,9 +236,10 @@ def _sieve_poly(
             while idx < width:
                 logv[idx] += lg
                 idx += p
-    # Slack covers a single leftover prime up to large_prime_bound, plus
-    # the unsieved power of 2.
-    slack = math.log(max(large_prime_bound, 3)) + math.log(2) * 8
+    # Slack covers two leftover primes up to large_prime_bound, plus
+    # the unsieved power of 2. One large prime does not yield enough
+    # pairs on a 50-digit modulus.
+    slack = 2.0 * math.log(max(large_prime_bound, 3)) + math.log(2) * 12
     rels: list[tuple[int, list[int], int]] = []
     for i in range(width):
         if logv[i] <= 0.0:
@@ -238,20 +247,128 @@ def _sieve_poly(
         x = i - m
         axb = a * x + b
         qv = axb * axb - n
-        if qv == 0 or logv[i] + slack < math.log(abs(qv)):
+        if qv == 0:
+            continue
+        if a > 1:
+            if qv % a != 0:
+                continue
+            qv //= a
+        if logv[i] + slack < math.log(abs(qv)):
             continue
         got = _trial_factor(qv, primes, large_prime_bound, max_p)
         if got is None:
             continue
-        exps, leftover = got
-        rels.append((axb, exps, leftover))
+        exps, counts = got
+        for i, e in enumerate(a_exp):
+            exps[i + 1] += e
+        rels.append((axb, exps, counts))
     return rels
+
+
+# Deterministic Miller–Rabin for cofactors below 2^64.
+_MR64 = (2, 3, 5, 7, 11, 13, 23)
+
+
+def _prime64(n: int) -> bool:
+    if n < 2:
+        return False
+    if n < 4:
+        return True
+    if (n & 1) == 0:
+        return False
+    d = n - 1
+    s = 0
+    while (d & 1) == 0:
+        d >>= 1
+        s += 1
+    for a in _MR64:
+        if a >= n:
+            continue
+        x = pow(a, d, n)
+        if x == 1 or x == n - 1:
+            continue
+        witness = True
+        for _ in range(s - 1):
+            x = (x * x) % n
+            if x == n - 1:
+                witness = False
+                break
+        if witness:
+            return False
+    return True
+
+
+def _brent_small(n: int, c: int) -> int | None:
+    """One fixed-c Brent step on a cofactor. None if no proper factor."""
+    if n < 4:
+        return None
+    y = 2 % n
+    g = 1
+    q = 1
+    r = 1
+    x = y
+    ys = y
+    while g == 1 and r <= (1 << 16):
+        x = y
+        for _ in range(r):
+            y = (y * y + c) % n
+        k = 0
+        m = 128
+        while k < r and g == 1:
+            ys = y
+            lim = r - k
+            if lim > m:
+                lim = m
+            for _ in range(lim):
+                y = (y * y + c) % n
+                diff = abs(x - y)
+                q = (q * diff) % n
+            g = math.gcd(q, n)
+            k += m
+        r <<= 1
+    if g == 1 or g == n:
+        return None
+    return g
+
+
+def _lp_counts(val: int, large_prime_bound: int) -> dict[int, int] | None:
+    """Prime factors of a cofactor, each strictly below ``large_prime_bound``.
+
+    ``{}`` means the cofactor was 1. ``None`` means it is not a product of
+    those primes (so the relation is dropped).
+    """
+    if val == 1:
+        return {}
+    if val >= large_prime_bound * large_prime_bound:
+        return None
+    counts: dict[int, int] = {}
+    stack = [val]
+    while stack:
+        v = stack.pop()
+        if v == 1:
+            continue
+        if _prime64(v):
+            if v >= large_prime_bound:
+                return None
+            counts[v] = counts.get(v, 0) + 1
+            continue
+        g = None
+        for c in (1, 2, 3, 5):
+            g = _brent_small(v, c)
+            if g is not None:
+                break
+        if g is None:
+            return None
+        stack.append(g)
+        stack.append(v // g)
+    return counts
 
 
 def _trial_factor(
     val: int, primes: list[int], large_prime_bound: int, max_p: int
-) -> tuple[list[int], int] | None:
-    """Exponents over the factor base, plus an optional single large prime."""
+) -> tuple[list[int], dict[int, int]] | None:
+    """Exponents over the factor base, plus large-prime exponents (maybe empty)."""
+    del max_p
     if val == 0:
         return None
     sign = 0
@@ -265,11 +382,10 @@ def _trial_factor(
             val //= p
             e += 1
         exps.append(e)
-    if val == 1:
-        return exps, 1
-    if max_p < val < large_prime_bound:
-        return exps, val
-    return None
+    counts = _lp_counts(val, large_prime_bound)
+    if counts is None:
+        return None
+    return exps, counts
 
 
 def siqs_factor(
@@ -306,10 +422,11 @@ def _bounds(bits: int) -> tuple[int, int, int]:
     if bits <= 120:
         return 6_000, 32_000, 48
     if bits <= 140:
-        return 10_000, 40_000, 64
+        return 8_000, 24_000, 80
     if bits <= 170:
-        return 18_000, 48_000, 80
-    return 28_000, 64_000, 100
+        # 50-digit semiprimes: a wider polynomial budget, still one large prime.
+        return 12_000, 32_000, 400
+    return 20_000, 48_000, 160
 
 
 def _apply_sqrt(
@@ -337,12 +454,12 @@ def _split_relations(
     rels: list[tuple[int, list[int], int]],
     primes: list[int],
 ) -> int | None:
-    """One GF(2) pass. ``rels`` entries are ``(axb mod n, exponents, large prime or 1)``."""
+    """One GF(2) pass. Third field is the large-prime square-root contribution."""
     if len(rels) < 2:
         return None
     nbits = 1 + len(primes)
     rows: list[int] = []
-    for _axb, exps, _large in rels:
+    for _axb, exps, _extra in rels:
         bits = 0
         for i, e in enumerate(exps):
             if e & 1:
@@ -356,10 +473,10 @@ def _split_relations(
         yr = 1
         bad = False
         for j in idxs:
-            axb, exps, lp = rels[j]
+            axb, exps, extra = rels[j]
             left = (left * (axb % n)) % n
-            if lp != 1:
-                yr = (yr * (lp % n)) % n
+            if extra != 1:
+                yr = (yr * (extra % n)) % n
             if len(exps) != nbits:
                 bad = True
                 break
@@ -391,33 +508,16 @@ def _siqs_factor_body(
     if len(fb) < 6:
         return None
     primes = [p for p, _ in fb]
-    # One large prime up to B², capped so the trial leftover stays small.
-    lp_bound = min(fb_bound * fb_bound, 50_000_000)
+    # Two large primes. 2^24 keeps the cofactor under 2^48 so Brent can split it.
+    lp_bound = min(fb_bound * fb_bound, 1 << 20)
     need = len(primes) + 8
     full: list[tuple[int, list[int], int]] = []
-    partial: dict[int, tuple[int, list[int]]] = {}
+    # prime -> (axb, exps, full large-prime exponents)
+    reducers: dict[int, tuple[int, list[int], dict[int, int]]] = {}
     solved_at = 0
 
-    def add(axb: int, exps: list[int], lp: int) -> int | None:
+    def close_full() -> int | None:
         nonlocal solved_at
-        axb %= n
-        if axb < 0:
-            axb += n
-        if lp == 1:
-            full.append((axb, exps, 1))
-        else:
-            prev = partial.pop(lp, None)
-            if prev is None:
-                partial[lp] = (axb, exps)
-                return None
-            ax0, e0 = prev
-            full.append(
-                (
-                    (ax0 * axb) % n,
-                    [a + b for a, b in zip(e0, exps)],
-                    lp,
-                )
-            )
         if len(full) >= need and len(full) - solved_at >= 16:
             solved_at = len(full)
             if deadline is not None and time.perf_counter() >= deadline:
@@ -425,10 +525,51 @@ def _siqs_factor_body(
             return _split_relations(n, full, primes)
         return None
 
-    def ingest(batch: list[tuple[int, list[int], int]]) -> int | None:
+    def half_extra(counts: dict[int, int]) -> int:
+        extra = 1
+        for p, e in counts.items():
+            half = e >> 1
+            if half:
+                extra = (extra * pow(p, half, n)) % n
+        return extra
+
+    def push(axb: int, exps: list[int], counts: dict[int, int]) -> int | None:
+        """Add large-prime exponents. A dependency becomes one full relation."""
+        guard = 0
+        while True:
+            hit = None
+            for p, e in counts.items():
+                if (e & 1) and p in reducers:
+                    hit = p
+                    break
+            if hit is None:
+                break
+            rax, rex, rcounts = reducers[hit]
+            axb = (axb * rax) % n
+            exps = [a + b for a, b in zip(exps, rex)]
+            for p, e in rcounts.items():
+                counts[p] = counts.get(p, 0) + e
+            guard += 1
+            if guard > 10000:
+                return None
+        odd = [p for p, e in counts.items() if e & 1]
+        if not odd:
+            full.append((axb % n, exps, half_extra(counts)))
+            return close_full()
+        p = max(odd)
+        reducers[p] = (axb % n, exps, dict(counts))
+        return None
+
+    def add(axb: int, exps: list[int], counts: dict[int, int]) -> int | None:
+        axb %= n
+        if axb < 0:
+            axb += n
+        return push(axb, list(exps), dict(counts))
+
+    def ingest(batch: list[tuple[int, list[int], dict[int, int]]]) -> int | None:
         found = None
-        for axb, exps, lp in batch:
-            found = add(axb, exps, lp)
+        for axb, exps, counts in batch:
+            found = add(axb, exps, counts)
             if found is not None:
                 return found
         return None
@@ -452,15 +593,18 @@ def _siqs_factor_body(
             b = a - b
         polys.append((a, b))
 
-    for a, b in polys:
+    for pi, (a, b) in enumerate(polys):
         if deadline is not None and time.perf_counter() >= deadline:
             return None
         batch = _sieve_poly(
             n, a, b, fb, interval, large_prime_bound=lp_bound
         )
+
         found = ingest(batch)
         if found is not None:
             return found
     if len(full) >= max(8, len(primes) // 2):
-        return _split_relations(n, full, primes)
+        got = _split_relations(n, full, primes)
+        if got is not None:
+            return got
     return None

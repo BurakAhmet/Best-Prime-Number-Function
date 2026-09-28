@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
@@ -222,6 +223,27 @@ def test_factors_lists_every_positive_divisor():
     assert factors("12") == factors(12)
     with pytest.raises(ValueError):
         factors(0)
+
+
+def test_fifty_digit_factors_finish():
+    """A 50-digit integer with a small prime factor must not enter the old cube-root search."""
+    from best_prime.errors import UnsettledFactorError
+
+    n = (10**12 + 39) * (10**37 + 9)
+    t = time.perf_counter()
+    got = factors(n)
+    assert time.perf_counter() - t < 20
+    assert got[0] == 1 and got[-1] == n and 19 in got
+    # Two 25-digit primes. The search must return, not walk √n.
+    hard = 1000100000000000000000077 * 1000700000000000000000059
+    t = time.perf_counter()
+    try:
+        listed = factors(hard)
+    except UnsettledFactorError:
+        listed = None
+    assert time.perf_counter() - t < 20
+    if listed is not None:
+        assert listed[0] == 1 and listed[-1] == hard
 
 
 @settings(max_examples=30, **_HYP)

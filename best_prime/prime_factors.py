@@ -170,14 +170,19 @@ def _split(n: int, budget: _FactorBudget | None = None) -> int:
     if n.bit_length() <= 64:
         f = lehman_factor(n)
     else:
-        f = lehman_factor(n, k_max=100_000)
+        # Full cube-root Lehman is tens of millions of steps past 40 digits.
+        f = lehman_factor(n, k_max=16)
     if f is not None and 1 < f < n:
         return f
-    # Fixed c sequence: 1,2,3,… (c=0 is x^2, often degenerate).
-    for c in range(1, 64):
+    # Fixed c sequence. Past 60 bits a 2^22 Brent run is the multi-minute
+    # hang and still misses a 15-digit factor.
+    bits = n.bit_length()
+    brent_curves = 4 if bits > 60 else 64
+    brent_r = 1 << (16 if bits > 60 else 22)
+    for c in range(1, brent_curves + 1):
         if budget is not None:
             budget.check(n)
-        g = _brent(n, c)
+        g = _brent(n, c, max_r=brent_r)
         if 1 < g < n:
             return g
     # Medium / large balanced composites: ECM then SIQS (deterministic schedules).
@@ -187,37 +192,58 @@ def _split(n: int, budget: _FactorBudget | None = None) -> int:
             budget.check(n)
         from .factor_ecm import ecm_factor
 
-        g = ecm_factor(n)
+        g = ecm_factor(n, B1=2_500, B2=2_500, max_curves=8, max_ms=2_500)
         if g is not None and 1 < g < n:
             return g
-    if bits >= 28:
+    if bits >= 90:
         if budget is not None:
             budget.check(n)
         from .factor_siqs import siqs_factor
 
-        g = siqs_factor(n)
+        # One large-prime SIQS does not finish a balanced 50-digit semiprime
+        # here; cap it so factoring returns instead of running for minutes.
+        g = siqs_factor(n, max_ms=2_000)
         if g is not None and 1 < g < n:
             return g
-    # Last resort: full 30-wheel trial (always finds a factor of a composite).
+    # Do not walk up to √n. Callers turn None into UnsettledFactorError.
     if budget is not None:
         budget.check(n)
     out: list[int] = []
-    rem = _trial_30(n, out)
+    rem = _trial_30(n, out, limit=1_000_000)
     if out:
         return out[0]
     if rem != n and rem > 1:
         return rem
-    raise RuntimeError(f"failed to split composite {n}")
+    return None
 
 
 def _factor_rec(n: int, out: list[int], *, parallel: bool, budget: _FactorBudget) -> None:
     if n == 1:
         return
     budget.check(n)
-    if n < 4 or is_prime(n, parallel=parallel):
+    if n < 4:
         out.append(n)
         return
+    # Above 96 bits, BLS can spend minutes and still return unsettled.
+    # Split first. A prime that nothing splits is proved afterwards.
+    if n.bit_length() <= 96:
+        if is_prime(n, parallel=parallel):
+            out.append(n)
+            return
     f = _split(n, budget)
+    if f is None:
+        from .errors import UnsettledFactorError
+
+        try:
+            if pow(2, n - 1, n) == 1 and is_prime(n, parallel=parallel):
+                out.append(n)
+                return
+        except Exception as exc:
+            from .errors import UnsettledPrimalityError
+
+            if not isinstance(exc, UnsettledPrimalityError):
+                raise
+        raise UnsettledFactorError(budget.n, leftover=n, found=list(out))
     _factor_rec(f, out, parallel=parallel, budget=budget)
     _factor_rec(n // f, out, parallel=parallel, budget=budget)
 

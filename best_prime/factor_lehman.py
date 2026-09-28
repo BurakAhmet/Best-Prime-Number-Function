@@ -187,6 +187,10 @@ def _lehman_windows(n: int, cub: int, k_max: int) -> int | None:
         fourkn = 4 * k * n
         a0 = _ceil_isqrt(fourkn)
         extra = _lehman_extra(cub, k)
+        # A complete search stays under this (cube root ≤ 8·10^6 ⇒ extra ≤ ~800).
+        # Probes on a 50-digit number must not walk 10^7 steps per k.
+        if extra > 8192:
+            extra = 8192
         # Incremental a^2: start at a0^2, step 2a+1
         a = a0
         a2 = a0 * a0
