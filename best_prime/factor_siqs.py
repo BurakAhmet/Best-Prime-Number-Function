@@ -205,7 +205,7 @@ def _sieve_poly(
     m: int,
     *,
     large_prime_bound: int,
-) -> list[tuple[int, list[int], int]]:
+) -> list[tuple[int, list[int], dict[int, int]]]:
     """Sieve Q(x)=(A x + B)² − n on x ∈ [-M, M].
 
     Each hit is ``(ax+b, exponents, large-prime counts)``. Counts are empty
@@ -240,7 +240,7 @@ def _sieve_poly(
     # the unsieved power of 2. One large prime does not yield enough
     # pairs on a 50-digit modulus.
     slack = 2.0 * math.log(max(large_prime_bound, 3)) + math.log(2) * 12
-    rels: list[tuple[int, list[int], int]] = []
+    rels: list[tuple[int, list[int], dict[int, int]]] = []
     for i in range(width):
         if logv[i] <= 0.0:
             continue
@@ -598,11 +598,11 @@ def _siqs_factor_body(
             n, a, b, fb, interval, large_prime_bound=lp_bound
         )
 
-        found = ingest(batch)
-        if found is not None:
-            return found
+        factor = ingest(batch)
+        if factor is not None:
+            return factor
     if len(full) >= max(8, len(primes) // 2):
-        got = _split_relations(n, full, primes)
-        if got is not None:
-            return got
+        split = _split_relations(n, full, primes)
+        if split is not None:
+            return split
     return None
