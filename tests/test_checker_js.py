@@ -17,6 +17,16 @@ HOF = ROOT / "docs" / "wiki" / "Hall-of-fame.md"
 NEAR_2_63 = 9223372036854775783
 
 
+def test_factor_button_does_not_hijack_previous_prime():
+    """List factors must not write the previous-prime status into that box."""
+    ui = UI.read_text(encoding="utf-8")
+    factor_busy = ui.find('kind === "factors" && facOut')
+    previous = ui.find("Searching previous")
+    assert factor_busy != -1 and previous != -1
+    assert factor_busy < previous
+    assert "Factoring" in ui[factor_busy:previous]
+
+
 def test_lab_assets_allow_near_2_63_prime():
     src = WORKER.read_text(encoding="utf-8")
     ui = UI.read_text(encoding="utf-8")

@@ -3818,10 +3818,11 @@
     const close = fermatSplit(n, 4096);
     if (close) return close;
     const bits = bitLength(n);
-    // A 2^22 Brent run is tens of seconds past 60 bits and still misses a
-    // 15-digit factor. Keep a short fixed-c probe, then ECM.
-    const brentCurves = bits > 60 ? 4n : 16n;
-    const brentR = bits > 60 ? 1n << 16n : 1n << 20n;
+    // 2^16 stops short of a 12-digit factor (this 50-digit specimen's
+    // cofactor splits at c=1 once the bound reaches 2^20). 2^22 is the
+    // multi-minute hang, so stay at 2^20 and only a few fixed c values.
+    const brentCurves = bits > 60 ? 6n : 16n;
+    const brentR = 1n << 20n;
     for (let c = 1n; c <= brentCurves; c++) {
       if (shouldStop && shouldStop()) return { aborted: true };
       emit(onTick, "brent", c, brentCurves, { label: "Brent–Pollard, fixed c" });

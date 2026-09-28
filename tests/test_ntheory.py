@@ -225,6 +225,17 @@ def test_factors_lists_every_positive_divisor():
         factors(0)
 
 
+def test_user_fifty_digit_factors_complete():
+    """The lab number that listed four primes and a 40-digit unsplit cofactor."""
+    n = 79185315571712867764058754405752299798556947238073
+    t = time.perf_counter()
+    got = factors(n)
+    assert time.perf_counter() - t < 30
+    for p in (3, 13, 24989, 32843, 578907174457, 1152531999403, 3707886428938171):
+        assert p in got
+    assert got[0] == 1 and got[-1] == n
+
+
 def test_fifty_digit_cofactor_is_finished():
     """10^49+21 used to list two prime factors and leave a 35-digit cofactor."""
     n = 10**49 + 21
