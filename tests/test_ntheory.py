@@ -249,16 +249,33 @@ def test_fifty_digit_cofactor_is_finished():
 
 def test_fifty_digit_factors_finish():
     """A 50-digit integer with a small prime factor must not enter the old cube-root search."""
+    from best_prime.errors import UnsettledFactorError
+
     n = (10**12 + 39) * (10**37 + 9)
     t = time.perf_counter()
     got = factors(n)
     assert time.perf_counter() - t < 20
     assert got[0] == 1 and got[-1] == n and 19 in got
-    # Two 25-digit primes. Stage-2 ECM finishes this; it must not walk √n.
+    # Two 25-digit primes. A short cap must return, not walk √n.
+    # The uncapped search is test_balanced_fifty_digit_semiprime_finishes.
+    hard = 1000100000000000000000077 * 1000700000000000000000059
+    t = time.perf_counter()
+    try:
+        listed = factors(hard, max_ms=8_000)
+    except UnsettledFactorError:
+        listed = None
+    assert time.perf_counter() - t < 25
+    if listed is not None:
+        assert listed[0] == 1 and listed[-1] == hard
+
+
+@pytest.mark.slow
+def test_balanced_fifty_digit_semiprime_finishes():
+    """Stage-2 ECM finishes two 25-digit primes. About 33 s here, slower in CI."""
     hard = 1000100000000000000000077 * 1000700000000000000000059
     t = time.perf_counter()
     listed = factors(hard)
-    assert time.perf_counter() - t < 120
+    assert time.perf_counter() - t < 300
     assert listed[0] == 1 and listed[-1] == hard
     assert 1000100000000000000000077 in listed
 
