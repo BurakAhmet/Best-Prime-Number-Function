@@ -203,7 +203,7 @@ def _split(n: int, budget: _FactorBudget | None = None) -> int:
         # Through ~40 digits the sieve finishes the cofactor the short ECM
         # miss leaves behind. A Fermat survivor is proved as a prime instead,
         # and a balanced 50-digit semiprime stays on the short cap.
-        g = siqs_factor(n, max_ms=20_000 if bits <= 140 else 2_000)
+        g = siqs_factor(n, max_ms=90_000 if bits <= 140 else 2_000)
         if g is not None and 1 < g < n:
             return g
     # Do not walk up to √n. Callers turn None into UnsettledFactorError.
