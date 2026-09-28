@@ -388,3 +388,261 @@ def _ecm_factor_body(
                 if g is not None:
                     return g
     return None
+
+
+def _add(a: int, b: int, n: int) -> int:
+    s = a + b
+    if s >= n:
+        s -= n
+    return s
+
+
+def _sub(a: int, b: int, n: int) -> int:
+    if a >= b:
+        return a - b
+    return a - b + n
+
+
+def _mont_dbl_fast(x: int, z: int, a24: int, n: int) -> tuple[int, int]:
+    """Projective double. ``x`` and ``z`` are in ``[0, n)``."""
+    xp = _add(x, z, n)
+    xm = _sub(x, z, n)
+    xp2 = (xp * xp) % n
+    xm2 = (xm * xm) % n
+    t = _sub(xp2, xm2, n)
+    return (xp2 * xm2) % n, (t * _add(xm2, (a24 * t) % n, n)) % n
+
+
+def _mont_add_fast(
+    x1: int, z1: int, x2: int, z2: int, xd: int, zd: int, n: int
+) -> tuple[int, int]:
+    """Projective add of P and Q given P−Q. Coordinates in ``[0, n)``."""
+    u = (_sub(x2, z2, n) * _add(x1, z1, n)) % n
+    v = (_add(x2, z2, n) * _sub(x1, z1, n)) % n
+    up = _add(u, v, n)
+    um = _sub(u, v, n)
+    return (zd * up * up) % n, (xd * um * um) % n
+
+
+def _mont_ladder_proj(
+    k: int, x: int, z: int, a24: int, n: int
+) -> tuple[int, int]:
+    """[k](x:z) on the Montgomery curve. Difference is the input point."""
+    if k <= 0:
+        return 1, 0
+    if k == 1:
+        return x % n, z % n
+    x0, z0 = x % n, z % n
+    x1, z1 = _mont_dbl_fast(x0, z0, a24, n)
+    xd, zd = x0, z0
+    for i in range(k.bit_length() - 2, -1, -1):
+        if (k >> i) & 1:
+            x0, z0 = _mont_add_fast(x0, z0, x1, z1, xd, zd, n)
+            x1, z1 = _mont_dbl_fast(x1, z1, a24, n)
+        else:
+            x1, z1 = _mont_add_fast(x0, z0, x1, z1, xd, zd, n)
+            x0, z0 = _mont_dbl_fast(x0, z0, a24, n)
+    return x0, z0
+
+
+def _ecm_stage1_point(
+    x: int, a24: int, n: int, b1: int, primes: tuple[int, ...]
+) -> tuple[str, int] | tuple[str, int, int] | None:
+    """Projective stage 1. ``('factor', g)``, ``('pt', X, Z)``, or None."""
+    xx, zz = x % n, 1
+    for p in primes:
+        if p > b1:
+            break
+        pe = p
+        while pe <= b1 // p:
+            pe *= p
+        xx, zz = _mont_ladder_proj(pe, xx, zz, a24, n)
+        # A later prime can send Z to 0 mod n and erase a factor that
+        # already divided Z. Read the gcd before the next ladder.
+        if zz == 0:
+            return None
+        g = math.gcd(zz, n)
+        if 1 < g < n:
+            return ("factor", g)
+        if g == n:
+            return None
+    g = math.gcd(zz, n)
+    if 1 < g < n:
+        return ("factor", g)
+    if g == n or zz == 0:
+        return None
+    return ("pt", xx, zz)
+
+
+# (B1, B2) -> (D, q_min, ((q, (residues...)), ...))
+_STAGE2_PLAN: dict[tuple[int, int], tuple] = {}
+
+
+def _stage2_plan(b1: int, b2: int) -> tuple | None:
+    """Primes in (B1, B2] grouped as q·D + s, s odd, D even and ≤ B1."""
+    if b2 <= b1 + 2 or b1 < 30:
+        return None
+    key = (int(b1), int(b2))
+    hit = _STAGE2_PLAN.get(key)
+    if hit is not None:
+        return hit if hit != () else None
+    span = b2 - b1
+    d = int(math.isqrt(span))
+    if d & 1:
+        d += 1
+    if d > 4096:
+        d = 4096
+    cap = b1 if (b1 & 1) == 0 else b1 - 1
+    if d > cap:
+        d = cap
+    if d < 30:
+        _STAGE2_PLAN[key] = ()
+        return None
+    groups: dict[int, list[int]] = {}
+    qmin: int | None = None
+    qmax = 0
+    for p in _primes_upto(b2):
+        if p <= b1:
+            continue
+        if p > b2:
+            break
+        s = p % d
+        if s == 0 or (s & 1) == 0:
+            continue
+        q = p // d
+        groups.setdefault(q, []).append(s)
+        if qmin is None or q < qmin:
+            qmin = q
+        if q > qmax:
+            qmax = q
+    if qmin is None:
+        _STAGE2_PLAN[key] = ()
+        return None
+    seq = tuple((q, tuple(groups.get(q, ()))) for q in range(qmin, qmax + 1))
+    plan = (d, qmin, seq)
+    if len(_STAGE2_PLAN) > 8:
+        _STAGE2_PLAN.clear()
+    _STAGE2_PLAN[key] = plan
+    return plan
+
+
+def _ecm_stage2_bsgs(x: int, z: int, a24: int, n: int, b1: int, b2: int) -> int | None:
+    """Standard continuation: one gcd of X-differences against primes in (B1, B2].
+
+    Baby steps are the odd multiples below the stride. Giant steps are
+    multiples of that stride. A prime p = q·D + s makes [p]Q the identity
+    when the giant and the baby share an X coordinate.
+    """
+    g = math.gcd(z, n)
+    if 1 < g < n:
+        return g
+    if g == n or z % n == 0:
+        return None
+    plan = _stage2_plan(b1, b2)
+    if plan is None:
+        return None
+    _d, qmin, seq = plan
+    try:
+        xq = (x * pow(z, -1, n)) % n
+    except ValueError:
+        g = math.gcd(z, n)
+        return g if 1 < g < n else None
+    babies: dict[int, tuple[int, int]] = {1: (xq, 1)}
+    dx, dz = _mont_dbl_fast(xq, 1, a24, n)
+    babies[3] = _mont_add_fast(dx, dz, xq, 1, xq, 1, n)
+    cur = babies[3]
+    r = 5
+    # D is even and ≥ 30, so every odd residue below D is built.
+    d = _d
+    while r < d:
+        diff = babies[r - 4]
+        cur = _mont_add_fast(cur[0], cur[1], dx, dz, diff[0], diff[1], n)
+        babies[r] = cur
+        r += 2
+    gx, gz = _mont_ladder(qmin * d, xq, a24, n)
+    hx, hz = _mont_ladder(d, xq, a24, n)
+    px, pz = _mont_ladder((qmin - 1) * d, xq, a24, n)
+    prod = 1
+    batch: list[int] = []
+
+    def take(diff: int) -> int | None:
+        nonlocal prod
+        diff %= n
+        if diff == 0:
+            return None
+        prod = (prod * diff) % n
+        batch.append(diff)
+        if len(batch) < 256:
+            return None
+        return _flush_batch()
+
+    def _flush_batch() -> int | None:
+        nonlocal prod
+        if not batch:
+            return None
+        gd = math.gcd(prod, n)
+        if gd == 1:
+            batch.clear()
+            prod = 1
+            return None
+        if 1 < gd < n:
+            return gd
+        for item in batch:
+            gd = math.gcd(item, n)
+            if 1 < gd < n:
+                return gd
+        batch.clear()
+        prod = 1
+        return None
+
+    for _q, residues in seq:
+        gz_g = math.gcd(gz, n)
+        if 1 < gz_g < n:
+            return gz_g
+        if gz_g == n or gz % n == 0:
+            # This giant is the identity on every prime factor. Step past it.
+            nx, nz = _mont_add_fast(gx, gz, hx, hz, px, pz, n)
+            px, pz, gx, gz = gx, gz, nx, nz
+            continue
+        for s in residues:
+            baby = babies.get(s)
+            if baby is None:
+                continue
+            rx, rz = baby
+            hit = take(gx * rz - rx * gz)
+            if hit is not None:
+                return hit
+        nx, nz = _mont_add_fast(gx, gz, hx, hz, px, pz, n)
+        px, pz, gx, gz = gx, gz, nx, nz
+    return _flush_batch()
+
+
+def ecm_one_curve(n: int, sigma: int, b1: int, b2: int | None = None) -> int | None:
+    """One Suyama curve, projective stage 1 plus baby-step/giant-step stage 2.
+
+    ``sigma`` is the fixed curve parameter (6, 7, 8, …). ``b2`` defaults to
+    ``b1`` (stage 1 only). A proper factor, or None. No RNG.
+    """
+    if n < 4 or b1 < 2:
+        return None
+    if b2 is None or b2 < b1:
+        b2 = b1
+    built = _suyama(int(sigma), n)
+    if built is None:
+        return None
+    if built[0] == "factor":
+        g = built[1]
+        return g if 1 < g < n else None
+    _ok, x0, a24 = built
+    stage = _ecm_stage1_point(x0, a24, n, int(b1), _primes_upto(int(b1)))
+    if stage is None:
+        return None
+    if stage[0] == "factor":
+        g = stage[1]
+        return g if 1 < g < n else None
+    if b2 <= b1:
+        return None
+    g = _ecm_stage2_bsgs(stage[1], stage[2], a24, n, int(b1), int(b2))
+    if g is not None and 1 < g < n and n % g == 0:
+        return g
+    return None

@@ -684,7 +684,7 @@
       </section>
       <section class="prime-lab lab-factors" aria-label="All factors">
         <h3 class="lab-subhead">All factors</h3>
-        <p class="lab-hint">Every positive divisor of n. Small factors are divided out first. A cofactor up to about 40 digits is finished with the quadratic sieve, so a 50-digit number that has a small factor comes back complete. A product of two primes near 25 digits stops and lists that cofactor on its own. Stop anytime.</p>
+        <p class="lab-hint">Every positive divisor of n. The search keeps going until the list is complete, including a long integer: small factors first, then p−1, p+1, and elliptic curves. A prime cofactor is proved. Stop ends the wait.</p>
         <div class="row">
           <button type="button" id="lab-factors">List factors</button>
         </div>
@@ -779,6 +779,8 @@
         split: "Opening one side of n±1. A stubborn leftover can wait.",
         brent: "The hare is twice as fast. When they meet, gcd.",
         p1: "A smoothness thermometer. If p−1 is tame, n cracks.",
+        pp1: "Williams p+1. A smooth p+1 shares a factor with the Lucas number.",
+        siqs: "The quadratic sieve, on a cofactor the curves have not split.",
         ecm: "Suyama sends a scout. The curve may confess.",
         pocklington: "Ivy over the √n fence: the factored piece of n−1 must clear it.",
         lucas: "Selfridge’s sequence, until one discriminant makes U land on zero.",
@@ -1097,10 +1099,15 @@
     }
 
     function phaseLabel(phase, extra) {
-      if (phase === "ecm") return "ECM curve " + (extra.sigma ? "σ=" + extra.sigma : "");
+      if (phase === "ecm") {
+        const dig = extra.digits ? ", " + extra.digits + "-digit cofactor" : "";
+        return "ECM curve " + (extra.sigma ? "σ=" + extra.sigma : "") + dig;
+      }
       if (phase === "brent") return "Brent–Pollard on a cofactor";
       if (phase === "fermat") return "Fermat a^{n−1} mod n";
-      if (phase === "p1") return "Pollard p−1 stage 1";
+      if (phase === "p1") return "Pollard p−1" + (extra.B1 ? ", B1=" + extra.B1 : "");
+      if (phase === "pp1") return "Williams p+1" + (extra.P ? ", P=" + extra.P : "");
+      if (phase === "siqs") return extra.label || "quadratic sieve";
       if (phase === "sides") {
         const which = extra.side === "np1" ? "n+1" : "n−1";
         const pass = extra.effort === "full" ? "full pass" : "quick pass";

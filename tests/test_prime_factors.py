@@ -103,6 +103,13 @@ class TestPrimeFactors:
         g = ecm_factor(n, B1=200, B2=2000, max_curves=20)
         assert g is not None and 1 < g < n and n % g == 0
 
+    def test_ecm_stage2_one_curve(self):
+        from best_prime.factor_ecm import ecm_one_curve
+
+        n = 455839  # 599 × 761, σ=6, stage 2
+        g = ecm_one_curve(n, 6, 200, 4_000)
+        assert g is not None and 1 < g < n and n % g == 0
+
     def test_montgomery_ecm_finds_p8_on_p131_curve_order(self):
         from best_prime.factor_ecm import ecm_factor
 

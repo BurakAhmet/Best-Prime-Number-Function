@@ -952,6 +952,22 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+## Era — unreleased: factor lists do not stop on a digit cap
+
+**Problem.** List factors reported Incomplete as soon as a composite cofactor passed about 40 digits (140 bits). The browser sieve returned no bounds past that, and both the page and `prime_factors` then ran only a few elliptic curves at $B_1=2500$. A 90-digit input such as $10^{89}+9$ lost its small factors and stopped on a 77-digit cofactor. A prime cofactor under 256 bits that BLS could not settle was reported the same way, because that band does not fall through to the cyclotomic proof.
+
+**Change.** Factoring (not the primality dispatch) now uses, in order: trial, Fermat, a short Lehman probe, a short fixed-$c$ Brent, Pollard $p-1$, Williams $p+1$, then Suyama ECM with a baby-step/giant-step stage 2 and a fixed $\sigma$ schedule. Planned curve rows target a 12-to-20-digit factor. If those miss, the next $\sigma$ is still tried; `max_ms` is the only cap. A Fermat survivor that `is_prime` leaves unsettled is proved with `aprcl_primality`, including below 256 bits. The same cascade is in `checker-worker.js`.
+
+**Same machine.** $10^{89}+9$ finishes in about 4 s in Python and about 4 s in the browser (16-digit factor on $\sigma=9$, then a cyclotomic proof of the 61-digit prime). $10^{49}+21$ drops from about 65 s in the browser to about 3.5 s. The balanced product of two 25-digit primes finishes in about 33 s in Python instead of being returned unsplit.
+
+| | |
+|--|--|
+| **Advantages** | A 90-digit integer with a modest factor completes; stage 2 finds that factor in a few curves |
+| **Disadvantages** | A balanced semiprime whose smaller factor has about 45 digits is still an ECM search of thousands of curves |
+| **Failures / lessons** | Do not gcd stage 1 only at the end of the prime-power loop: a later prime can send $Z$ to $0 \pmod n$ and erase a factor that already divided $Z$. Do not run a $2^{20}$ Brent miss on a wide cofactor before stage-2 ECM; the miss costs more than the curve that splits a 15-digit factor |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:

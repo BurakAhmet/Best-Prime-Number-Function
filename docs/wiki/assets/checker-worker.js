@@ -7,8 +7,9 @@
  *   <256 bits (hard / multi-limb): combined BLS, then the two-band cubic
  *   search (primes through ∛n, then Lehman). Trial to √n is only the
  *   wheel band, floor(√n) < 10^7. A BLS miss never walks up to √n.
- *   Factoring: trial → Fermat → Brent → p−1 → Montgomery ECM (Suyama).
- *   Huge leftovers use a short ECM budget so 131-digit n cannot hang in BLS.
+ *   Factoring: trial → Fermat → Brent → p−1 → p+1 → ECM stage 2.
+ *   List-factors does not stop on a digit cap. Huge leftovers use a short
+ *   ECM budget so 131-digit n cannot hang in BLS.
  *   A ≥256-bit Fermat composite is already settled; the factor hunt is capped
  *   (ECM before Brent, 8s) so a 100-digit composite does not sit in a 60s ECM.
  *   There is no digit-length ceiling on the input.
@@ -927,25 +928,32 @@
     return 2000;
   }
 
+  function addMod(a, b, n) {
+    const s = a + b;
+    return s >= n ? s - n : s;
+  }
+
+  function subMod(a, b, n) {
+    return a >= b ? a - b : a - b + n;
+  }
+
   function montDbl(x, z, A24, n) {
-    const xpz = (x + z) % n;
-    const xmz = (x - z + n) % n;
-    const xpz2 = (xpz * xpz) % n;
-    const xmz2 = (xmz * xmz) % n;
-    const x2 = (xpz2 * xmz2) % n;
-    const d = (xpz2 - xmz2 + n) % n;
-    const z2 = (d * ((xmz2 + A24 * d) % n)) % n;
-    return [x2, z2];
+    // x, z, A24 are in [0, n). Sums stay under 2n, so a compare replaces %.
+    const xp = addMod(x, z, n);
+    const xm = subMod(x, z, n);
+    const xp2 = (xp * xp) % n;
+    const xm2 = (xm * xm) % n;
+    const t = subMod(xp2, xm2, n);
+    const z2 = (t * addMod(xm2, (A24 * t) % n, n)) % n;
+    return [(xp2 * xm2) % n, z2];
   }
 
   function montAdd(x1, z1, x2, z2, x0, z0, n) {
-    const u = (((x2 - z2 + n) % n) * ((x1 + z1) % n)) % n;
-    const v = (((x2 + z2) % n) * ((x1 - z1 + n) % n)) % n;
-    const upv = (u + v) % n;
-    const umv = (u - v + n) % n;
-    const x3 = (((z0 * upv) % n) * upv) % n;
-    const z3 = (((x0 * umv) % n) * umv) % n;
-    return [x3, z3];
+    const u = (subMod(x2, z2, n) * addMod(x1, z1, n)) % n;
+    const v = (addMod(x2, z2, n) * subMod(x1, z1, n)) % n;
+    const up = addMod(u, v, n);
+    const um = subMod(u, v, n);
+    return [((z0 * up) % n) * up % n, ((x0 * um) % n) * um % n];
   }
 
   function montMul(k, x, z, A24, n) {
@@ -3814,15 +3822,380 @@
     return null;
   }
 
-  function splitComposite(n, onTick, shouldStop) {
-    const close = fermatSplit(n, 4096);
-    if (close) return close;
+  let _factorPrimes = null;
+  let _factorPrimesLim = 0;
+
+  /** Primes up to limit, not capped at the trial table. Callers stop at their own bound. */
+  function factorPrimes(limit) {
+    const need = limit < 2 ? 2 : limit > 30000000 ? 30000000 : limit | 0;
+    if (_factorPrimes && _factorPrimesLim >= need) return _factorPrimes;
+    const sieve = new Uint8Array(need + 1);
+    sieve.fill(1);
+    sieve[0] = 0;
+    sieve[1] = 0;
+    const root = Math.floor(Math.sqrt(need));
+    for (let i = 2; i <= root; i++) {
+      if (!sieve[i]) continue;
+      for (let j = i * i; j <= need; j += i) sieve[j] = 0;
+    }
+    const out = [];
+    for (let i = 2; i <= need; i++) if (sieve[i]) out.push(i);
+    _factorPrimes = out;
+    _factorPrimesLim = need;
+    return out;
+  }
+
+  function nmod(a, n) {
+    const r = a % n;
+    return r < 0n ? r + n : r;
+  }
+
+  function lucasV(k, P, n) {
+    if (k <= 0n) return 2n % n;
+    P = nmod(P, n);
+    let vm = P;
+    let vmp = nmod(P * P - 2n, n);
+    const bits = bitLength(k);
+    for (let i = bits - 2; i >= 0; i--) {
+      if ((k >> BigInt(i)) & 1n) {
+        const nvm = nmod(vm * vmp - P, n);
+        vmp = nmod(vmp * vmp - 2n, n);
+        vm = nvm;
+      } else {
+        const nvm = nmod(vm * vm - 2n, n);
+        vmp = nmod(vm * vmp - P, n);
+        vm = nvm;
+      }
+    }
+    return vm;
+  }
+
+  function williamsPp1(n, B1, P) {
+    const Pb = BigInt(P);
+    const disc = nmod(Pb * Pb - 4n, n);
+    const g0 = gcd(disc, n);
+    if (g0 > 1n && g0 < n) return g0;
+    if (g0 === n || disc === 0n) return null;
+    let exponent = 1n;
+    const primes = factorPrimes(B1);
+    for (let i = 0; i < primes.length; i++) {
+      const p = primes[i];
+      if (p > B1) break;
+      let pe = p;
+      while (pe <= ((B1 / p) | 0)) pe *= p;
+      exponent *= BigInt(pe);
+    }
+    const g = gcd(nmod(lucasV(exponent, Pb, n) - 2n, n), n);
+    return g > 1n && g < n ? g : null;
+  }
+
+  function iroot(n, k) {
+    if (n < 2n || k < 2) return n < 0n ? 0n : n;
+    const bl = bitLength(n);
+    let x = 1n << BigInt(Math.floor((bl + k - 1) / k));
+    if (x < 2n) x = 2n;
+    const kb = BigInt(k);
+    const k1 = kb - 1n;
+    for (;;) {
+      const pow = x ** k1;
+      const y = (k1 * x + n / pow) / kb;
+      if (y >= x) {
+        while (x ** kb > n) x -= 1n;
+        return x;
+      }
+      x = y;
+    }
+  }
+
+  function powerBase(n) {
+    if (n < 4n) return null;
+    const root = isqrt(n);
+    if (root * root === n) return root;
+    const maxE = bitLength(n);
+    const exps = factorPrimes(maxE < 4096 ? maxE : 4096);
+    for (let i = 0; i < exps.length; i++) {
+      const e = exps[i];
+      if (e < 3 || e >= maxE) continue;
+      const base = iroot(n, e);
+      if (base > 1n && base ** BigInt(e) === n) return base;
+    }
+    return null;
+  }
+
+  /** Suyama point with Z = 1, matching the library curve. No RNG. */
+  function ecmSuyama(n, sigma) {
+    const s = BigInt(sigma);
+    const u = nmod(s * s - 5n, n);
+    const v = (4n * s) % n;
+    const x = (u * u % n) * u % n;
+    const t = (v - u + n) % n;
+    let num = (t * t % n) * t % n;
+    num = (num * ((3n * u + v) % n)) % n;
+    const den = ((16n * x) % n) * v % n;
+    const g0 = gcd(den, n);
+    if (g0 > 1n && g0 < n) return { factor: g0 };
+    if (g0 === n || den === 0n) return null;
+    const inv = modInv(den, n);
+    if (inv === null) return null;
+    const gx = gcd(x, n);
+    if (gx > 1n && gx < n) return { factor: gx };
+    if (gx === n) return null;
+    return { x: x, A24: (num * inv) % n };
+  }
+
+  const _stage2Plan = new Map();
+
+  function stage2Plan(B1, B2) {
+    if (B2 <= B1 + 2 || B1 < 30) return null;
+    const key = B1 + ":" + B2;
+    if (_stage2Plan.has(key)) return _stage2Plan.get(key);
+    let D = Math.floor(Math.sqrt(B2 - B1));
+    if (D & 1) D += 1;
+    if (D > 4096) D = 4096;
+    const cap = B1 & 1 ? B1 - 1 : B1;
+    if (D > cap) D = cap;
+    if (D < 30) {
+      _stage2Plan.set(key, null);
+      return null;
+    }
+    const primes = factorPrimes(B2);
+    const groups = new Map();
+    let qmin = null;
+    let qmax = 0;
+    for (let i = 0; i < primes.length; i++) {
+      const p = primes[i];
+      if (p <= B1) continue;
+      if (p > B2) break;
+      const s = p % D;
+      if (s === 0 || (s & 1) === 0) continue;
+      const q = (p - s) / D;
+      let bucket = groups.get(q);
+      if (!bucket) {
+        bucket = [];
+        groups.set(q, bucket);
+      }
+      bucket.push(s);
+      if (qmin === null || q < qmin) qmin = q;
+      if (q > qmax) qmax = q;
+    }
+    if (qmin === null) {
+      if (_stage2Plan.size > 6) _stage2Plan.clear();
+      _stage2Plan.set(key, null);
+      return null;
+    }
+    const seq = [];
+    for (let q = qmin; q <= qmax; q++) seq.push(groups.get(q) || []);
+    const plan = { D: D, qmin: qmin, seq: seq };
+    if (_stage2Plan.size > 6) _stage2Plan.clear();
+    _stage2Plan.set(key, plan);
+    return plan;
+  }
+
+  function ecmStage2(Px, Pz, A24, n, B1, B2) {
+    const g0 = gcd(Pz, n);
+    if (g0 > 1n && g0 < n) return g0;
+    if (g0 === n || Pz === 0n) return null;
+    const plan = stage2Plan(B1, B2);
+    if (!plan) return null;
+    const inv = modInv(Pz, n);
+    if (inv === null) return null;
+    const xq = (Px * inv) % n;
+    const D = plan.D;
+    const babyX = new Array(D);
+    const babyZ = new Array(D);
+    babyX[1] = xq;
+    babyZ[1] = 1n;
+    const dbl = montDbl(xq, 1n, A24, n);
+    let cur = montAdd(dbl[0], dbl[1], xq, 1n, xq, 1n, n);
+    babyX[3] = cur[0];
+    babyZ[3] = cur[1];
+    for (let r = 5; r < D; r += 2) {
+      cur = montAdd(cur[0], cur[1], dbl[0], dbl[1], babyX[r - 4], babyZ[r - 4], n);
+      babyX[r] = cur[0];
+      babyZ[r] = cur[1];
+    }
+    let G = montMul(BigInt(plan.qmin) * BigInt(D), xq, 1n, A24, n);
+    const H = montMul(BigInt(D), xq, 1n, A24, n);
+    let Prev = montMul(BigInt(plan.qmin - 1) * BigInt(D), xq, 1n, A24, n);
+    let prod = 1n;
+    const batch = [];
+    function flush() {
+      if (!batch.length) return null;
+      let gd = gcd(prod, n);
+      if (gd === 1n) {
+        batch.length = 0;
+        prod = 1n;
+        return null;
+      }
+      if (gd > 1n && gd < n) return gd;
+      for (let i = 0; i < batch.length; i++) {
+        gd = gcd(batch[i], n);
+        if (gd > 1n && gd < n) return gd;
+      }
+      batch.length = 0;
+      prod = 1n;
+      return null;
+    }
+    function take(diff) {
+      diff %= n;
+      if (diff < 0n) diff += n;
+      if (diff === 0n) return null;
+      prod = (prod * diff) % n;
+      batch.push(diff);
+      if (batch.length < 256) return null;
+      return flush();
+    }
+    const seq = plan.seq;
+    for (let qi = 0; qi < seq.length; qi++) {
+      const gz = gcd(G[1], n);
+      if (gz > 1n && gz < n) return gz;
+      if (!(gz === n || G[1] === 0n)) {
+        const residues = seq[qi];
+        for (let s = 0; s < residues.length; s++) {
+          const r = residues[s];
+          const hit = take(G[0] * babyZ[r] - babyX[r] * G[1]);
+          if (hit) return hit;
+        }
+      }
+      const nxt = montAdd(G[0], G[1], H[0], H[1], Prev[0], Prev[1], n);
+      Prev = G;
+      G = nxt;
+    }
+    return flush();
+  }
+
+  function ecmStage1(x, A24, n, B1, primes) {
+    let Px = x;
+    let Pz = 1n;
+    for (let i = 0; i < primes.length; i++) {
+      const p = primes[i];
+      if (p > B1) break;
+      let pe = p;
+      while (pe <= ((B1 / p) | 0)) pe *= p;
+      const Q = montMul(BigInt(pe), Px, Pz, A24, n);
+      Px = Q[0];
+      Pz = Q[1];
+      if (Pz === 0n) return null;
+      const g = gcd(Pz, n);
+      if (g > 1n && g < n) return { factor: g };
+      if (g === n) return null;
+    }
+    return { x: Px, z: Pz };
+  }
+
+  /** One fixed-σ curve. Stage 2 is the baby-step/giant-step continuation. */
+  function ecmOneCurve(n, sigma, B1, B2) {
+    if (n < 4n || B1 < 2) return null;
+    if (!(B2 > B1)) B2 = B1;
+    const built = ecmSuyama(n, sigma);
+    if (!built) return null;
+    if (built.factor) return built.factor;
+    const primes = factorPrimes(B2 > B1 ? B2 : B1);
+    const stage = ecmStage1(built.x, built.A24, n, B1, primes);
+    if (!stage) return null;
+    if (stage.factor) return stage.factor;
+    if (B2 <= B1) return null;
+    const g = ecmStage2(stage.x, stage.z, built.A24, n, B1, B2);
+    if (typeof g === "bigint" && g > 1n && g < n && n % g === 0n) return g;
+    return null;
+  }
+
+  function factorEcmPhases(bits) {
+    if (bits <= 80) return [[2000, 100000, 12]];
+    if (bits <= 120) return [[8000, 700000, 12], [20000, 1000000, 8]];
+    if (bits <= 180) return [[11000, 900000, 10], [50000, 2000000, 16]];
+    if (bits <= 240) return [[15000, 1200000, 8], [50000, 2000000, 12], [200000, 4000000, 8]];
+    if (bits <= 340) return [[15000, 1200000, 8], [50000, 2000000, 12], [250000, 5000000, 8]];
+    return [[50000, 2000000, 8], [250000, 5000000, 8], [1000000, 12000000, 6]];
+  }
+
+  function ecmPhaseRun(n, sigma0, B1, B2, curves, onTick, shouldStop) {
+    const digits = String(n.toString().length);
+    for (let i = 0; i < curves; i++) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      const sigma = sigma0 + i;
+      emit(onTick, "ecm", BigInt(i + 1), BigInt(curves), {
+        sigma: String(sigma),
+        B1: String(B1),
+        digits: digits,
+      });
+      const g = ecmOneCurve(n, sigma, B1, B2);
+      if (typeof g === "bigint" && g > 1n && g < n) return g;
+    }
+    return null;
+  }
+
+  /**
+   * Split a known composite. No digit cap: after the planned curves the
+   * search keeps taking the next fixed σ. Stop is the only abort.
+   */
+  function deepSplit(n, onTick, shouldStop) {
     const bits = bitLength(n);
-    // 2^16 stops short of a 12-digit factor (this 50-digit specimen's
-    // cofactor splits at c=1 once the bound reaches 2^20). 2^22 is the
-    // multi-minute hang, so stay at 2^20 and only a few fixed c values.
-    const brentCurves = bits > 60 ? 6n : 16n;
-    const brentR = 1n << 20n;
+    const p1 = bits > 90 ? 100000 : 20000;
+    emit(onTick, "p1", 1n, 1n, { B1: String(p1) });
+    let g = pollardP1(n, p1);
+    if (g && g > 1n && g < n) return g;
+    let sigma = 6;
+    const phases = factorEcmPhases(bits);
+    for (let ph = 0; ph < phases.length; ph++) {
+      const row = phases[ph];
+      const hit = ecmPhaseRun(n, sigma, row[0], row[1], row[2], onTick, shouldStop);
+      if (hit && hit.aborted) return hit;
+      if (typeof hit === "bigint") return hit;
+      sigma += row[2];
+    }
+    if (bits > 160) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      emit(onTick, "p1", 1n, 1n, { B1: "2000000" });
+      g = pollardP1(n, 2000000);
+      if (g && g > 1n && g < n) return g;
+      for (let i = 0; i < 3; i++) {
+        const P = [1, 3, 5][i];
+        if (shouldStop && shouldStop()) return { aborted: true };
+        emit(onTick, "pp1", BigInt(i + 1), 3n, { P: String(P) });
+        g = williamsPp1(n, 60000, P);
+        if (g && g > 1n && g < n) return g;
+      }
+    }
+    if (bits >= 90 && bits <= 140 && fermatSaysComposite(n)) {
+      emit(onTick, "siqs", 0n, 1n, { label: "quadratic sieve" });
+      g = siqsSplit(n, shouldStop);
+      if (shouldStop && shouldStop()) return { aborted: true };
+      if (typeof g === "bigint" && g > 1n && g < n) return g;
+    }
+    let B1 = 100000;
+    let curves = 12;
+    for (;;) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      let B2 = B1 * 40;
+      if (B2 > 30000000) B2 = 30000000;
+      const hit = ecmPhaseRun(n, sigma, B1, B2, curves, onTick, shouldStop);
+      if (hit && hit.aborted) return hit;
+      if (typeof hit === "bigint") return hit;
+      sigma += curves;
+      if (B1 < 8000000) B1 *= 2;
+      else curves = Math.min(curves + 4, 80);
+    }
+  }
+
+  function splitComposite(n, onTick, shouldStop) {
+    const bits = bitLength(n);
+    const close = fermatSplit(n, bits > 180 ? 1024 : 4096);
+    if (close) return close;
+    const cub = icbrt(n);
+    const cubProbe = bits > 60 && cub > 100000n ? 100000n : cub;
+    let kMax = cubProbe;
+    if (bits > 60 && kMax > 16n) kMax = 16n;
+    const lh = lehmanFactor(n, cubProbe, kMax, onTick, shouldStop);
+    if (lh && lh.aborted) return lh;
+    if (lh && lh.factor) return lh.factor;
+    // A wide Fermat survivor is proved by the caller. Brent and ECM cannot
+    // split a prime.
+    if (bits > 96 && !fermatSaysComposite(n)) return null;
+    // A full 2^20 miss is several seconds and still short of a 15-digit
+    // factor. Stage-2 ECM is the faster tool past that size.
+    const brentCurves = bits > 120 ? 3n : bits > 60 ? 4n : 16n;
+    const brentR = bits > 120 ? 1n << 16n : bits > 60 ? 1n << 18n : 1n << 20n;
     for (let c = 1n; c <= brentCurves; c++) {
       if (shouldStop && shouldStop()) return { aborted: true };
       emit(onTick, "brent", c, brentCurves, { label: "Brent–Pollard, fixed c" });
@@ -3830,38 +4203,61 @@
       if (g == null) return { aborted: true };
       if (g > 1n && g < n) return g;
     }
-    const cub = icbrt(n);
-    // The real cube root past 60 bits makes each Lehman window enormous.
-    const cubProbe = bits > 60 && cub > 100000n ? 100000n : cub;
-    let kMax = cubProbe;
-    if (bits > 60 && kMax > 16n) kMax = 16n;
-    const lh = lehmanFactor(n, cubProbe, kMax, onTick, shouldStop);
-    if (lh && lh.aborted) return lh;
-    if (lh && lh.factor) return lh.factor;
-    if (bits >= 28) {
-      const cap = bits > 60 ? 2500 : 2000;
-      const phases = bits > 60 ? [{ B1: 2500, curves: 10 }] : null;
-      const g = ecmFactor(n, onTick, shouldStop, 6, cap, phases);
-      if (g && g.aborted) return g;
-      if (typeof g === "bigint" && g > 1n && g < n) return g;
+    if (!fermatSaysComposite(n)) return null;
+    return deepSplit(n, onTick, shouldStop);
+  }
+
+  /**
+   * Prime, composite, or unsettled. Below 256 bits a BLS miss is not a
+   * composite: the cyclotomic proof has no such floor.
+   */
+  async function classifyCofactor(c, onTick, shouldStop) {
+    const bits = bitLength(c);
+    if (bits >= 256) {
+      let proved = checkPrime(c, onTick, shouldStop);
+      if (proved && typeof proved.then === "function") proved = await proved;
+      if (proved && proved.aborted) return proved;
+      if (proved && proved.prime === true) return { kind: "prime" };
+      if (proved && proved.factor != null) {
+        const f = BigInt(proved.factor);
+        if (f > 1n && f < c && c % f === 0n) return { kind: "factor", factor: f };
+      }
+      if (proved && proved.prime === false) return { kind: "composite" };
+      return { kind: "unsettled" };
     }
-    // The short elliptic-curve budget misses a 15-digit factor whose p−1
-    // has a large prime. The sieve finishes that cofactor through ~40 digits.
-    // A Fermat survivor is left for the primality proof; sieving it is wasted.
-    if (bits >= 70 && bits <= 140 && fermatSaysComposite(n)) {
-      const g = siqsSplit(n, shouldStop);
-      if (typeof g === "bigint" && g > 1n && g < n) return g;
+    if (bits <= 200) {
+      const decided = blsPrimality(c, 0, onTick, shouldStop);
+      if (shouldStop && shouldStop()) return { aborted: true };
+      if (decided && decided.prime === true) return { kind: "prime" };
+      if (decided && decided.prime === false) {
+        if (decided.factor != null) {
+          const f = BigInt(decided.factor);
+          if (f > 1n && f < c && c % f === 0n) return { kind: "factor", factor: f };
+        }
+        return { kind: "composite" };
+      }
     }
-    return null;
+    const r = await aprclCheck(c, isqrt(c), typeof performance !== "undefined" ? performance.now() : 0, onTick, shouldStop);
+    if (r && r.aborted) return r;
+    if (r && r.prime === true) return { kind: "prime" };
+    if (r && r.prime === false) {
+      if (r.factor != null) {
+        const f = BigInt(r.factor);
+        if (f > 1n && f < c && c % f === 0n) return { kind: "factor", factor: f };
+      }
+      return { kind: "composite" };
+    }
+    return { kind: "unsettled" };
   }
 
   /**
    * Every positive divisor of n, plus the prime factors with multiplicity.
-   * Deterministic: wheel trial, Fermat, Lehman, fixed-c Brent, fixed-σ ECM.
-   * A cofactor that does not split is reported in unsettled; factors is then
-   * only the divisors of the factored part.
+   * Deterministic: trial, Fermat, Lehman, fixed-c Brent, p−1, p+1, ECM
+   * with stage 2, then the quadratic sieve. The search does not stop on a
+   * digit cap. A prime cofactor is proved, with the cyclotomic proof when
+   * an n±1 proof does not finish. Stop is the only abort.
    */
-  function factorAll(n, onTick, shouldStop) {
+  async function factorAll(n, onTick, shouldStop) {
     const t0 = typeof performance !== "undefined" ? performance.now() : 0;
     if (n < 1n) {
       return { ok: false, note: "n must be a positive integer", n: n.toString() };
@@ -3894,32 +4290,60 @@
         stack.push(root, root);
         continue;
       }
+      const base = powerBase(c);
+      if (base && base > 1n && base < c && c % base === 0n) {
+        let reduced = c;
+        let exponent = 0;
+        while (reduced % base === 0n) {
+          reduced /= base;
+          exponent++;
+        }
+        if (reduced === 1n && exponent > 1) {
+          for (let i = 0; i < exponent; i++) stack.push(base);
+          continue;
+        }
+      }
       // Trial up to √c already ran when √c is within the prime table.
       if (root <= BigInt(TRIAL_BOUND_BIG)) {
         primes.push(c);
         continue;
       }
-      emit(onTick, "split", 0n, 1n, { label: "splitting a composite cofactor" });
+      // Prove a Fermat survivor before any curve. ECM does not split a prime,
+      // and the cyclotomic proof finishes cofactors BLS leaves unsettled.
+      if (!fermatSaysComposite(c)) {
+        const cls = await classifyCofactor(c, onTick, shouldStop);
+        if (cls && cls.aborted) return cls;
+        if (cls.kind === "prime") {
+          primes.push(c);
+          continue;
+        }
+        if (cls.kind === "factor") {
+          stack.push(cls.factor, c / cls.factor);
+          continue;
+        }
+        if (cls.kind === "unsettled") {
+          unsettled.push(c);
+          continue;
+        }
+        // Fermat screen missed a composite. The screen's early return would
+        // skip the curves, so split it directly.
+        const deep = deepSplit(c, onTick, shouldStop);
+        if (deep && deep.aborted) return deep;
+        if (typeof deep === "bigint" && deep > 1n && deep < c && c % deep === 0n) {
+          stack.push(deep, c / deep);
+          continue;
+        }
+        unsettled.push(c);
+        continue;
+      }
+      emit(onTick, "split", 0n, 1n, {
+        label: "splitting a " + c.toString().length + "-digit cofactor",
+      });
       const g = splitComposite(c, onTick, shouldStop);
       if (g && g.aborted) return g;
       if (typeof g === "bigint" && g > 1n && g < c && c % g === 0n) {
         stack.push(g, c / g);
         continue;
-      }
-      if (!quickComposite(c)) {
-        const proved = checkPrime(c, onTick, shouldStop);
-        if (proved && proved.aborted) return proved;
-        if (proved && proved.prime) {
-          primes.push(c);
-          continue;
-        }
-        if (proved && proved.factor != null) {
-          const f = BigInt(proved.factor);
-          if (f > 1n && f < c && c % f === 0n) {
-            stack.push(f, c / f);
-            continue;
-          }
-        }
       }
       unsettled.push(c);
     }
@@ -4263,19 +4687,19 @@
     assert(face.mod30 === "7" && face.wheelCoprime === true, "97 mod 30");
     assert(parseK("0") === null && parseK("65") === 65n, "k has no upper bound");
     assert(quickComposite(2047n) === true, "2047 fails the Fermat screen");
-    const fac12 = factorAll(12n);
+    const fac12 = await factorAll(12n);
     assert(
       fac12.ok && fac12.factors.join(",") === "1,2,3,4,6,12" && fac12.primes.join(",") === "2,2,3",
       "factors(12)"
     );
-    const fac91 = factorAll(91n);
+    const fac91 = await factorAll(91n);
     assert(
       fac91.ok && fac91.factors.join(",") === "1,7,13,91" && fac91.primes.join(",") === "7,13",
       "factors(91)"
     );
-    const facP = factorAll(10007n);
+    const facP = await factorAll(10007n);
     assert(facP.ok && facP.factors.join(",") === "1,10007", "factors of a prime");
-    const fac2047 = factorAll(2047n);
+    const fac2047 = await factorAll(2047n);
     assert(
       fac2047.ok && fac2047.primes.join(",") === "23,89" && fac2047.factors.join(",") === "1,23,89,2047",
       "factors(2047)"
