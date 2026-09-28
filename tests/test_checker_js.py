@@ -193,6 +193,53 @@ console.log('random ok', sawPastOldCap ? 'saw >149' : 'tail not hit in 80 draws'
     assert proc.returncode == 0, proc.stderr or proc.stdout
 
 
+def test_ninety_digit_factor_list_finishes_in_the_lab() -> None:
+    """10^89+9 used to return Incomplete on a 77-digit cofactor."""
+    script = r"""
+const api = require('./docs/wiki/assets/checker-worker.js');
+(async () => {
+  const n = 10n ** 89n + 9n;
+  const t0 = Date.now();
+  const r = await api.factorAll(n);
+  const dt = Date.now() - t0;
+  if (!r || !r.ok || (r.unsettled && r.unsettled.length)) {
+    console.error('incomplete', dt, JSON.stringify(r && r.unsettled));
+    process.exit(1);
+  }
+  let prod = 1n;
+  for (const p of r.primes) prod *= BigInt(p);
+  if (prod !== n) {
+    console.error('product', r.primes);
+    process.exit(1);
+  }
+  if (!r.primes.includes('9302577834136361')) {
+    console.error('missing 16-digit factor', r.primes);
+    process.exit(1);
+  }
+  const m = 10n ** 49n + 21n;
+  const t1 = Date.now();
+  const s = await api.factorAll(m);
+  const dt2 = Date.now() - t1;
+  if (!s || !s.ok || dt2 >= 40000) {
+    console.error('10^49+21', dt2, s && s.ok, s && s.primes);
+    process.exit(1);
+  }
+  console.log('factors', dt, dt2);
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+"""
+    proc = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+
+
 def test_54_digit_prime_in_the_lab_is_under_eight_seconds() -> None:
     script = r"""
 const api = require('./docs/wiki/assets/checker-worker.js');

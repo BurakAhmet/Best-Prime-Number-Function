@@ -159,8 +159,10 @@ for p in primerange(10**9, 10**9 + 50):
 
 Prime factors with multiplicity, ascending. `[]` if $n<2$. `max_ms` is a
 wall-clock cap; on expiry raise `UnsettledFactorError` (isolated primes on
-`.found`, composite remainder on `.leftover`). `None` is the historical
-complete search.
+`.found`, composite remainder on `.leftover`). `None` runs until the
+factorization is finished (trial, Fermat, Lehman, Brent, p−1, p+1, ECM
+with stage 2, quadratic sieve). A balanced semiprime with two large
+prime factors can take a long time. There is no digit cap.
 
 ```python
 prime_factors(360)    # [2, 2, 2, 3, 3, 5]
@@ -176,7 +178,7 @@ Prime $\to$ exponent. Empty if $n<2$. Same `max_ms` as `prime_factors`.
 factorint(360)    # {2: 3, 3: 2, 5: 1}
 ```
 
-Trial + Fermat + **two-band cubic search** + deterministic Brent + ECM + SIQS. See [cubic search](cubic-search.md).
+Trial + Fermat + **two-band cubic search** + deterministic Brent + p−1 + p+1 + ECM (stage 2) + SIQS. See [cubic search](cubic-search.md).
 
 ### `lehman_factor(n, *, k_max=None) -> int | None`
 

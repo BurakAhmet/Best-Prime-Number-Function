@@ -256,16 +256,48 @@ def test_fifty_digit_factors_finish():
     got = factors(n)
     assert time.perf_counter() - t < 20
     assert got[0] == 1 and got[-1] == n and 19 in got
-    # Two 25-digit primes. The search must return, not walk √n.
+    # Two 25-digit primes. A short cap must return, not walk √n.
+    # The uncapped search is test_balanced_fifty_digit_semiprime_finishes.
     hard = 1000100000000000000000077 * 1000700000000000000000059
     t = time.perf_counter()
     try:
-        listed = factors(hard)
+        listed = factors(hard, max_ms=8_000)
     except UnsettledFactorError:
         listed = None
-    assert time.perf_counter() - t < 90
+    assert time.perf_counter() - t < 25
     if listed is not None:
         assert listed[0] == 1 and listed[-1] == hard
+
+
+@pytest.mark.slow
+def test_balanced_fifty_digit_semiprime_finishes():
+    """Stage-2 ECM finishes two 25-digit primes. About 33 s here, slower in CI."""
+    hard = 1000100000000000000000077 * 1000700000000000000000059
+    t = time.perf_counter()
+    listed = factors(hard)
+    assert time.perf_counter() - t < 300
+    assert listed[0] == 1 and listed[-1] == hard
+    assert 1000100000000000000000077 in listed
+
+
+def test_ninety_digit_factors_complete():
+    """10^89+9 used to stop on a 77-digit composite cofactor."""
+    from collections import Counter
+
+    from best_prime.prime_factors import prime_factors
+
+    n = 10**89 + 9
+    t = time.perf_counter()
+    primes = prime_factors(n)
+    assert time.perf_counter() - t < 45
+    assert math.prod(primes) == n
+    assert Counter(primes)[7] == 3
+    for p in (13, 53, 103, 263, 997, 9302577834136361):
+        assert p in primes
+    prime61 = 1684206015194423425017762911431830297136994720047296251534459
+    assert prime61 in primes
+    got = factors(n)
+    assert got[0] == 1 and got[-1] == n and 343 in got
 
 
 @settings(max_examples=30, **_HYP)
