@@ -926,7 +926,7 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 **Change.** If every prime in $F$ was a Pocklington witness, the cubic test uses $F$ itself.
 
-**Same machine.** In-tab next prime returns $2588668629162033095603$ on the n−1 path in about 0.1 s.
+**Same machine.** In-tab next prime returns $2588668629162033095603$ on the n−1 path in about 0.1 s. The trial step that builds $F$ now divides by a block of primes per remainder (product under $2^{53}$): the n−1 proof of that successor is about 40 ms, down from about 70 ms after the cubic fix.
 
 | | |
 |--|--|

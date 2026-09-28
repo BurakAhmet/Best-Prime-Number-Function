@@ -474,21 +474,61 @@
     return trySplitCofactor(n, onTick, shouldStop, true);
   }
 
+  const _trialChunks = new Map();
+
+  /** Primes ≤ bound, grouped so each group's product fits in 53 bits. */
+  function trialChunks(bound) {
+    const b = bound | 0;
+    const hit = _trialChunks.get(b);
+    if (hit) return hit;
+    const primes = primesUpto(b);
+    const chunks = [];
+    const cap = 1n << 53n;
+    let prod = 1n;
+    let ps = [];
+    for (let i = 0; i < primes.length; i++) {
+      const p = primes[i];
+      if (p > b) break;
+      const bp = BigInt(p);
+      if (ps.length && prod * bp >= cap) {
+        chunks.push({ mod: prod, primes: ps });
+        prod = bp;
+        ps = [p];
+      } else {
+        prod *= bp;
+        ps.push(p);
+      }
+    }
+    if (ps.length) chunks.push({ mod: prod, primes: ps });
+    _trialChunks.set(b, chunks);
+    return chunks;
+  }
+
   function trialSplit(m, bound) {
     const fac = new Map();
     if (m <= 1n) return { fac: fac, rem: m };
     let x = m;
-    const primes = primesUpto(bound);
-    for (let k = 0; k < primes.length; k++) {
-      const p = BigInt(primes[k]);
-      if (p > BigInt(bound) || p * p > x) break;
-      if (x % p === 0n) {
+    const chunks = trialChunks(bound);
+    for (let ci = 0; ci < chunks.length; ci++) {
+      if (x === 1n) break;
+      const ch = chunks[ci];
+      const p0 = ch.primes[0];
+      const bp0 = BigInt(p0);
+      if (bp0 * bp0 > x) break;
+      const rem = Number(x % ch.mod);
+      for (let j = 0; j < ch.primes.length; j++) {
+        const p = ch.primes[j];
+        if (rem % p !== 0) continue;
+        const bp = BigInt(p);
+        // A prime larger than √x is the remaining cofactor, not a peeled factor.
+        if (bp * bp > x) return { fac: fac, rem: x };
+        if (x % bp !== 0n) continue;
         let e = 0;
-        while (x % p === 0n) {
-          x /= p;
+        while (x % bp === 0n) {
+          x /= bp;
           e++;
         }
-        fac.set(p, (fac.get(p) || 0) + e);
+        fac.set(bp, (fac.get(bp) || 0) + e);
         if (x === 1n) break;
       }
     }
