@@ -15,7 +15,7 @@ from .next_prime import _looks_like_int_token, _parse_k  # noqa: E402
 from .prev_prime import prev_prime  # noqa: E402
 from .prime_factors import prime_factors  # noqa: E402
 from .prime_power import is_perfect_power, is_prime_power  # noqa: E402
-from .ntheory import divisors, primorial, totient  # noqa: E402
+from .ntheory import divisors, factors, primorial, totient  # noqa: E402
 from .prime_sieve import nth_prime, prime_count, primerange, primes  # noqa: E402
 
 
@@ -216,6 +216,27 @@ def primorial_main(argv: list[str] | None = None) -> None:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
     _print(str(n), primorial(n))
+
+
+def factors_main(argv: list[str] | None = None) -> None:
+    usage = "usage: factors [--serial] [--max-ms MS] n"
+    raw = argv if argv is not None else sys.argv[1:]
+    raw, max_ms = _take_max_ms(raw)
+    pos, serial = _scan(raw, usage, 1)
+    try:
+        n = _parse_n(pos[0])
+    except (TypeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    from .errors import UnsettledFactorError
+
+    try:
+        vals = factors(n, parallel=not serial, max_ms=max_ms)
+    except UnsettledFactorError as exc:
+        found = " ".join(str(p) for p in exc.found)
+        _print(str(n), "unsettled", found=found or "-", leftover=exc.leftover)
+        raise SystemExit(3) from exc
+    _print(str(n), " ".join(str(d) for d in vals), count=len(vals))
 
 
 def divisors_main(argv: list[str] | None = None) -> None:

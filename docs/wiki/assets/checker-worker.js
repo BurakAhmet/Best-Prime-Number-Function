@@ -3389,6 +3389,143 @@
     }
   }
 
+  function divisorsFromPrimes(primes) {
+    let divs = [1n];
+    let i = 0;
+    while (i < primes.length) {
+      const p = primes[i];
+      let e = 0;
+      while (i < primes.length && primes[i] === p) {
+        e++;
+        i++;
+      }
+      const extra = [];
+      let mul = 1n;
+      for (let k = 0; k < e; k++) {
+        mul *= p;
+        for (let j = 0; j < divs.length; j++) extra.push(divs[j] * mul);
+      }
+      divs = divs.concat(extra);
+    }
+    divs.sort(function (a, b) {
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return divs;
+  }
+
+  function splitComposite(n, onTick, shouldStop) {
+    const close = fermatSplit(n, 8192);
+    if (close) return close;
+    const bits = bitLength(n);
+    const cub = icbrt(n);
+    const kMax = bits <= 64 ? cub : cub < 100000n ? cub : 100000n;
+    const lh = lehmanFactor(n, cub, kMax, onTick, shouldStop);
+    if (lh && lh.aborted) return lh;
+    if (lh && lh.factor) return lh.factor;
+    for (let c = 1n; c <= 16n; c++) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      emit(onTick, "brent", c, 16n, { label: "Brent–Pollard, fixed c" });
+      const g = brent(n, c, 2n, 1n << 18n, shouldStop);
+      if (g == null) return { aborted: true };
+      if (g > 1n && g < n) return g;
+    }
+    if (bits >= 28) {
+      const cap = bits < 90 ? 4000 : 12000;
+      const g = ecmFactor(n, onTick, shouldStop, 6, cap, null);
+      if (g && g.aborted) return g;
+      if (typeof g === "bigint" && g > 1n && g < n) return g;
+    }
+    return null;
+  }
+
+  /**
+   * Every positive divisor of n, plus the prime factors with multiplicity.
+   * Deterministic: wheel trial, Fermat, Lehman, fixed-c Brent, fixed-σ ECM.
+   * A cofactor that does not split is reported in unsettled; factors is then
+   * only the divisors of the factored part.
+   */
+  function factorAll(n, onTick, shouldStop) {
+    const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+    if (n < 1n) {
+      return { ok: false, note: "n must be a positive integer", n: n.toString() };
+    }
+    if (n === 1n) {
+      return {
+        ok: true,
+        n: "1",
+        factors: ["1"],
+        primes: [],
+        unsettled: [],
+        ms: 0,
+      };
+    }
+    const primes = [];
+    const stack = [n];
+    const unsettled = [];
+    while (stack.length) {
+      if (shouldStop && shouldStop()) return { aborted: true };
+      let c = stack.pop();
+      if (c === 1n) continue;
+      const peeled = trialSplit(c, TRIAL_BOUND_BIG);
+      for (const [p, e] of peeled.fac) {
+        for (let i = 0; i < e; i++) primes.push(p);
+      }
+      c = peeled.rem;
+      if (c === 1n) continue;
+      const root = isqrt(c);
+      if (root * root === c) {
+        stack.push(root, root);
+        continue;
+      }
+      // Trial up to √c already ran when √c is within the prime table.
+      if (root <= BigInt(TRIAL_BOUND_BIG)) {
+        primes.push(c);
+        continue;
+      }
+      emit(onTick, "split", 0n, 1n, { label: "splitting a composite cofactor" });
+      if (!quickComposite(c)) {
+        const proved = checkPrime(c, onTick, shouldStop);
+        if (proved && proved.aborted) return proved;
+        if (proved && proved.prime) {
+          primes.push(c);
+          continue;
+        }
+        if (proved && proved.factor != null) {
+          const f = BigInt(proved.factor);
+          if (f > 1n && f < c && c % f === 0n) {
+            stack.push(f, c / f);
+            continue;
+          }
+        }
+      }
+      const g = splitComposite(c, onTick, shouldStop);
+      if (g && g.aborted) return g;
+      if (typeof g === "bigint" && g > 1n && g < c && c % g === 0n) {
+        stack.push(g, c / g);
+        continue;
+      }
+      unsettled.push(c);
+    }
+    primes.sort(function (a, b) {
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    const divs = divisorsFromPrimes(primes);
+    return {
+      ok: unsettled.length === 0,
+      n: n.toString(),
+      factors: divs.map(function (d) {
+        return d.toString();
+      }),
+      primes: primes.map(function (p) {
+        return p.toString();
+      }),
+      unsettled: unsettled.map(function (u) {
+        return u.toString();
+      }),
+      ms: typeof performance !== "undefined" ? performance.now() - t0 : 0,
+    };
+  }
+
   function randomDigitLength() {
     let d = 1;
     while (randomBelow(1000n) < 995n) d += 1;
@@ -3463,6 +3600,7 @@
     numberPortrait: numberPortrait,
     parseK: parseK,
     quickComposite: quickComposite,
+    factorAll: factorAll,
     randomPrime: randomPrime,
     ecmFactor: ecmFactor,
     umod64: umod64,
@@ -3497,7 +3635,8 @@
         msg.cmd !== "check" &&
         msg.cmd !== "nextPrime" &&
         msg.cmd !== "prevPrime" &&
-        msg.cmd !== "randomPrime"
+        msg.cmd !== "randomPrime" &&
+        msg.cmd !== "factors"
       ) {
         return;
       }
@@ -3529,6 +3668,7 @@
         let res;
         if (msg.cmd === "nextPrime") res = nextPrime(n, msg.k, onTick, shouldStop);
         else if (msg.cmd === "prevPrime") res = prevPrime(n, msg.k, onTick, shouldStop);
+        else if (msg.cmd === "factors") res = factorAll(n, onTick, shouldStop);
         else if (msg.cmd === "randomPrime") {
           res = randomPrime({ any: msg.any, digits: msg.digits }, onTick, shouldStop);
         } else res = checkPrime(n, onTick, shouldStop);
@@ -3706,6 +3846,23 @@
     assert(face.mod30 === "7" && face.wheelCoprime === true, "97 mod 30");
     assert(parseK("0") === null && parseK("65") === 65n, "k has no upper bound");
     assert(quickComposite(2047n) === true, "2047 fails the Fermat screen");
+    const fac12 = factorAll(12n);
+    assert(
+      fac12.ok && fac12.factors.join(",") === "1,2,3,4,6,12" && fac12.primes.join(",") === "2,2,3",
+      "factors(12)"
+    );
+    const fac91 = factorAll(91n);
+    assert(
+      fac91.ok && fac91.factors.join(",") === "1,7,13,91" && fac91.primes.join(",") === "7,13",
+      "factors(91)"
+    );
+    const facP = factorAll(10007n);
+    assert(facP.ok && facP.factors.join(",") === "1,10007", "factors of a prime");
+    const fac2047 = factorAll(2047n);
+    assert(
+      fac2047.ok && fac2047.primes.join(",") === "23,89" && fac2047.factors.join(",") === "1,23,89,2047",
+      "factors(2047)"
+    );
     const rp = randomPrime({ any: false, digits: 2 });
     assert(rp.prime === true && rp.n.length === 2, "random 2-digit prime");
     assert(checkPrime(BigInt(rp.n)).prime === true, "random prime rechecks");

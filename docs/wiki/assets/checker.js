@@ -682,6 +682,14 @@
         </div>
         <div class="lab-out" id="lab-nb-out" aria-live="polite"></div>
       </section>
+      <section class="prime-lab lab-factors" aria-label="All factors">
+        <h3 class="lab-subhead">All factors</h3>
+        <p class="lab-hint">Every positive divisor of n, from a complete prime factorization. The search is deterministic: trial, Fermat, Lehman, fixed-c Brent, then fixed-σ ECM. Stop anytime. A cofactor that does not split is reported separately, and the divisor list is only for the factored part.</p>
+        <div class="row">
+          <button type="button" id="lab-factors">List factors</button>
+        </div>
+        <div class="lab-out" id="lab-fac-out" aria-live="polite"></div>
+      </section>
       <section class="prime-lab lab-compare" aria-label="Compare two numbers">
         <h3 class="lab-subhead">Compare with another number</h3>
         <p class="lab-hint">Type a second number. The card compares length, last digit, and which one sits closer to a square. No proof is run for the second number.</p>
@@ -701,6 +709,8 @@
     const kInput = $("#lab-k", root);
     const out = $("#lab-out", root);
     const nbOut = $("#lab-nb-out", root);
+    const facBtn = $("#lab-factors", root);
+    const facOut = $("#lab-fac-out", root);
     const wheelHost = $("#lab-wheel", root);
     const compareHost = $("#lab-compare", root);
     const compareInput = $("#lab-m", root);
@@ -1482,6 +1492,34 @@
       );
     }
 
+    function renderFactors(res) {
+      if (!facOut) return;
+      const complete = res.ok && (!res.unsettled || res.unsettled.length === 0);
+      const factors = res.factors || [];
+      const primes = res.primes || [];
+      const shown = factors.length > 400 ? factors.slice(0, 400) : factors;
+      const more = factors.length - shown.length;
+      facOut.className = "lab-out show " + (complete ? "yes" : "busy");
+      facOut.innerHTML =
+        '<p class="verdict">' +
+        (complete ? "Complete" : "Incomplete") +
+        "</p><dl><dt>n</dt><dd>" +
+        escapeHtml(res.n || "") +
+        "</dd><dt>prime factors</dt><dd>" +
+        escapeHtml(primes.length ? primes.join(" × ") : "—") +
+        "</dd><dt>all factors</dt><dd>" +
+        escapeHtml(shown.join(", ") + (more > 0 ? " … +" + more + " more" : "")) +
+        "</dd><dt>count</dt><dd>" +
+        String(factors.length) +
+        "</dd><dt>time</dt><dd>" +
+        Number(res.ms || 0).toFixed(2) +
+        " ms</dd>" +
+        (res.unsettled && res.unsettled.length
+          ? "<dt>unsplit</dt><dd>" + escapeHtml(res.unsettled.join(", ")) + "</dd>"
+          : "") +
+        "</dl>";
+    }
+
     function replayMarkup(state) {
       const steps = [{ title: "The number", detail: state.n.length + " digits, " + numberPortrait(BigInt(state.n)).bits + " bits" }];
       const seen = {};
@@ -1502,12 +1540,15 @@
 
     function run(kind) {
       kind = kind || "check";
-      if (kind !== "check" && kind !== "randomPrime") lastNeighborDir = kind;
+      if (kind !== "check" && kind !== "randomPrime" && kind !== "factors") lastNeighborDir = kind;
       const n = kind === "randomPrime" ? 0n : parseN(input.value);
-      if (n === null) {
+      if (n === null || (kind === "factors" && n < 1n)) {
         hideStage();
         if (kind === "check") {
           renderSimple("no", "Invalid n", "<p>Enter a non-negative decimal integer.</p>");
+        } else if (kind === "factors" && facOut) {
+          facOut.className = "lab-out show no";
+          facOut.innerHTML = '<p class="verdict">Invalid n</p><p>Enter a positive integer above.</p>';
         } else if (nbOut) {
           nbOut.className = "lab-out show no";
           nbOut.innerHTML = '<p class="verdict">Invalid n</p><p>Enter a non-negative decimal integer above.</p>';
@@ -1515,7 +1556,7 @@
         return;
       }
       let k = 1;
-      if (kind !== "check") {
+      if (kind !== "check" && kind !== "factors") {
         k = parseK();
         if (k == null) {
           if (nbOut) {
@@ -1606,6 +1647,18 @@
                 stage: stageTxt,
                 i: fmt(i) + " / " + fmt(lim),
               });
+            } else if (kind === "factors" && facOut) {
+              facOut.className = "lab-out show busy";
+              facOut.innerHTML =
+                '<p class="verdict">Factoring…</p><dl><dt>n</dt><dd>' +
+                escapeHtml(n.toString()) +
+                "</dd><dt>stage</dt><dd>" +
+                escapeHtml(stageTxt) +
+                "</dd><dt>step</dt><dd>" +
+                fmt(i) +
+                " / " +
+                fmt(lim) +
+                "</dd></dl>";
             } else if (nbOut) {
               nbOut.className = "lab-out show busy";
               nbOut.innerHTML =
@@ -1628,6 +1681,9 @@
           finishIdle();
           if (kind === "check") {
             renderSimple("busy", "Stopped", "<p>Trial cancelled.</p>");
+          } else if (kind === "factors" && facOut) {
+            facOut.className = "lab-out show busy";
+            facOut.innerHTML = '<p class="verdict">Stopped</p><p>Factoring cancelled.</p>';
           } else if (nbOut) {
             nbOut.className = "lab-out show busy";
             nbOut.innerHTML = '<p class="verdict">Stopped</p><p>Search cancelled.</p>';
@@ -1648,7 +1704,9 @@
             updateDigits();
           }
           const shown = kind === "randomPrime" && res.n ? String(res.n) : n.toString();
-          if (kind !== "check" && kind !== "randomPrime") {
+          if (kind === "factors") {
+            renderFactors(res);
+          } else if (kind !== "check" && kind !== "randomPrime") {
             renderNeighbor(res);
           } else if (res.prime === null) {
             const title =
@@ -1714,6 +1772,11 @@
         run("prevPrime");
       });
     }
+    if (facBtn) {
+      facBtn.addEventListener("click", function () {
+        run("factors");
+      });
+    }
     input.addEventListener("input", updateDigitsAndMaybeRun);
     if (compareInput) compareInput.addEventListener("input", paintCompare);
     const randBtn = $("#lab-random", root);
@@ -1748,6 +1811,10 @@
         if (nbOut && nbOut.classList.contains("show")) {
           nbOut.className = "lab-out show busy";
           nbOut.innerHTML = '<p class="verdict">Stopped</p><p>Search cancelled.</p>';
+        }
+        if (facOut && facOut.classList.contains("show")) {
+          facOut.className = "lab-out show busy";
+          facOut.innerHTML = '<p class="verdict">Stopped</p><p>Factoring cancelled.</p>';
         }
         finishIdle();
       }

@@ -22,7 +22,9 @@ Type a natural number. This page either finishes a proof or shows a factor.
 
 Stochastic Miller–Rabin and external prime libraries are not the engine. AKS is not in the library.
 
-On this machine a hard 64-bit check is about 2 ms end to end. With no argument, `is-prime` checks the 150-digit prime $10^{149}+183$. A 1000-digit prime, such as $10^{999}+7$, is a cyclotomic proof: about three minutes in this tab on 12 cores, and about 43 seconds in the Python library. The same proof covers every integer through 5000 digits. $10^{1099}+73$ took about 158 seconds in the library.
+On this machine a hard 64-bit check is about 2 ms end to end. With no argument, `is-prime` checks the 150-digit prime $10^{149}+183$. **All factors** lists every positive divisor of the number in the box. The same deterministic factorization builds that list in `factors` in the Python library.
+
+A 1000-digit prime, such as $10^{999}+7$, is a cyclotomic proof: about three minutes in this tab on 12 cores, and about 43 seconds in the Python library. The same proof covers every integer through 5000 digits. $10^{1099}+73$ took about 158 seconds in the library.
 
 ## Try it from the shell
 

@@ -215,14 +215,22 @@ def divisor_sum(n: int | str, k: int = 1, *, parallel: bool = True) -> int:
     return s
 
 
-def divisors(n: int | str, *, parallel: bool = True) -> list[int]:
-    """Positive divisors of ``n``, ascending. ``divisors(1) == [1]``."""
+def factors(
+    n: int | str, *, parallel: bool = True, max_ms: int | None = None
+) -> list[int]:
+    """Every positive divisor of ``n``, ascending.
+
+    ``factors(1) == [1]``. ``factors(12) == [1, 2, 3, 4, 6, 12]``.
+    ``factors(0)`` is undefined. The list is built from a complete prime
+    factorization, so a hard composite raises ``UnsettledFactorError``
+    when ``max_ms`` expires before the split finishes.
+    """
     n_int = _parse_n(n)
     if n_int == 0:
-        raise ValueError("divisors(0) is undefined")
+        raise ValueError("factors(0) is undefined")
     if n_int == 1:
         return [1]
-    fac = factorint(n_int, parallel=parallel)
+    fac = factorint(n_int, parallel=parallel, max_ms=max_ms)
     divs = [1]
     for p, e in fac.items():
         mul = 1
@@ -233,6 +241,11 @@ def divisors(n: int | str, *, parallel: bool = True) -> list[int]:
         divs.extend(extra)
     divs.sort()
     return divs
+
+
+def divisors(n: int | str, *, parallel: bool = True) -> list[int]:
+    """Positive divisors of ``n``, ascending. Same list as ``factors``."""
+    return factors(n, parallel=parallel)
 
 
 def omega(n: int | str, *, parallel: bool = True) -> int:

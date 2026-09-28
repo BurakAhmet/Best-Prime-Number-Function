@@ -138,6 +138,7 @@ is_prime(2305843009213693951)   # M61 = 2^61 − 1
 | Also in the library | |
 |---|---|
 | `next_prime` / `prev_prime` / `nth_prime` / `primes` / `primerange` | Neighbours and lists. `prime_count(n)` stops at `PRIME_COUNT_MAX_N = 2⁶⁴−1`. |
+| `factors` | Every positive divisor, ascending. Built from the prime factorization. |
 | `prime_factors` / `factorint` | Trial, Fermat, cubic search, Brent, ECM, SIQS. |
 | `primality_certificate` / `verify_certificate` | A checkable record of the same proof. |
 | `totient`, `primorial`, `divisors`, `gcd`, `jacobi`, … | Exact arithmetic. Full list: [`docs/wiki/Library.md`](docs/wiki/Library.md). |
