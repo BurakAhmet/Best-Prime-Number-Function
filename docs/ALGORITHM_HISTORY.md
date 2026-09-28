@@ -920,6 +920,22 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+## Era — unreleased: cubic n−1 proof was discarded in the browser
+
+**Problem.** Next prime after $2588668629162033095543$ took minutes in the tab. Python finishes the same query in about 65 ms. The successor is only 72 bits. Its cofactor $Q=(p-1)/2$ is a 71-bit prime whose smooth part $F$ already satisfies $Q<2F^{3}$ and the BLS extra conditions. The browser multiplied prime powers only until the product passed $\sqrt[3]{Q}$, then ran `blsCubicOk` on that shorter product. The check failed, the finished $F$ was ignored, and the tab trial-divided $Q$ up to $\sqrt{Q}\approx 2^{35}$.
+
+**Change.** If every prime in $F$ was a Pocklington witness, the cubic test uses $F$ itself.
+
+**Same machine.** In-tab next prime returns $2588668629162033095603$ on the n−1 path in about 0.1 s.
+
+| | |
+|--|--|
+| **Advantages** | A cube-root factorization is accepted when the theorem's extra conditions hold |
+| **Disadvantages** | A cofactor whose cube-root part does not satisfy the extra conditions can still reach the long trial |
+| **Failures / lessons** | Do not test the cube-root theorem on a proper prefix of $F$ |
+
+---
+
 ## Failures & anti-patterns (do not repeat)
 
 Recorded so agents and humans do not “rediscover” them:

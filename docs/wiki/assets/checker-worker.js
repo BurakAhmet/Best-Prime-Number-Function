@@ -1285,7 +1285,12 @@
     }
     const pk = pocklington(n, used, onTick);
     if (pk.ok === true && prod <= sqrtN) {
-      if (!blsCubicOk(n, prod)) return { prime: null, factor: pk.factor || null };
+      // The witness product may stop at ∛n while F itself still satisfies
+      // n < 2 F³. Checking only that prefix rejects a finished proof and
+      // the caller then trial-divides the cofactor up to its square root.
+      const cubicOk =
+        (used.length === primes.length && blsCubicOk(n, F)) || blsCubicOk(n, prod);
+      if (!cubicOk) return { prime: null, factor: pk.factor || null };
     }
     return { prime: pk.ok, factor: pk.factor || null };
   }

@@ -349,6 +349,33 @@ console.log('100-digit OK', rf.factor, rp.path, rp.ms);
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_next_prime_after_22_digit_is_the_n_minus_1_proof() -> None:
+    """2588668629162033095543 used to trial a 71-bit cofactor for minutes."""
+    script = r"""
+const api = require('./docs/wiki/assets/checker-worker.js');
+const n = 2588668629162033095543n;
+const t0 = Date.now();
+api.nextPrime(n, 1).then((r) => {
+  const dt = Date.now() - t0;
+  if (!r.ok || r.value !== '2588668629162033095603' || r.path !== 'n-1-pocklington' || dt >= 2000) {
+    console.error(dt, JSON.stringify(r));
+    process.exit(1);
+  }
+  console.log('next22', dt, r.path, r.delta);
+}).catch((e) => { console.error(e); process.exit(1); });
+"""
+    r = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 def test_checker_worker_next_prev_prime() -> None:
     script = (
         "const api=require('./docs/wiki/assets/checker-worker.js');"
