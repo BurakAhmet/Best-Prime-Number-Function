@@ -920,6 +920,22 @@ Default-suite e2e stays inside the 25% gate. Answers match the pure-Python peel 
 
 ---
 
+## Era — unreleased: one multiplication for a wide cyclotomic product
+
+**Problem.** A 1000-digit proof spends almost all of its time squaring elements of $\mathbb{Z}[\zeta_r]/(n)$. The C helper multiplied coefficient-by-coefficient and reduced every coefficient modulo $n$ on every elimination step.
+
+**Change.** For degree at least 8 and $n$ at least 2000 bits, the coefficient vector is packed and multiplied as one integer, then split. Reduction subtracts the lead (cyclotomic coefficients are 0 or 1) and reduces each surviving coefficient once. The browser uses that same single reduction.
+
+**Same machine, 12 threads.** `is_prime(10^{999}+7)` path `bigint_aprcl`: **42.6 s**, against about 48 s with the old coefficient loop on this machine and about 50 s in the previous write-up. A 100-digit prime is about 0.5 s.
+
+| | |
+|--|--|
+| **Advantages** | Wide Jacobi tests do one GMP multiplication per ring product |
+| **Disadvantages** | Below 2000 bits the packed product is slower, so that band stays on the coefficient loop |
+| **Failures / lessons** | Do not pack when the coefficients are still a few hundred bits; the shift-and-add costs more than it saves |
+
+---
+
 ## Era — unreleased: cubic n−1 proof was discarded in the browser
 
 **Problem.** Next prime after $2588668629162033095543$ took minutes in the tab. Python finishes the same query in about 65 ms. The successor is only 72 bits. Its cofactor $Q=(p-1)/2$ is a 71-bit prime whose smooth part $F$ already satisfies $Q<2F^{3}$ and the BLS extra conditions. The browser multiplied prime powers only until the product passed $\sqrt[3]{Q}$, then ran `blsCubicOk` on that shorter product. The check failed, the finished $F$ was ignored, and the tab trial-divided $Q$ up to $\sqrt{Q}\approx 2^{35}$.

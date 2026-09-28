@@ -157,13 +157,15 @@
     const deg = phi.length - 1;
     const r = raw.slice();
     while (r.length > deg) {
-      const lead = r[r.length - 1];
+      let lead = r[r.length - 1];
       const shift = r.length - 1 - deg;
       r.pop();
       if (lead === 0n) continue;
+      // Phi coefficients are 0 or 1. Reduce the lead once, then subtract.
+      lead = modn(lead, n);
+      if (lead === 0n) continue;
       for (let i = 0; i < deg; i++) {
-        const pi = phi[i];
-        if (pi !== 0n) r[shift + i] = modn(r[shift + i] - lead * pi, n);
+        if (phi[i] !== 0n) r[shift + i] -= lead;
       }
     }
     while (r.length < deg) r.push(0n);
@@ -208,7 +210,7 @@
     let P = A * B;
     const raw = new Array(deg * 2 - 1);
     for (let i = 0; i < raw.length; i++) {
-      raw[i] = modn(P & mask, n);
+      raw[i] = P & mask;
       P >>= gap;
     }
     return modPhi(raw, phi, n);

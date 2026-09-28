@@ -21,6 +21,11 @@ extern void __gmpz_mul(mpz_t, const mpz_t, const mpz_t);
 extern void __gmpz_mod(mpz_t, const mpz_t, const mpz_t);
 extern void __gmpz_addmul(mpz_t, const mpz_t, const mpz_t);
 extern void __gmpz_submul(mpz_t, const mpz_t, const mpz_t);
+extern void __gmpz_sub(mpz_t, const mpz_t, const mpz_t);
+extern void __gmpz_add(mpz_t, const mpz_t, const mpz_t);
+extern void __gmpz_mul_2exp(mpz_t, const mpz_t, mp_bitcnt_t);
+extern void __gmpz_fdiv_r_2exp(mpz_t, const mpz_t, mp_bitcnt_t);
+extern void __gmpz_tdiv_q_2exp(mpz_t, const mpz_t, mp_bitcnt_t);
 extern void __gmpz_import(mpz_t, size_t, int, size_t, int, size_t, const void *);
 extern int __gmpz_cmp(const mpz_t, const mpz_t);
 extern void __gmpz_mul_ui(mpz_t, const mpz_t, unsigned long);
@@ -41,6 +46,11 @@ extern int __gmpz_cmp_ui(const mpz_t, unsigned long);
 #define mpz_mod __gmpz_mod
 #define mpz_addmul __gmpz_addmul
 #define mpz_submul __gmpz_submul
+#define mpz_sub __gmpz_sub
+#define mpz_add __gmpz_add
+#define mpz_mul_2exp __gmpz_mul_2exp
+#define mpz_fdiv_r_2exp __gmpz_fdiv_r_2exp
+#define mpz_tdiv_q_2exp __gmpz_tdiv_q_2exp
 #define mpz_import __gmpz_import
 #define mpz_cmp __gmpz_cmp
 #define mpz_mul_ui __gmpz_mul_ui
@@ -90,18 +100,23 @@ static int make_phi(unsigned r, mpz_t *phi, int *deg_out) {
     return 0;
 }
 
-/* Reduce poly[0..len) modulo monic phi of degree deg. Result length deg. */
+/* Reduce poly[0..len) modulo monic phi of degree deg. phi coefficients are 0 or 1.
+   Subtract the lead first and reduce each coefficient modulo n only once. */
 static void reduce(mpz_t *poly, int len, mpz_t *phi, int deg, const mpz_t n, mpz_t scratch) {
     for (int i = len - 1; i >= deg; i--) {
         if (mpz_zero(poly[i])) {
             continue;
         }
-        mpz_set(scratch, poly[i]);
+        mpz_mod(scratch, poly[i], n);
         mpz_set_ui(poly[i], 0);
+        if (mpz_zero(scratch)) {
+            continue;
+        }
         int shift = i - deg;
         for (int j = 0; j < deg; j++) {
-            mpz_submul(poly[shift + j], scratch, phi[j]);
-            mpz_mod(poly[shift + j], poly[shift + j], n);
+            if (!mpz_zero(phi[j])) {
+                mpz_sub(poly[shift + j], poly[shift + j], scratch);
+            }
         }
     }
     for (int i = 0; i < deg; i++) {
@@ -109,8 +124,7 @@ static void reduce(mpz_t *poly, int len, mpz_t *phi, int deg, const mpz_t n, mpz
     }
 }
 
-static void pmul(mpz_t *dst, mpz_t *a, mpz_t *b, int deg, mpz_t *phi, const mpz_t n,
-                 mpz_t *raw, mpz_t scratch) {
+static void pmul_school(mpz_t *raw, mpz_t *a, mpz_t *b, int deg) {
     int nraw = 2 * deg - 1;
     for (int i = 0; i < nraw; i++) {
         mpz_set_ui(raw[i], 0);
@@ -125,10 +139,46 @@ static void pmul(mpz_t *dst, mpz_t *a, mpz_t *b, int deg, mpz_t *phi, const mpz_
             }
         }
     }
-    for (int i = 0; i < nraw; i++) {
-        mpz_mod(raw[i], raw[i], n);
+}
+
+/* One integer product, split back into coefficients. Thread-local so parallel
+   Jacobi tests do not share the packing buffers. */
+static void pmul_kron(mpz_t *raw, mpz_t *a, mpz_t *b, int deg, const mpz_t n) {
+    static _Thread_local mpz_t pack_a, pack_b, prod, shifted;
+    static _Thread_local int ready = 0;
+    if (!ready) {
+        mpz_init(pack_a);
+        mpz_init(pack_b);
+        mpz_init(prod);
+        mpz_init(shifted);
+        ready = 1;
     }
-    reduce(raw, nraw, phi, deg, n, scratch);
+    unsigned gap = (unsigned)mpz_sizeinbase(n, 2) * 2u + 16u;
+    mpz_set_ui(pack_a, 0);
+    mpz_set_ui(pack_b, 0);
+    for (int i = 0; i < deg; i++) {
+        mpz_mul_2exp(shifted, a[i], (mp_bitcnt_t)i * gap);
+        mpz_add(pack_a, pack_a, shifted);
+        mpz_mul_2exp(shifted, b[i], (mp_bitcnt_t)i * gap);
+        mpz_add(pack_b, pack_b, shifted);
+    }
+    mpz_mul(prod, pack_a, pack_b);
+    int nraw = 2 * deg - 1;
+    for (int i = 0; i < nraw; i++) {
+        mpz_fdiv_r_2exp(raw[i], prod, gap);
+        mpz_tdiv_q_2exp(prod, prod, gap);
+    }
+}
+
+static void pmul(mpz_t *dst, mpz_t *a, mpz_t *b, int deg, mpz_t *phi, const mpz_t n,
+                 mpz_t *raw, mpz_t scratch) {
+    /* Kronecker wins once coefficients are wide and the degree is at least 8. */
+    if (deg >= 8 && mpz_sizeinbase(n, 2) >= 2000) {
+        pmul_kron(raw, a, b, deg, n);
+    } else {
+        pmul_school(raw, a, b, deg);
+    }
+    reduce(raw, 2 * deg - 1, phi, deg, n, scratch);
     for (int i = 0; i < deg; i++) {
         mpz_set(dst[i], raw[i]);
     }

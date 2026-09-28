@@ -17,12 +17,12 @@ Type a natural number. This page either finishes a proof or shows a factor.
 |------|--------|
 | Small, and most 64-bit values | Trial division up to the square root |
 | Harder 64-bit, and up to 256 bits | Combined BLS on $n-1$ and $n+1$, then a cubic search if those will not factor |
-| 256 bits and wider, in the library | Cyclotomic proof while the modulus ladder covers $\sqrt{n}$, through 5000 digits. $10^{999}+7$ is about 50 seconds on 12 cores. $10^{1099}+73$ is about 158 seconds |
+| 256 bits and wider, in the library | Cyclotomic proof while the modulus ladder covers $\sqrt{n}$, through 5000 digits. $10^{999}+7$ is about 43 seconds on 12 cores. $10^{1099}+73$ is about 158 seconds |
 | 256 bits and wider, in this tab | Same cyclotomic proof, including next and previous prime. 10^999+7 is about three minutes on 12 cores |
 
 Stochastic Miller–Rabin and external prime libraries are not the engine. AKS is not in the library.
 
-On this machine a hard 64-bit check is about 2 ms end to end. With no argument, `is-prime` checks the 150-digit prime $10^{149}+183$. A 1000-digit prime, such as $10^{999}+7$, is a cyclotomic proof: about three minutes in this tab on 12 cores, and about 50 seconds in the Python library. The same proof covers every integer through 5000 digits. $10^{1099}+73$ took about 158 seconds in the library.
+On this machine a hard 64-bit check is about 2 ms end to end. With no argument, `is-prime` checks the 150-digit prime $10^{149}+183$. A 1000-digit prime, such as $10^{999}+7$, is a cyclotomic proof: about three minutes in this tab on 12 cores, and about 43 seconds in the Python library. The same proof covers every integer through 5000 digits. $10^{1099}+73$ took about 158 seconds in the library.
 
 ## Try it from the shell
 

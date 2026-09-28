@@ -661,7 +661,7 @@
         </div>
         <p class="lab-hint">Proves the number in this tab, or prints a factor.
           Below 256 bits it uses both sides of n±1.
-          From 256 bits this tab runs the same cyclotomic proof as the library, including next and previous prime, while the modulus covers the square root. That covers every integer through 5000 digits. A 1000-digit prime takes about three minutes here on 12 cores. The Python library does that proof in about 50 seconds, and proved 10^1099+73 in about 158 seconds.
+          From 256 bits this tab runs the same cyclotomic proof as the library, including next and previous prime, while the modulus covers the square root. That covers every integer through 5000 digits. A 1000-digit prime takes about three minutes here on 12 cores. The Python library does that proof in about 43 seconds, and proved 10^1099+73 in about 158 seconds.
           There is no digit limit. Stop anytime.
           A miss is <strong>inconclusive</strong> here; the Python library may still prove it.</p>
         ${stageMarkup()}
