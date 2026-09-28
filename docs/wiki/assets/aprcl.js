@@ -3,17 +3,22 @@
  * Cohen–Lenstra one-exponentiation form). No randomness.
  */
 (function (g) {
-  const R_SMALL = 720720;
-  const R_LARGE = 12252240;
+  // Same ladder as best_prime/primality_aprcl.py. The last entry clears
+  // sqrt(n) for every 5000-digit integer. Primes above Q_CAP are omitted.
+  const R_LADDER = [720720, 12252240, 73513440, 367567200, 1396755360, 4655851200];
+  const R_SMALL = R_LADDER[0];
+  const R_LARGE = R_LADDER[R_LADDER.length - 1];
+  const Q_CAP = 250000000;
 
   function factor(n) {
     const fac = [];
+    n = Math.trunc(n);
     let d = 2;
     while (d * d <= n) {
       if (n % d === 0) {
         let c = 0;
         while (n % d === 0) {
-          n = (n / d) | 0;
+          n = Math.trunc(n / d);
           c++;
         }
         fac.push([d, c]);
@@ -84,7 +89,7 @@
 
   function jacobi(q, r, twice) {
     const g0 = primRoot(q);
-    const ind = new Uint32Array(q);
+    const ind = new Uint8Array(q);
     let x = 1;
     const step = ((q - 1) / r) | 0;
     for (let i = 0; i < q - 1; i++) {
@@ -102,24 +107,34 @@
   }
 
   const tables = new Map();
+  const moduli = new Map();
+
+  function modulus(R) {
+    const hit = moduli.get(R);
+    if (hit) return hit;
+    const qs = divisors(R)
+      .map((d) => d + 1)
+      .filter((q) => q <= Q_CAP && isPrimeSmall(q))
+      .sort((a, b) => a - b);
+    let s = 1n;
+    for (const q of qs) s *= BigInt(q);
+    const built = { s, qs };
+    moduli.set(R, built);
+    return built;
+  }
 
   function table(R) {
     const hit = tables.get(R);
     if (hit) return hit;
-    const qs = divisors(R)
-      .map((d) => d + 1)
-      .filter(isPrimeSmall)
-      .sort((a, b) => a - b);
-    let s = 1n;
+    const mod = modulus(R);
     const tests = [];
-    for (const q of qs) {
-      s *= BigInt(q);
+    for (const q of mod.qs) {
       for (const [p, e] of factor(q - 1)) {
         const r = p ** e;
         tests.push({ q, r, prime: p, j: jacobi(q, r, false), j2: null });
       }
     }
-    const built = { s, tests };
+    const built = { s: mod.s, tests };
     tables.set(R, built);
     return built;
   }
@@ -372,9 +387,10 @@
 
   function chooseR(n) {
     const root = isqrt(n);
-    const small = table(R_SMALL);
-    if (small.s > root) return R_SMALL;
-    return R_LARGE;
+    for (let i = 0; i < R_LADDER.length; i++) {
+      if (modulus(R_LADDER[i]).s > root) return R_LADDER[i];
+    }
+    return null;
   }
 
   function isqrt(n) {
@@ -403,6 +419,7 @@
     const root = isqrt(n);
     if (root * root === n) return { prime: false, factor: root };
     const R = chooseR(n);
+    if (R == null) return { prime: null, note: "cyclotomic modulus does not cover n" };
     if (onTick) onTick({ phase: "cyclotomic", i: 0n, limit: 1n, extra: { label: "Jacobi sums" } });
     const tab = table(R);
     if (tab.s <= root) return { prime: null, note: "cyclotomic modulus does not cover n" };
@@ -535,6 +552,9 @@
     const root = isqrt(n);
     if (root * root === n) return Promise.resolve({ prime: false, factor: root });
     const R = chooseR(n);
+    if (R == null) {
+      return Promise.resolve({ prime: null, note: "cyclotomic modulus does not cover n" });
+    }
     if (onTick) onTick({ phase: "cyclotomic", i: 0n, limit: 1n, extra: { label: "Jacobi sums" } });
     const tab = table(R);
     if (tab.s <= root) return Promise.resolve({ prime: null, note: "cyclotomic modulus does not cover n" });
@@ -593,6 +613,10 @@
   const api = {
     R_SMALL,
     R_LARGE,
+    R_LADDER,
+    Q_CAP,
+    modulus,
+    chooseR,
     table,
     proveSerial,
     proveParallel,
