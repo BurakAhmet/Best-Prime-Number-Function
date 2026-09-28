@@ -195,14 +195,15 @@ def _split(n: int, budget: _FactorBudget | None = None) -> int:
         g = ecm_factor(n, B1=2_500, B2=2_500, max_curves=8, max_ms=2_500)
         if g is not None and 1 < g < n:
             return g
-    if bits >= 90:
+    if bits >= 90 and pow(2, n - 1, n) != 1:
         if budget is not None:
             budget.check(n)
         from .factor_siqs import siqs_factor
 
-        # One large-prime SIQS does not finish a balanced 50-digit semiprime
-        # here; cap it so factoring returns instead of running for minutes.
-        g = siqs_factor(n, max_ms=2_000)
+        # Through ~40 digits the sieve finishes the cofactor the short ECM
+        # miss leaves behind. A Fermat survivor is proved as a prime instead,
+        # and a balanced 50-digit semiprime stays on the short cap.
+        g = siqs_factor(n, max_ms=90_000 if bits <= 140 else 2_000)
         if g is not None and 1 < g < n:
             return g
     # Do not walk up to √n. Callers turn None into UnsettledFactorError.

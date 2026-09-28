@@ -3414,6 +3414,406 @@
     return divs;
   }
 
+  function siqsBounds(bits) {
+    if (bits <= 80) return [1500, 16000, 32];
+    if (bits <= 100) return [3000, 24000, 40];
+    if (bits <= 120) return [6000, 32000, 64];
+    if (bits <= 140) return [8000, 24000, 80];
+    return null;
+  }
+
+  function siqsTonelli(nn, p) {
+    nn %= p;
+    if (nn === 0n) return 0n;
+    if (modPow(nn, (p - 1n) >> 1n, p) !== 1n) return null;
+    if ((p & 3n) === 3n) return modPow(nn, (p + 1n) >> 2n, p);
+    let q = p - 1n;
+    let s = 0;
+    while ((q & 1n) === 0n) {
+      q >>= 1n;
+      s++;
+    }
+    let z = 2n;
+    while (modPow(z, (p - 1n) >> 1n, p) !== p - 1n) {
+      z += 1n;
+      if (z >= p) return null;
+    }
+    let m = s;
+    let c = modPow(z, q, p);
+    let r = modPow(nn, (q + 1n) >> 1n, p);
+    let t = modPow(nn, q, p);
+    while (t !== 1n) {
+      let i = 1;
+      let tt = (t * t) % p;
+      while (tt !== 1n) {
+        tt = (tt * tt) % p;
+        i++;
+        if (i === m) return null;
+      }
+      const b = modPow(c, 1n << BigInt(m - i - 1), p);
+      r = (r * b) % p;
+      c = (b * b) % p;
+      t = (t * c) % p;
+      m = i;
+    }
+    return r;
+  }
+
+  function siqsPrime(n) {
+    if (n < 2n) return false;
+    if (n < 4n) return true;
+    if ((n & 1n) === 0n) return false;
+    let d = n - 1n;
+    let s = 0;
+    while ((d & 1n) === 0n) {
+      d >>= 1n;
+      s++;
+    }
+    const bases = [2n, 3n, 5n, 7n, 11n, 13n, 23n];
+    for (let i = 0; i < bases.length; i++) {
+      const a = bases[i];
+      if (a >= n) continue;
+      let x = modPow(a, d, n);
+      if (x === 1n || x === n - 1n) continue;
+      let witness = true;
+      for (let r = 1; r < s; r++) {
+        x = (x * x) % n;
+        if (x === n - 1n) {
+          witness = false;
+          break;
+        }
+      }
+      if (witness) return false;
+    }
+    return true;
+  }
+
+  function siqsBrent(n, c) {
+    let y = 2n % n;
+    let g = 1n;
+    let q = 1n;
+    let r = 1;
+    let x = y;
+    while (g === 1n && r <= 4096) {
+      x = y;
+      for (let i = 0; i < r; i++) y = (y * y + c) % n;
+      let k = 0;
+      while (k < r && g === 1n) {
+        const lim = Math.min(128, r - k);
+        for (let i = 0; i < lim; i++) {
+          y = (y * y + c) % n;
+          let diff = x - y;
+          if (diff < 0n) diff = -diff;
+          q = (q * diff) % n;
+        }
+        g = gcd(q, n);
+        k += 128;
+      }
+      r <<= 1;
+    }
+    if (g === 1n || g === n) return null;
+    return g;
+  }
+
+  function siqsLpCounts(val, lp) {
+    if (val === 1n) return new Map();
+    if (val >= lp * lp) return null;
+    const counts = new Map();
+    const stack = [val];
+    while (stack.length) {
+      const v = stack.pop();
+      if (v === 1n) continue;
+      if (siqsPrime(v)) {
+        if (v >= lp) return null;
+        counts.set(v, (counts.get(v) || 0) + 1);
+        continue;
+      }
+      let g = null;
+      const cs = [1n, 2n, 3n, 5n];
+      for (let i = 0; i < cs.length; i++) {
+        g = siqsBrent(v, cs[i]);
+        if (g) break;
+      }
+      if (!g) return null;
+      stack.push(g, v / g);
+    }
+    return counts;
+  }
+
+  /**
+   * Self-initializing quadratic sieve for a cofactor up to about 40 digits.
+   * Same fixed A schedule as the library. Returns one proper factor, or null.
+   */
+  function siqsSplit(n, shouldStop) {
+    const bits = bitLength(n);
+    const bounds = siqsBounds(bits);
+    if (!bounds) return null;
+    const fbBound = bounds[0];
+    const M = bounds[1];
+    const npoly = bounds[2];
+    const rawAll = primesUpto(fbBound);
+    const raw = [];
+    for (let i = 0; i < rawAll.length; i++) {
+      if (rawAll[i] > fbBound) break;
+      raw.push(rawAll[i]);
+    }
+    const fb = [];
+    for (let i = 0; i < raw.length; i++) {
+      const p = raw[i];
+      const bp = BigInt(p);
+      if (p === 2) {
+        fb.push([p, Number(n % 2n)]);
+        continue;
+      }
+      if (jacobi(n, bp) !== 1) continue;
+      const root = siqsTonelli(n, bp);
+      if (root == null) continue;
+      fb.push([p, Number(root)]);
+    }
+    if (fb.length < 6) return null;
+    const primes = fb.map(function (row) {
+      return row[0];
+    });
+    const logs = primes.map(function (p) {
+      return Math.log(p);
+    });
+    const lp = 1n << 20n;
+    const slack = 2 * Math.log(Number(lp)) + Math.log(2) * 12;
+    const targetA = isqrt(2n * n) / BigInt(M);
+    const oddPrimes = [];
+    for (let i = 0; i < primes.length; i++) if (primes[i] > 2) oddPrimes.push(primes[i]);
+    const width = 2 * M + 1;
+    const logv = new Float64Array(width);
+    const full = [];
+    const reducers = new Map();
+    const need = primes.length + 8;
+    let solvedAt = 0;
+
+    function halfExtra(counts) {
+      let extra = 1n;
+      counts.forEach(function (e, p) {
+        const half = e >> 1;
+        if (half) extra = (extra * modPow(p, BigInt(half), n)) % n;
+      });
+      return extra;
+    }
+
+    function solve() {
+      const nbits = 1 + primes.length;
+      const rows = [];
+      for (let i = 0; i < full.length; i++) {
+        let bitsRow = 0n;
+        const exps = full[i].exps;
+        for (let k = 0; k < exps.length; k++) {
+          if (exps[k] & 1) bitsRow |= 1n << BigInt(k);
+        }
+        rows.push(bitsRow);
+      }
+      const m = rows.length;
+      const aug = [];
+      for (let i = 0; i < m; i++) aug.push(rows[i] | (1n << BigInt(nbits + i)));
+      let row = 0;
+      for (let col = 0; col < nbits && row < m; col++) {
+        let pivot = -1;
+        for (let i = row; i < m; i++) {
+          if ((aug[i] >> BigInt(col)) & 1n) {
+            pivot = i;
+            break;
+          }
+        }
+        if (pivot < 0) continue;
+        const swap = aug[row];
+        aug[row] = aug[pivot];
+        aug[pivot] = swap;
+        for (let i = 0; i < m; i++) {
+          if (i !== row && ((aug[i] >> BigInt(col)) & 1n)) aug[i] ^= aug[row];
+        }
+        row++;
+      }
+      const mask = (1n << BigInt(nbits)) - 1n;
+      for (let i = 0; i < m; i++) {
+        if ((aug[i] & mask) !== 0n) continue;
+        const combo = aug[i] >> BigInt(nbits);
+        const idxs = [];
+        for (let j = 0; j < m; j++) if ((combo >> BigInt(j)) & 1n) idxs.push(j);
+        if (idxs.length < 2) continue;
+        const exp = new Array(nbits).fill(0);
+        let left = 1n;
+        let yr = 1n;
+        let bad = false;
+        for (let t = 0; t < idxs.length; t++) {
+          const rel = full[idxs[t]];
+          left = (left * rel.axb) % n;
+          if (rel.extra !== 1n) yr = (yr * rel.extra) % n;
+          if (rel.exps.length !== nbits) {
+            bad = true;
+            break;
+          }
+          for (let k = 0; k < nbits; k++) exp[k] += rel.exps[k];
+        }
+        if (bad) continue;
+        let odd = false;
+        for (let k = 0; k < nbits; k++) if (exp[k] & 1) odd = true;
+        if (odd) continue;
+        for (let k = 1; k < nbits; k++) {
+          const half = exp[k] >> 1;
+          if (half) yr = (yr * modPow(BigInt(primes[k - 1]), BigInt(half), n)) % n;
+        }
+        let g = gcd((left - yr + n) % n, n);
+        if (g > 1n && g < n) return g;
+        g = gcd((left + yr) % n, n);
+        if (g > 1n && g < n) return g;
+      }
+      return null;
+    }
+
+    function push(axb, exps, counts) {
+      let guard = 0;
+      while (guard++ < 10000) {
+        let hit = null;
+        counts.forEach(function (e, p) {
+          if (hit == null && (e & 1) && reducers.has(p)) hit = p;
+        });
+        if (hit == null) break;
+        const red = reducers.get(hit);
+        axb = (axb * red.axb) % n;
+        for (let i = 0; i < exps.length; i++) exps[i] += red.exps[i];
+        red.counts.forEach(function (e, p) {
+          counts.set(p, (counts.get(p) || 0) + e);
+        });
+      }
+      let key = null;
+      counts.forEach(function (e, p) {
+        if (e & 1 && (key == null || p > key)) key = p;
+      });
+      if (key == null) {
+        full.push({ axb: axb % n, exps: exps, extra: halfExtra(counts) });
+        if (full.length >= need && full.length - solvedAt >= 16) {
+          solvedAt = full.length;
+          return solve();
+        }
+        return null;
+      }
+      reducers.set(key, { axb: axb % n, exps: exps.slice(), counts: new Map(counts) });
+      return null;
+    }
+
+    function pickA(which) {
+      const startTarget = Math.sqrt(Number(targetA > 0n ? targetA : 2n));
+      let bestI = 0;
+      let best = Infinity;
+      for (let i = 0; i < oddPrimes.length; i++) {
+        const d = Math.abs(oddPrimes[i] - startTarget);
+        if (d < best) {
+          best = d;
+          bestI = i;
+        }
+      }
+      let i = (bestI + which) % oddPrimes.length;
+      const chosen = [];
+      let prod = 1n;
+      let guard = 0;
+      while (prod < targetA && guard < oddPrimes.length * 2) {
+        const p = oddPrimes[i];
+        if (chosen.indexOf(p) < 0) {
+          chosen.push(p);
+          prod *= BigInt(p);
+        }
+        i = (i + 1) % oddPrimes.length;
+        guard++;
+      }
+      return chosen;
+    }
+
+    for (let which = 0; which < npoly; which++) {
+      if (shouldStop && shouldStop()) return null;
+      const factors = pickA(which);
+      let A = 1n;
+      let B = 0n;
+      let okA = true;
+      for (let i = 0; i < factors.length; i++) {
+        const bp = BigInt(factors[i]);
+        const root = siqsTonelli(n, bp);
+        if (root == null) {
+          okA = false;
+          break;
+        }
+        if (A === 1n) {
+          B = root;
+          A = bp;
+        } else {
+          const inv = modPow(A, bp - 2n, bp);
+          B = B + A * (((root - B) * inv) % bp);
+          A *= bp;
+        }
+      }
+      if (!okA) continue;
+      B %= A;
+      if (B > A - B) B = A - B;
+      logv.fill(0);
+      const aExp = new Array(primes.length).fill(0);
+      let aval = A;
+      for (let i = 0; i < primes.length; i++) {
+        const bp = BigInt(primes[i]);
+        while (aval % bp === 0n) {
+          aval /= bp;
+          aExp[i]++;
+        }
+      }
+      for (let i = 0; i < fb.length; i++) {
+        const p = primes[i];
+        if (p === 2 || aExp[i]) continue;
+        const bp = BigInt(p);
+        const inv = Number(modPow(A % bp, bp - 2n, bp));
+        const bmod = Number(B % bp);
+        const root = fb[i][1];
+        const lg = logs[i];
+        const roots = [root, (p - root) % p];
+        for (let r = 0; r < 2; r++) {
+          let idx = (((roots[r] - bmod) % p) + p) % p;
+          idx = (idx * inv) % p;
+          idx = (idx + M) % p;
+          for (; idx < width; idx += p) logv[idx] += lg;
+        }
+      }
+      // |Q/A| is about M·√n. Skip positions the sieve already shows are
+      // far from smooth, before any big-integer square.
+      const minLog = Math.max(0, Math.log(Number(isqrt(n))) + Math.log(M) - slack + 6);
+      for (let i = 0; i < width; i++) {
+        if (logv[i] < minLog) continue;
+        const x = i - M;
+        const axb = A * BigInt(x) + B;
+        let qv = axb * axb - n;
+        if (qv === 0n) continue;
+        const sign = qv < 0n ? 1 : 0;
+        if (qv < 0n) qv = -qv;
+        if (A > 1n) {
+          if (qv % A !== 0n) continue;
+          qv /= A;
+        }
+        if (logv[i] + slack < Math.log(Number(qv))) continue;
+        const exps = [sign];
+        for (let k = 0; k < primes.length; k++) {
+          const bp = BigInt(primes[k]);
+          let e = 0;
+          while (qv % bp === 0n) {
+            qv /= bp;
+            e++;
+          }
+          exps.push(e + aExp[k]);
+        }
+        const counts = siqsLpCounts(qv, lp);
+        if (!counts) continue;
+        let ax = axb % n;
+        if (ax < 0n) ax += n;
+        const g = push(ax, exps, counts);
+        if (g) return g;
+      }
+    }
+    if (full.length >= Math.max(8, primes.length >> 1)) return solve();
+    return null;
+  }
+
   function splitComposite(n, onTick, shouldStop) {
     const close = fermatSplit(n, 4096);
     if (close) return close;
@@ -3442,6 +3842,13 @@
       const phases = bits > 60 ? [{ B1: 2500, curves: 10 }] : null;
       const g = ecmFactor(n, onTick, shouldStop, 6, cap, phases);
       if (g && g.aborted) return g;
+      if (typeof g === "bigint" && g > 1n && g < n) return g;
+    }
+    // The short elliptic-curve budget misses a 15-digit factor whose p−1
+    // has a large prime. The sieve finishes that cofactor through ~40 digits.
+    // A Fermat survivor is left for the primality proof; sieving it is wasted.
+    if (bits >= 70 && bits <= 140 && fermatSaysComposite(n)) {
+      const g = siqsSplit(n, shouldStop);
       if (typeof g === "bigint" && g > 1n && g < n) return g;
     }
     return null;
