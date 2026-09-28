@@ -447,8 +447,8 @@ def _mont_ladder_proj(
 
 def _ecm_stage1_point(
     x: int, a24: int, n: int, b1: int, primes: tuple[int, ...]
-) -> tuple[str, int] | tuple[str, int, int] | None:
-    """Projective stage 1. ``('factor', g)``, ``('pt', X, Z)``, or None."""
+) -> int | tuple[int, int] | None:
+    """Projective stage 1. A proper factor, the point ``(X, Z)``, or None."""
     xx, zz = x % n, 1
     for p in primes:
         if p > b1:
@@ -463,15 +463,15 @@ def _ecm_stage1_point(
             return None
         g = math.gcd(zz, n)
         if 1 < g < n:
-            return ("factor", g)
+            return g
         if g == n:
             return None
     g = math.gcd(zz, n)
     if 1 < g < n:
-        return ("factor", g)
+        return g
     if g == n or zz == 0:
         return None
-    return ("pt", xx, zz)
+    return xx, zz
 
 
 # (B1, B2) -> (D, q_min, ((q, (residues...)), ...))
@@ -637,12 +637,11 @@ def ecm_one_curve(n: int, sigma: int, b1: int, b2: int | None = None) -> int | N
     stage = _ecm_stage1_point(x0, a24, n, int(b1), _primes_upto(int(b1)))
     if stage is None:
         return None
-    if stage[0] == "factor":
-        g = stage[1]
-        return g if 1 < g < n else None
+    if isinstance(stage, int):
+        return stage if 1 < stage < n else None
     if b2 <= b1:
         return None
-    g = _ecm_stage2_bsgs(stage[1], stage[2], a24, n, int(b1), int(b2))
+    g = _ecm_stage2_bsgs(stage[0], stage[1], a24, n, int(b1), int(b2))
     if g is not None and 1 < g < n and n % g == 0:
         return g
     return None
