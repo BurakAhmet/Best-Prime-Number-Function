@@ -15,7 +15,7 @@
 #define PARALLEL_SEG_MIN 10000000ull
 #endif
 #ifndef TILE_BYTES
-#define TILE_BYTES 16384u
+#define TILE_BYTES 32768u
 #endif
 #ifndef TILE_P_MAX
 #define TILE_P_MAX 4096u
